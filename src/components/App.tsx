@@ -225,6 +225,18 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
     [plugin, loadCards]
   );
 
+  const handleDeleteLocal = useCallback(
+    async (card: KanbanCard) => {
+      const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
+      if (!file || !(file instanceof TFile)) return;
+      await plugin.app.vault.delete(file);
+      new Notice(`Jira Flow: ${card.jiraKey} deleted.`);
+      setDetailCard(null);
+      loadCards();
+    },
+    [plugin, loadCards]
+  );
+
   const toggleSwimlane = useCallback((id: SwimlaneType) => {
     setCollapsedSwimlanes((prev) => {
       const next = new Set(prev);
@@ -249,7 +261,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
 
   const viewModes: { id: ViewMode; label: string }[] = [
     { id: "sprint", label: "Sprint" },
-    { id: "all", label: "All Tasks" },
+    { id: "all", label: "Backlog" },
     { id: "local", label: "Local" },
   ];
 
@@ -328,9 +340,11 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
         <TaskDetailPanel
           card={detailCard}
           plugin={plugin}
+          viewMode={viewMode}
           onClose={() => setDetailCard(null)}
           onOpenFile={handleOpenFile}
           onArchive={handleArchive}
+          onDelete={handleDeleteLocal}
           onCardUpdated={loadCards}
         />
       )}

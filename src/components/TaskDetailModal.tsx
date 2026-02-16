@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { KANBAN_COLUMNS } from "../types";
+import { KANBAN_COLUMNS, SWIMLANES } from "../types";
 import type { KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
+import type { ViewMode } from "./App";
 
 // ===== Helpers =====
 
@@ -56,14 +57,16 @@ interface JiraLink {
 interface TaskDetailPanelProps {
   card: KanbanCard;
   plugin: JiraFlowPlugin;
+  viewMode: ViewMode;
   onClose: () => void;
   onOpenFile: (filePath: string) => void;
   onArchive: (card: KanbanCard) => void;
+  onDelete: (card: KanbanCard) => void;
   onCardUpdated: () => void;
 }
 
 export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
-  card, plugin, onClose, onOpenFile, onArchive, onCardUpdated,
+  card, plugin, viewMode, onClose, onOpenFile, onArchive, onDelete, onCardUpdated,
 }) => {
   const [storyPoints, setStoryPoints] = useState(card.storyPoints);
   const [dueDate, setDueDate] = useState(card.dueDate?.slice(0, 10) || "");
@@ -75,9 +78,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const [editingSummary, setEditingSummary] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [localDesc, setLocalDesc] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isLocal = card.source === "LOCAL";
   const isJira = card.source === "JIRA";
+  const showSaveToJira = (viewMode === "sprint" || viewMode === "all") && isJira;
   const jiraUrl = plugin.settings.jiraHost
     ? `${plugin.settings.jiraHost}/browse/${card.jiraKey}`
     : "";
@@ -193,6 +199,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setDescription(localDesc);
   }, [isLocal, localDesc, card, plugin]);
 
+  const handleCopyKey = useCallback(() => {
+    navigator.clipboard.writeText(`${card.summary} - ${card.jiraKey}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [card]);
+
   const pColor = priorityColors[card.priority] || "#6B778C";
   const tColor = typeColors[card.issuetype] || "#4C9AFF";
   const cColor = columnColors[card.mappedColumn] || "#6B778C";
@@ -231,6 +243,10 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                 {card.jiraKey}
               </span>
             )}
+            <button onClick={handleCopyKey} title="Copy summary - key" style={{
+              background: "none", border: "none", cursor: "pointer", padding: "2px 4px",
+              fontSize: "13px", color: copied ? "#36B37E" : "var(--text-muted)",
+            }}>{copied ? "✓" : "📋"}</button>
             {isLocal && <Badge text="LOCAL" bg="#DFE1E6" color="#6B778C" />}
           </div>
           <button onClick={onClose} style={closeBtnStyle}>✕</button>
@@ -397,10 +413,15 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                 ...actionBtnStyle, border: "1px solid #FF5630", color: "#FF5630",
               }}>Archive</button>
             )}
+            {isLocal && (
+              <button onClick={() => setShowDeleteConfirm(true)} style={{
+                ...actionBtnStyle, border: "1px solid #FF5630", color: "#FF5630",
+              }}>Delete</button>
+            )}
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             {saved && <span style={{ fontSize: "12px", color: "#36B37E" }}>Saved!</span>}
-            {isDirty && (
+            {showSaveToJira && isDirty && (
               <button onClick={handleSaveToJira} disabled={saving} style={{
                 ...actionBtnStyle, backgroundColor: "#36B37E", color: "#fff", border: "none",
                 opacity: saving ? 0.6 : 1,
@@ -411,6 +432,32 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             }}>Open File</button>
           </div>
         </div>
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteConfirm && (
+          <>
+            <div style={{ position: "fixed", inset: 0, zIndex: 10001, backgroundColor: "rgba(0,0,0,0.3)" }}
+              onClick={() => setShowDeleteConfirm(false)} />
+            <div style={{
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+              zIndex: 10002, width: "360px", maxWidth: "90vw",
+              backgroundColor: "var(--background-primary)", borderRadius: "12px",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.2)", padding: "24px",
+            }}>
+              <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>Confirm Delete</h3>
+              <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 20px 0" }}>
+                Are you sure you want to delete <strong>{card.jiraKey}</strong>?
+                This will permanently remove the task and its markdown file.
+              </p>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                <button onClick={() => setShowDeleteConfirm(false)} style={smallBtnStyle}>Cancel</button>
+                <button onClick={() => { setShowDeleteConfirm(false); onDelete(card); }} style={{
+                  ...actionBtnStyle, backgroundColor: "#FF5630", color: "#fff", border: "none",
+                }}>Delete</button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
@@ -492,6 +539,10 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onSav
   const [summary, setSummary] = useState("");
   const [issuetype, setIssuetype] = useState("Task");
   const [priority, setPriority] = useState("Medium");
+  const [mappedColumn, setMappedColumn] = useState("TO DO");
+  const [storyPoints, setStoryPoints] = useState(0);
+  const [dueDate, setDueDate] = useState("");
+  const [assignee, setAssignee] = useState("");
 
   const handleSave = useCallback(() => {
     if (!summary.trim()) return;
@@ -499,20 +550,20 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onSav
       summary: summary.trim(),
       issuetype,
       priority,
-      mappedColumn: "TO DO",
-      storyPoints: 0,
-      dueDate: "",
-      assignee: "",
+      mappedColumn,
+      storyPoints,
+      dueDate,
+      assignee,
     });
     onClose();
-  }, [summary, issuetype, priority, onSave, onClose]);
+  }, [summary, issuetype, priority, mappedColumn, storyPoints, dueDate, assignee, onSave, onClose]);
 
   return (
     <>
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.3)" }} onClick={onClose} />
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        zIndex: 10000, width: "400px", maxWidth: "90vw",
+        zIndex: 10000, width: "440px", maxWidth: "90vw",
         backgroundColor: "var(--background-primary)", borderRadius: "12px",
         boxShadow: "0 8px 32px rgba(0,0,0,0.2)", padding: "24px",
       }}>
@@ -523,7 +574,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onSav
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
             autoFocus placeholder="Task summary..." style={inputStyle} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
           <div>
             <label style={labelStyle}>Type</label>
             <select value={issuetype} onChange={(e) => setIssuetype(e.target.value)} style={inputStyle}>
@@ -535,6 +586,31 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onSav
             <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
               {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+          <div>
+            <label style={labelStyle}>Swimlane (Column)</label>
+            <select value={mappedColumn} onChange={(e) => setMappedColumn(e.target.value)} style={inputStyle}>
+              {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Story Points</label>
+            <input type="number" min={0} value={storyPoints}
+              onChange={(e) => setStoryPoints(Number(e.target.value))} style={inputStyle} />
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+          <div>
+            <label style={labelStyle}>Due Date</label>
+            <input type="date" value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={labelStyle}>Assignee</label>
+            <input value={assignee} onChange={(e) => setAssignee(e.target.value)}
+              placeholder="Username..." style={inputStyle} />
           </div>
         </div>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
