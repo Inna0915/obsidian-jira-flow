@@ -43,6 +43,8 @@ export interface JiraFlowSettings {
   kanbanColumns: string[];
   autoSyncOnStartup: boolean;
   syncIntervalMinutes: number;
+  storyPointsField: string;
+  dueDateField: string;
   ai: AISettings;
 }
 
@@ -272,6 +274,8 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
   kanbanColumns: COLUMN_IDS,
   autoSyncOnStartup: false,
   syncIntervalMinutes: 30,
+  storyPointsField: "customfield_10111",
+  dueDateField: "customfield_10329",
   ai: {
     models: [...BUILTIN_MODELS],
     activeModelId: "",

@@ -79,13 +79,16 @@ export class FileManager {
     const status = f.status.name;
     const mappedColumn = mapStatusToColumn(status);
     const type = f.issuetype.name.toLowerCase();
+
+    const spField = this.plugin.settings.storyPointsField;
     const storyPoints =
-      typeof f["customfield_10016"] === "number"
-        ? (f["customfield_10016"] as number)
+      typeof f[spField as keyof typeof f] === "number"
+        ? (f[spField as keyof typeof f] as number)
         : 0;
 
-    // Due date: prefer customfield_10329 (Planned End Date), fallback to duedate
-    const plannedEnd = f["customfield_10329"] as string | null;
+    // Due date: prefer configured custom field (Planned End Date), fallback to duedate
+    const ddField = this.plugin.settings.dueDateField;
+    const plannedEnd = f[ddField as keyof typeof f] as string | null;
     const dueDate = plannedEnd || f.duedate || "";
 
     // Sprint info

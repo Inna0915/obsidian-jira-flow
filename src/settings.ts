@@ -126,6 +126,32 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Story Points Field")
+      .setDesc("Jira custom field ID for story points (e.g. customfield_10111)")
+      .addText((text) =>
+        text
+          .setPlaceholder("customfield_10111")
+          .setValue(this.plugin.settings.storyPointsField)
+          .onChange(async (value) => {
+            this.plugin.settings.storyPointsField = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Due Date Field")
+      .setDesc("Jira custom field ID for due date / planned end date (e.g. customfield_10329)")
+      .addText((text) =>
+        text
+          .setPlaceholder("customfield_10329")
+          .setValue(this.plugin.settings.dueDateField)
+          .onChange(async (value) => {
+            this.plugin.settings.dueDateField = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("Test Connection")
       .setDesc("Test whether the Jira connection is working")
       .addButton((button) =>

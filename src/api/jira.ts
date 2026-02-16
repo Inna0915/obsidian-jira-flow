@@ -19,6 +19,11 @@ export class JiraApi {
     return this.plugin.settings.jiraHost.replace(/\/+$/, "");
   }
 
+  private get fieldsParam(): string {
+    const s = this.plugin.settings;
+    return `summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,sprint,issuelinks,${s.storyPointsField},${s.dueDateField}`;
+  }
+
   private async request<T>(endpoint: string, method = "GET", body?: unknown): Promise<T> {
     const url = `${this.baseUrl}/rest/api/2/${endpoint}`;
     const params: RequestUrlParam = {
@@ -134,7 +139,7 @@ export class JiraApi {
 
     while (true) {
       const data = await this.agileRequest<JiraSearchResponse>(
-        `sprint/${sprintId}/issue?jql=${jql}&startAt=${startAt}&maxResults=${maxResults}&fields=summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,sprint,customfield_10016,customfield_10329`
+        `sprint/${sprintId}/issue?jql=${jql}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}`
       );
       allIssues.push(...data.issues);
       if (startAt + maxResults >= data.total) break;
@@ -153,7 +158,7 @@ export class JiraApi {
     try {
       while (true) {
         const data = await this.agileRequest<JiraSearchResponse>(
-          `board/${boardId}/backlog?startAt=${startAt}&maxResults=${maxResults}&jql=${encodeURIComponent(`project="${projectKey}" AND assignee=currentUser()`)}&fields=summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,sprint,customfield_10016,customfield_10329`
+          `board/${boardId}/backlog?startAt=${startAt}&maxResults=${maxResults}&jql=${encodeURIComponent(`project="${projectKey}" AND assignee=currentUser()`)}&fields=${this.fieldsParam}`
         );
         // Filter out issues that already have a sprint (avoid duplicates)
         const backlogOnly = data.issues.filter((issue) => !issue.fields.sprint);
@@ -210,7 +215,7 @@ export class JiraApi {
     while (true) {
       const jql = this.plugin.settings.jql;
       const data = await this.request<JiraSearchResponse>(
-        `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,sprint,customfield_10016,customfield_10329`
+        `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}`
       );
       allIssues.push(...data.issues);
       if (startAt + data.maxResults >= data.total) break;
@@ -347,7 +352,7 @@ export class JiraApi {
   async fetchIssue(issueKey: string): Promise<JiraIssue | null> {
     try {
       return await this.request<JiraIssue>(
-        `issue/${issueKey}?fields=summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,sprint,issuelinks,customfield_10016,customfield_10329`
+        `issue/${issueKey}?fields=${this.fieldsParam}`
       );
     } catch {
       return null;

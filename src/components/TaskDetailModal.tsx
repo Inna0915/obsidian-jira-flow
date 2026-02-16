@@ -131,8 +131,10 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setSaved(false);
     try {
       const fields: Record<string, unknown> = {};
-      if (storyPoints !== card.storyPoints) fields.customfield_10016 = storyPoints;
-      if (dueDate !== (card.dueDate?.slice(0, 10) || "")) fields.duedate = dueDate || null;
+      const spField = plugin.settings.storyPointsField;
+      const ddField = plugin.settings.dueDateField;
+      if (storyPoints !== card.storyPoints) fields[spField] = storyPoints;
+      if (dueDate !== (card.dueDate?.slice(0, 10) || "")) fields[ddField] = dueDate || null;
 
       // Sync to Jira API
       if (isJira && plugin.settings.jiraHost && Object.keys(fields).length > 0) {
