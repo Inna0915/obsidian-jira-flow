@@ -6,7 +6,6 @@ interface ColumnProps {
   columnId: string;
   swimlaneId: SwimlaneType;
   cards: KanbanCard[];
-  bgColor: string;
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardClick: (card: KanbanCard) => void;
   onOpenFile: (filePath: string) => void;
@@ -16,10 +15,8 @@ export const Column: React.FC<ColumnProps> = ({
   columnId,
   swimlaneId,
   cards,
-  bgColor,
   onCardMove,
   onCardClick,
-  onOpenFile,
 }) => {
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -39,25 +36,17 @@ export const Column: React.FC<ColumnProps> = ({
 
   return (
     <div
-      className="jf-flex-shrink-0 jf-flex jf-flex-col jf-gap-1 jf-p-1"
-      style={{
-        width: "160px",
-        minWidth: "160px",
-        minHeight: "80px",
-        backgroundColor: bgColor,
-        borderRight: "1px solid var(--background-modifier-border)",
-      }}
+      className="jf-flex-shrink-0 jf-border-r jf-border-gray-100 jf-bg-gray-50/10"
+      style={{ width: "180px", minWidth: "180px" }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {cards.length > 0 && (
-        <div className="jf-text-[9px] jf-text-center jf-font-medium" style={{ color: "var(--text-muted)" }}>
-          {cards.length}
-        </div>
-      )}
-      {cards.map((card) => (
-        <Card key={card.filePath} card={card} onCardClick={onCardClick} />
-      ))}
+      {/* Column Body - No header here anymore, just cards */}
+      <div className="jf-px-2 jf-py-3 jf-space-y-2 jf-min-h-[120px]">
+        {cards.map((card) => (
+          <Card key={card.filePath} card={card} onCardClick={onCardClick} />
+        ))}
+      </div>
     </div>
   );
 };

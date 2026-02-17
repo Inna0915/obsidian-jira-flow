@@ -3,6 +3,7 @@ import type JiraFlowPlugin from "../main";
 import type { ReportPeriod } from "../types";
 import type { DailyWorkLog } from "../sync/workLogService";
 import { WorkLogService } from "../sync/workLogService";
+import { useEscapeKey } from "../hooks/useEscapeKey";
 
 // ===== Lunar Calendar =====
 
@@ -314,21 +315,71 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
     setWeekReportMap(weeks);
   }, [plugin]);
 
-  // Load existing report for modal
+  // Generate a template with correct dates for the selected period
+  const generateReportTemplate = useCallback((period: ReportPeriod, start: Date, end: Date): string => {
+    const startStr = formatDate(start);
+    const endStr = formatDate(end);
+    const periodLabel = periodLabels[period];
+    
+    switch (period) {
+      case "weekly":
+        return `# 周报\n\n**周期:** ${startStr} ~ ${endStr}\n\n## 本周总结\n\n\n## 主要工作\n\n\n## 下周计划\n\n`;
+      case "monthly":
+        return `# 月报\n\n**周期:** ${startStr} ~ ${endStr}\n\n## 本月总结\n\n\n## 主要成果\n\n\n## 下月计划\n\n`;
+      case "quarterly":
+        return `# 季报\n\n**周期:** ${startStr} ~ ${endStr}\n\n## 本季度总结\n\n\n## 主要成果\n\n\n## 下季度计划\n\n`;
+      case "yearly":
+        return `# 年报\n\n**周期:** ${startStr} ~ ${endStr}\n\n## 年度总结\n\n\n## 主要成果\n\n\n## 明年计划\n\n`;
+      default:
+        return `# ${periodLabel}\n\n**周期:** ${startStr} ~ ${endStr}\n\n`;
+    }
+  }, []);
+
+  // Load existing report for modal based on the selected date range
   useEffect(() => {
     if (!showReportModal) { setSavedReportContent(""); setReportContent(""); return; }
     (async () => {
       const folder = plugin.settings.reportsFolder;
       const prefix = showReportModal === "weekly" ? "Weekly-Report" : showReportModal === "monthly" ? "Monthly-Report" : showReportModal === "quarterly" ? "Quarterly-Report" : "Yearly-Report";
       const files = plugin.app.vault.getFiles().filter((f) => f.path.startsWith(folder) && f.name.startsWith(prefix));
-      if (files.length > 0) {
+      
+      // Find a report that matches the current viewRange dates
+      // Report filenames typically include the end date of the period
+      let matchingFile = null;
+      const rangeEndStr = formatDate(viewRange.end);
+      const rangeStartStr = formatDate(viewRange.start);
+      
+      for (const f of files) {
+        // Try to extract date from filename (e.g., "Weekly-Report-2026-02-16.md")
+        const dateMatch = f.name.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (dateMatch) {
+          const fileDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
+          // Check if this report's date falls within or matches our view range
+          if (fileDate === rangeEndStr || fileDate === rangeStartStr) {
+            matchingFile = f;
+            break;
+          }
+        }
+      }
+      
+      // If no specific match found, use the most recent one as fallback
+      if (!matchingFile && files.length > 0) {
         files.sort((a, b) => b.stat.mtime - a.stat.mtime);
-        const content = await plugin.app.vault.read(files[0]);
+        matchingFile = files[0];
+      }
+      
+      if (matchingFile) {
+        const content = await plugin.app.vault.read(matchingFile);
         setSavedReportContent(content);
         setReportContent(content);
+      } else {
+        // Generate a template with the correct dates instead of empty content
+        const template = generateReportTemplate(showReportModal, viewRange.start, viewRange.end);
+        setSavedReportContent("");
+        setReportContent(template);
       }
     })();
-  }, [showReportModal, plugin]);
+  }, [showReportModal, plugin, viewRange, generateReportTemplate]);
 
   const handleGenerate = useCallback(async (period: ReportPeriod) => {
     setGenerating(true);
@@ -528,6 +579,39 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
           display: "flex", alignItems: "center", justifyContent: "space-between",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* Back to Board Button */}
+            <button
+              onClick={onBack}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "none",
+                backgroundColor: "transparent",
+                color: "var(--text-muted)",
+                cursor: "pointer",
+                fontSize: "13px",
+                fontWeight: 500,
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "var(--background-secondary)";
+                e.currentTarget.style.color = "var(--text-normal)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+              title="Back to Kanban Board"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+              <span>返回看板</span>
+            </button>
+            <div style={{ width: "1px", height: "24px", backgroundColor: "var(--background-modifier-border)", margin: "0 4px" }} />
             <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700 }}>{viewTitle}</h2>
             <span style={{
               fontSize: "11px", padding: "3px 10px", borderRadius: "12px",
@@ -607,6 +691,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
       {/* Report Modal */}
       {showReportModal && (
         <ReportModal
+          plugin={plugin}
           period={showReportModal}
           content={reportContent}
           savedContent={savedReportContent}
@@ -614,6 +699,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
           onGenerate={() => handleGenerate(showReportModal)}
           onClose={() => setShowReportModal(null)}
           viewTitle={viewTitle}
+          dateRange={viewRange}
         />
       )}
     </div>
@@ -669,6 +755,7 @@ const TaskRow: React.FC<{ task: TaskItem }> = ({ task }) => (
 );
 
 interface ReportModalProps {
+  plugin: JiraFlowPlugin;
   period: ReportPeriod;
   content: string;
   savedContent: string;
@@ -676,13 +763,21 @@ interface ReportModalProps {
   onGenerate: () => void;
   onClose: () => void;
   viewTitle: string;
+  dateRange: { start: Date; end: Date };
 }
 
 const periodLabels: Record<ReportPeriod, string> = {
   weekly: "周报", monthly: "月报", quarterly: "季报", yearly: "年报",
 };
 
-const ReportModal: React.FC<ReportModalProps> = ({ period, content, savedContent, generating, onGenerate, onClose, viewTitle }) => (
+const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, content, savedContent, generating, onGenerate, onClose, viewTitle, dateRange }) => {
+  // Trap ESC key to close modal without closing Obsidian tab
+  useEscapeKey(plugin.app, onClose, true);
+
+  // Format the date range for display
+  const dateRangeStr = `${formatDate(dateRange.start)} ~ ${formatDate(dateRange.end)}`;
+
+  return (
   <>
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.3)" }} onClick={onClose} />
     <div style={{
@@ -699,6 +794,14 @@ const ReportModal: React.FC<ReportModalProps> = ({ period, content, savedContent
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>{periodLabels[period]}</h3>
           <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>{viewTitle}</span>
+          <span style={{ 
+            fontSize: "11px", 
+            padding: "2px 8px", 
+            borderRadius: "4px",
+            backgroundColor: "var(--background-secondary)",
+            color: "var(--text-faint)",
+            fontFamily: "var(--font-monospace)",
+          }}>{dateRangeStr}</span>
         </div>
         <button onClick={onClose} style={{
           background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "var(--text-muted)", padding: "4px 8px",
@@ -714,8 +817,20 @@ const ReportModal: React.FC<ReportModalProps> = ({ period, content, savedContent
           }}>{content}</div>
         ) : (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
-            <div style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "4px" }}>
+            <div style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "8px" }}>
               暂无{periodLabels[period]}内容
+            </div>
+            <div style={{ 
+              fontSize: "12px", 
+              color: "var(--text-faint)",
+              fontFamily: "var(--font-monospace)",
+              padding: "8px 16px",
+              backgroundColor: "var(--background-secondary)",
+              borderRadius: "6px",
+              display: "inline-block",
+              marginBottom: "12px",
+            }}>
+              {dateRangeStr}
             </div>
             <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
               点击下方按钮使用 AI 生成
@@ -737,7 +852,8 @@ const ReportModal: React.FC<ReportModalProps> = ({ period, content, savedContent
       </div>
     </div>
   </>
-);
+  );
+};
 
 // ===== Styles =====
 

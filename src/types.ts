@@ -281,8 +281,50 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
     activeModelId: "",
     reportPrompt: "Based on the following work logs and task data, generate a concise weekly summary report in Markdown format. Include: key accomplishments, tasks in progress, blockers, and priorities for next week.",
     reportPrompts: {
-      weekly: "Based on the following work logs and task data, generate a concise weekly summary report in Markdown format. Include: key accomplishments, tasks in progress, blockers, and priorities for next week.",
-      monthly: "Based on the following work logs and task data, generate a comprehensive monthly summary report in Markdown format. Include: key accomplishments, project progress overview, metrics and trends, challenges faced, and goals for next month.",
+      weekly: `你是一位敏捷开发任务整理专家。请根据以下原始内容生成结构化周报，严格遵循以下处理规则：
+
+【数据清洗规则】
+1. 删除每条记录开头的英文-数字任务编号（如 PRDAPD-704、WMS-123、Feature/PRDAPD-XXX 等）
+2. 识别"主功能项-标识"格式（如"转库单-20240201"、"出库单-临时"），提取"-"前的文字作为主功能项用于归类合并，相同主功能项的任务合并为一条描述
+3. 状态判定：内容包含"EXECUTED 执行完成" → 本周已完成；不包含 → 本周预计完成
+
+【输出格式】
+本周已完成
+1. 主功能项：任务简述
+2. 主功能项：任务简述
+3. 主功能项：任务简述
+
+本周预计完成
+1. 主功能项：任务简述
+2. 主功能项：任务简述
+3. 主功能项：任务简述
+
+【约束】
+- 去除技术细节（如SQL、方法名、异常堆栈），保留业务含义
+- 同一主功能项多行记录合并为一行，用顿号或"及"连接
+- 严禁输出解释性文字，直接给出结果`,
+      monthly: `你是一位敏捷开发任务整理专家。请根据以下原始内容生成结构化月报，严格遵循以下处理规则：
+
+【数据清洗规则】
+1. 删除每条记录开头的英文-数字任务编号（如 PRDAPD-704、WMS-123、Feature/PRDAPD-XXX 等）
+2. 识别"主功能项-标识"格式（如"转库单-20240201"、"出库单-临时"），提取"-"前的文字作为主功能项用于归类合并，相同主功能项的任务合并为一条描述
+3. 状态判定：内容包含"EXECUTED 执行完成" → 本月已完成；不包含 → 本月预计完成
+
+【输出格式】
+本月已完成
+1. 主功能项：任务简述
+2. 主功能项：任务简述
+3. 主功能项：任务简述
+
+本月预计完成
+1. 主功能项：任务简述
+2. 主功能项：任务简述
+3. 主功能项：任务简述
+
+【约束】
+- 去除技术细节（如SQL、方法名、异常堆栈），保留业务含义
+- 同一主功能项多行记录合并为一行，用顿号或"及"连接
+- 严禁输出解释性文字，直接给出结果`,
       quarterly: "Based on the following work logs and task data, generate a detailed quarterly review report in Markdown format. Include: major milestones achieved, project health overview, team velocity trends, key challenges and how they were addressed, and strategic priorities for next quarter.",
       yearly: "Based on the following work logs and task data, generate a comprehensive annual review report in Markdown format. Include: yearly highlights and achievements, project completion rates, growth metrics, lessons learned, and strategic goals for the coming year.",
     },

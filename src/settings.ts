@@ -15,7 +15,7 @@ export class JiraFlowSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Jira Flow Settings" });
+    containerEl.createEl("h2", { text: "Jira Flow 设置" });
 
     // === Tab Bar ===
     const tabBar = containerEl.createDiv({ cls: "jf-settings-tabs" });
@@ -44,8 +44,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       });
     };
 
-    createTab("general", "General");
-    createTab("ai", "AI Models");
+    createTab("general", "常规");
+    createTab("ai", "AI 模型");
 
     // === Tab Content ===
     if (this.activeTab === "general") {
@@ -57,11 +57,11 @@ export class JiraFlowSettingTab extends PluginSettingTab {
 
   private displayGeneral(containerEl: HTMLElement): void {
     // === Jira Connection ===
-    containerEl.createEl("h3", { text: "Jira Connection" });
+    containerEl.createEl("h3", { text: "Jira 连接" });
 
     new Setting(containerEl)
-      .setName("Jira Host")
-      .setDesc("Your Jira instance URL (e.g. https://yourcompany.atlassian.net)")
+      .setName("Jira 地址")
+      .setDesc("你的 Jira 实例地址（例如：https://yourcompany.atlassian.net）")
       .addText((text) =>
         text
           .setPlaceholder("https://yourcompany.atlassian.net")
@@ -73,8 +73,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Username")
-      .setDesc("Your Jira username (e.g. email address)")
+      .setName("用户名")
+      .setDesc("你的 Jira 用户名（例如：邮箱地址）")
       .addText((text) =>
         text
           .setPlaceholder("user@example.com")
@@ -86,12 +86,12 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Password")
-      .setDesc("Your Jira password or API token")
+      .setName("密码")
+      .setDesc("你的 Jira 密码或 API 令牌")
       .addText((text) => {
         text.inputEl.type = "password";
         text
-          .setPlaceholder("Enter password or API token")
+          .setPlaceholder("输入密码或 API 令牌")
           .setValue(this.plugin.settings.jiraPassword)
           .onChange(async (value) => {
             this.plugin.settings.jiraPassword = value;
@@ -100,8 +100,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Project Key")
-      .setDesc("Jira project key for Agile sync (e.g. PDSTDTTA). Leave empty to use JQL only.")
+      .setName("项目 Key")
+      .setDesc("用于敏捷同步的 Jira 项目 Key（例如：PDSTDTTA）。留空则仅使用 JQL 查询。")
       .addText((text) =>
         text
           .setPlaceholder("PDSTDTTA")
@@ -113,8 +113,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("JQL Query")
-      .setDesc("JQL to filter issues (used as fallback when Project Key is empty)")
+      .setName("JQL 查询")
+      .setDesc("用于筛选问题的 JQL（当项目 Key 为空时作为备用）")
       .addTextArea((text) =>
         text
           .setPlaceholder("assignee = currentUser()")
@@ -126,8 +126,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Story Points Field")
-      .setDesc("Jira custom field ID for story points (e.g. customfield_10111)")
+      .setName("故事点字段")
+      .setDesc("Jira 故事点的自定义字段 ID（例如：customfield_10111）")
       .addText((text) =>
         text
           .setPlaceholder("customfield_10111")
@@ -139,8 +139,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Due Date Field")
-      .setDesc("Jira custom field ID for due date / planned end date (e.g. customfield_10329)")
+      .setName("截止日期字段")
+      .setDesc("Jira 截止日期/计划结束日期的自定义字段 ID（例如：customfield_10329）")
       .addText((text) =>
         text
           .setPlaceholder("customfield_10329")
@@ -152,27 +152,27 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Test Connection")
-      .setDesc("Test whether the Jira connection is working")
+      .setName("测试连接")
+      .setDesc("测试 Jira 连接是否正常")
       .addButton((button) =>
-        button.setButtonText("Test").onClick(async () => {
+        button.setButtonText("测试").onClick(async () => {
           button.setDisabled(true);
-          button.setButtonText("Testing...");
+          button.setButtonText("测试中...");
           try {
             await this.plugin.testConnection();
           } finally {
             button.setDisabled(false);
-            button.setButtonText("Test");
+            button.setButtonText("测试");
           }
         })
       );
 
     // === Folders ===
-    containerEl.createEl("h3", { text: "Folders" });
+    containerEl.createEl("h3", { text: "文件夹" });
 
     new Setting(containerEl)
-      .setName("Root Folder")
-      .setDesc("Root folder for Jira Flow files")
+      .setName("根文件夹")
+      .setDesc("Jira Flow 文件的根文件夹")
       .addText((text) =>
         text
           .setValue(this.plugin.settings.rootFolder)
@@ -186,8 +186,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Daily Notes Folder")
-      .setDesc("Folder where your daily notes are stored")
+      .setName("Daily Notes 文件夹")
+      .setDesc("存放每日笔记的文件夹")
       .addText((text) =>
         text
           .setValue(this.plugin.settings.dailyNotesFolder)
@@ -198,18 +198,18 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     // === Kanban ===
-    containerEl.createEl("h3", { text: "Kanban Board" });
+    containerEl.createEl("h3", { text: "看板" });
 
     new Setting(containerEl)
-      .setName("Columns (12-column layout)")
-      .setDesc("Fixed 12-column Kanban layout with Jira status mapping. Columns: FUNNEL → DEFINING → READY → TO DO → EXECUTION → EXECUTED → TESTING & REVIEW → TEST DONE → VALIDATING → RESOLVED → DONE → CLOSED");
+      .setName("列（12列布局）")
+      .setDesc("固定的 12 列看板布局，映射 Jira 状态。列顺序：FUNNEL → DEFINING → READY → TO DO → EXECUTION → EXECUTED → TESTING & REVIEW → TEST DONE → VALIDATING → RESOLVED → DONE → CLOSED");
 
     // === Sync ===
-    containerEl.createEl("h3", { text: "Sync" });
+    containerEl.createEl("h3", { text: "同步" });
 
     new Setting(containerEl)
-      .setName("Auto-sync on startup")
-      .setDesc("Automatically sync with Jira when Obsidian starts")
+      .setName("启动时自动同步")
+      .setDesc("Obsidian 启动时自动与 Jira 同步")
       .addToggle((toggle) =>
         toggle
           .setValue(this.plugin.settings.autoSyncOnStartup)
@@ -220,8 +220,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Sync interval (minutes)")
-      .setDesc("How often to auto-sync (0 to disable)")
+      .setName("同步间隔（分钟）")
+      .setDesc("自动同步频率（0 表示禁用）")
       .addText((text) =>
         text
           .setValue(String(this.plugin.settings.syncIntervalMinutes))
@@ -235,17 +235,17 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName("Manual Sync")
-      .setDesc("Manually sync issues from Jira now")
+      .setName("手动同步")
+      .setDesc("立即手动从 Jira 同步问题")
       .addButton((button) =>
-        button.setButtonText("Sync Now").onClick(async () => {
+        button.setButtonText("立即同步").onClick(async () => {
           button.setDisabled(true);
-          button.setButtonText("Syncing...");
+          button.setButtonText("同步中...");
           try {
             await this.plugin.syncJira();
           } finally {
             button.setDisabled(false);
-            button.setButtonText("Sync Now");
+            button.setButtonText("立即同步");
           }
         })
       );
@@ -257,10 +257,10 @@ export class JiraFlowSettingTab extends PluginSettingTab {
     // === Active Model ===
     const enabledModels = models.filter((m) => m.enabled);
     new Setting(containerEl)
-      .setName("Active Model")
-      .setDesc("Select which model to use for AI report generation")
+      .setName("当前模型")
+      .setDesc("选择用于 AI 报告生成的模型")
       .addDropdown((dropdown) => {
-        dropdown.addOption("", "-- Select --");
+        dropdown.addOption("", "-- 请选择 --");
         for (const m of enabledModels) {
           dropdown.addOption(m.id, m.displayName);
         }
@@ -272,19 +272,19 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       });
 
     // === Report Prompts ===
-    containerEl.createEl("h3", { text: "Report Prompts" });
+    containerEl.createEl("h3", { text: "报告提示词" });
 
     const promptPeriods: { key: keyof import("./types").ReportPrompts; label: string }[] = [
-      { key: "weekly", label: "Weekly Report Prompt" },
-      { key: "monthly", label: "Monthly Report Prompt" },
-      { key: "quarterly", label: "Quarterly Report Prompt" },
-      { key: "yearly", label: "Yearly Report Prompt" },
+      { key: "weekly", label: "周报提示词" },
+      { key: "monthly", label: "月报提示词" },
+      { key: "quarterly", label: "季报提示词" },
+      { key: "yearly", label: "年报提示词" },
     ];
 
     for (const { key, label } of promptPeriods) {
       new Setting(containerEl)
         .setName(label)
-        .setDesc(`System prompt for ${key} AI report generation`)
+        .setDesc(`用于 ${key} AI 报告生成的系统提示词`)
         .addTextArea((text) => {
           text.inputEl.rows = 3;
           text.inputEl.style.width = "100%";
@@ -298,13 +298,13 @@ export class JiraFlowSettingTab extends PluginSettingTab {
     }
 
     // === Model Table ===
-    containerEl.createEl("h3", { text: "Model Management" });
+    containerEl.createEl("h3", { text: "模型管理" });
 
     new Setting(containerEl)
-      .setName("Add Model")
-      .setDesc("Add a new AI model configuration")
+      .setName("添加模型")
+      .setDesc("添加新的 AI 模型配置")
       .addButton((button) =>
-        button.setButtonText("+ Add Model").onClick(() => {
+        button.setButtonText("+ 添加模型").onClick(() => {
           new AddModelModal(this.app, this.plugin, () => this.display()).open();
         })
       );
@@ -322,7 +322,7 @@ export class JiraFlowSettingTab extends PluginSettingTab {
 
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
-    for (const h of ["Display Name", "Provider", "Model", "Enabled", "Actions"]) {
+    for (const h of ["显示名称", "提供商", "模型", "启用", "操作"]) {
       const th = headerRow.createEl("th", { text: h });
       Object.assign(th.style, {
         textAlign: "left",
@@ -384,7 +384,7 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       const actionsCell = row.createEl("td");
       Object.assign(actionsCell.style, cellStyle);
 
-      const editBtn = actionsCell.createEl("button", { text: "Edit" });
+      const editBtn = actionsCell.createEl("button", { text: "编辑" });
       Object.assign(editBtn.style, {
         marginRight: "6px",
         padding: "3px 10px",
@@ -399,7 +399,7 @@ export class JiraFlowSettingTab extends PluginSettingTab {
         new AddModelModal(this.app, this.plugin, () => this.display(), model).open();
       });
 
-      const delBtn = actionsCell.createEl("button", { text: "Delete" });
+      const delBtn = actionsCell.createEl("button", { text: "删除" });
       Object.assign(delBtn.style, {
         padding: "3px 10px",
         fontSize: "12px",
@@ -460,48 +460,48 @@ class AddModelModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl("h3", { text: this.editing ? "Edit Model" : "Add Model" });
+    contentEl.createEl("h3", { text: this.editing ? "编辑模型" : "添加模型" });
 
     new Setting(contentEl)
-      .setName("Model Name")
+      .setName("模型名称")
       .addText((text) =>
         text.setValue(this.name).onChange((v) => { this.name = v; })
       );
 
     new Setting(contentEl)
-      .setName("Display Name")
+      .setName("显示名称")
       .addText((text) =>
         text.setValue(this.displayName).onChange((v) => { this.displayName = v; })
       );
 
     new Setting(contentEl)
-      .setName("Provider")
+      .setName("提供商")
       .addDropdown((dropdown) => {
-        dropdown.addOption("kimi", "Kimi (Moonshot)");
-        dropdown.addOption("gemini", "Gemini (Google)");
-        dropdown.addOption("claude", "Claude (Anthropic)");
-        dropdown.addOption("custom", "Custom");
+        dropdown.addOption("kimi", "Kimi（Moonshot）");
+        dropdown.addOption("gemini", "Gemini（Google）");
+        dropdown.addOption("claude", "Claude（Anthropic）");
+        dropdown.addOption("custom", "自定义");
         dropdown.setValue(this.provider);
         dropdown.onChange((v) => { this.provider = v as AIProvider; });
       });
 
     new Setting(contentEl)
-      .setName("Base URL")
+      .setName("基础 URL")
       .addText((text) =>
         text.setPlaceholder("https://api.example.com/v1").setValue(this.baseUrl).onChange((v) => { this.baseUrl = v; })
       );
 
     new Setting(contentEl)
-      .setName("API Key")
+      .setName("API 密钥")
       .addText((text) => {
         text.inputEl.type = "password";
         text.setPlaceholder("sk-...").setValue(this.apiKey).onChange((v) => { this.apiKey = v; });
       });
 
     new Setting(contentEl)
-      .setName("Model ID")
+      .setName("模型 ID")
       .addText((text) =>
-        text.setPlaceholder("e.g. gpt-4").setValue(this.model).onChange((v) => { this.model = v; })
+        text.setPlaceholder("例如：gpt-4").setValue(this.model).onChange((v) => { this.model = v; })
       );
 
     // Buttons
@@ -513,10 +513,10 @@ class AddModelModal extends Modal {
       marginTop: "16px",
     });
 
-    const cancelBtn = btnContainer.createEl("button", { text: "Cancel" });
+    const cancelBtn = btnContainer.createEl("button", { text: "取消" });
     cancelBtn.addEventListener("click", () => this.close());
 
-    const saveBtn = btnContainer.createEl("button", { text: "Save" });
+    const saveBtn = btnContainer.createEl("button", { text: "保存" });
     Object.assign(saveBtn.style, {
       backgroundColor: "var(--interactive-accent)",
       color: "var(--text-on-accent)",
@@ -524,7 +524,7 @@ class AddModelModal extends Modal {
     });
     saveBtn.addEventListener("click", async () => {
       if (!this.name || !this.baseUrl || !this.model) {
-        new Notice("Please fill in Model Name, Base URL, and Model ID.");
+        new Notice("请填写模型名称、基础 URL 和模型 ID。");
         return;
       }
 

@@ -22,14 +22,16 @@ const typeIcons: Record<string, string> = {
   Epic: "\u26A1",
 };
 
-const typeBorderColors: Record<string, string> = {
-  Bug: "#FF5630",
-  Story: "#36B37E",
-};
-
-const typeBgColors: Record<string, string> = {
-  Bug: "#FFF5F5",
-  Story: "#F0FFF4",
+// Get left border color (hex) for inline style to avoid Tailwind purge issues
+const getBorderColor = (issueType: string): string => {
+  const type = (issueType || "").toLowerCase();
+  switch (type) {
+    case "bug": return "#EF4444";      // red-500
+    case "story": return "#22C55E";    // green-500
+    case "task": return "#60A5FA";     // blue-400
+    case "epic": return "#A855F7";     // purple-500
+    default: return "#D1D5DB";         // gray-300
+  }
 };
 
 export const Card: React.FC<CardProps> = ({ card, onCardClick }) => {
@@ -47,113 +49,96 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick }) => {
 
   const priorityColor = priorityColors[card.priority] || "#6B778C";
   const isOverdue = card.swimlane === "overdue";
-  const typeBorder = typeBorderColors[card.issuetype];
-  const typeBg = typeBgColors[card.issuetype];
+  const borderLeftColor = getBorderColor(card.issuetype);
 
   return (
     <div
       draggable
       onDragStart={handleDragStart}
       onClick={handleClick}
-      className="jf-rounded jf-p-2 jf-cursor-pointer jf-shadow-sm jf-transition-shadow hover:jf-shadow-md"
-      style={{
-        backgroundColor: typeBg || "#fff",
-        border: typeBorder
-          ? `1.5px solid ${typeBorder}`
-          : isOverdue
-            ? "1.5px solid #FF5630"
-            : "1px solid var(--background-modifier-border)",
-        borderLeftWidth: typeBorder || isOverdue ? "4px" : "1px",
-        borderLeftColor: typeBorder || (isOverdue ? "#FF5630" : undefined),
-        fontSize: "11px",
-      }}
+      className="jf-bg-white jf-p-3 jf-rounded-r-lg jf-rounded-l-sm jf-shadow-sm jf-border jf-border-gray-200 hover:jf-shadow-md hover:jf-border-gray-300 jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative"
+      style={{ borderLeftWidth: "4px", borderLeftColor, borderLeftStyle: "solid" }}
     >
-      {/* Header: key + type icon */}
-      <div className="jf-flex jf-items-center jf-gap-1 jf-mb-1">
-        <span title={card.issuetype} style={{ fontSize: "12px" }}>
+      {/* Header: Key + Type icon + Priority dot */}
+      <div className="jf-flex jf-items-center jf-gap-1.5 jf-mb-2">
+        <span className="jf-text-xs" title={card.issuetype}>
           {typeIcons[card.issuetype] || "\u{1F4CB}"}
         </span>
-        <span className="jf-font-mono" style={{ color: "#0052CC", fontSize: "10px" }}>
+        <span className="jf-font-mono jf-text-[10px] jf-font-semibold jf-text-blue-600 jf-bg-blue-50 jf-px-1.5 jf-py-0.5 jf-rounded">
           {card.jiraKey}
         </span>
         {card.source === "LOCAL" && (
-          <span
-            style={{
-              fontSize: "9px",
-              padding: "0 3px",
-              borderRadius: "2px",
-              backgroundColor: "#DFE1E6",
-              color: "#6B778C",
-            }}
-          >
+          <span className="jf-text-[9px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-gray-100 jf-text-gray-500 jf-font-medium">
             LOCAL
           </span>
         )}
         <span
-          className="jf-rounded-full jf-inline-block"
-          style={{
-            width: "8px",
-            height: "8px",
-            backgroundColor: priorityColor,
-            marginLeft: "auto",
-            flexShrink: 0,
-          }}
+          className="jf-w-2 jf-h-2 jf-rounded-full jf-ml-auto"
+          style={{ backgroundColor: priorityColor }}
           title={card.priority}
         />
       </div>
 
       {/* Summary */}
-      <div
-        className="jf-leading-snug jf-mb-1"
-        style={{
-          color: "#172B4D",
-          fontSize: "11px",
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-        }}
-      >
+      <div className="jf-text-sm jf-font-medium jf-text-gray-800 jf-leading-snug jf-mb-3 line-clamp-2">
         {card.summary}
       </div>
 
       {/* Footer */}
-      <div className="jf-flex jf-items-center jf-justify-between" style={{ fontSize: "10px" }}>
-        <div className="jf-flex jf-items-center jf-gap-1">
+      <div className="jf-flex jf-items-center jf-justify-between jf-text-xs jf-text-gray-400">
+        <div className="jf-flex jf-items-center jf-gap-2">
+          {/* Story Points */}
           {card.storyPoints > 0 && (
-            <span
-              className="jf-rounded-full jf-px-1 jf-font-bold"
-              style={{ backgroundColor: "#DFE1E6", color: "#42526E", fontSize: "9px" }}
-            >
+            <span className="jf-bg-gray-100 jf-px-1.5 jf-py-0.5 jf-rounded jf-text-gray-500 jf-font-medium jf-text-[10px]">
               {card.storyPoints}
             </span>
           )}
+          
+          {/* Due Date */}
           {card.dueDate && (
-            <span style={{ color: isOverdue ? "#FF5630" : "#6B778C" }}>
-              {card.dueDate.slice(0, 10)}
+            <span className={`jf-flex jf-items-center jf-gap-1 ${isOverdue ? "jf-text-red-500" : ""}`}>
+              <svg className="jf-w-3 jf-h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span className="jf-text-[10px]">{card.dueDate.slice(0, 10)}</span>
             </span>
           )}
         </div>
+
+        {/* Assignee Avatar */}
         {card.assignee && (
           <span
-            className="jf-rounded-full jf-flex jf-items-center jf-justify-center jf-font-bold jf-text-white"
-            style={{
-              width: "18px",
-              height: "18px",
-              backgroundColor: "#0052CC",
-              fontSize: "8px",
-            }}
+            className="jf-w-5 jf-h-5 jf-rounded-full jf-flex jf-items-center jf-justify-center jf-text-white jf-text-[9px] jf-font-bold"
+            style={{ backgroundColor: stringToColor(card.assignee) }}
             title={card.assignee}
           >
-            {card.assignee
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2)}
+            {getInitials(card.assignee)}
           </span>
         )}
       </div>
     </div>
   );
 };
+
+// Helper to generate consistent color from string
+function stringToColor(str: string): string {
+  const colors = [
+    "#0052CC", "#00B8D9", "#6554C0", "#FF5630", "#FFAB00",
+    "#36B37E", "#00875A", "#253858", "#6B778C", "#FF7452"
+  ];
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+// Helper to get initials from name
+function getInitials(name: string): string {
+  return name
+    .split(/[\s._-]+/)
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}

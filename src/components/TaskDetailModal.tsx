@@ -3,6 +3,7 @@ import { KANBAN_COLUMNS, SWIMLANES } from "../types";
 import type { KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
 import type { ViewMode } from "./App";
+import { useEscapeKey } from "../hooks/useEscapeKey";
 
 // ===== Helpers =====
 
@@ -68,6 +69,9 @@ interface TaskDetailPanelProps {
 export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   card, plugin, viewMode, onClose, onOpenFile, onArchive, onDelete, onCardUpdated,
 }) => {
+  // Trap ESC key to close drawer without closing Obsidian tab
+  useEscapeKey(plugin.app, onClose, true);
+
   const [storyPoints, setStoryPoints] = useState(card.storyPoints);
   const [dueDate, setDueDate] = useState(card.dueDate?.slice(0, 10) || "");
   const [summary, setSummary] = useState(card.summary);
@@ -214,54 +218,47 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   return (
     <>
       {/* Backdrop */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.3)" }} onClick={onClose} />
+      <div className="jf-fixed jf-inset-0 jf-z-[9999] jf-bg-black/40 jf-backdrop-blur-sm" onClick={onClose} />
       {/* Side Panel */}
-      <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 10000,
-        width: "480px", maxWidth: "90vw",
-        backgroundColor: "var(--background-primary)",
-        boxShadow: "-4px 0 24px rgba(0,0,0,0.15)",
-        display: "flex", flexDirection: "column",
-        animation: "jf-slide-in 0.2s ease-out",
-      }}>
+      <div className="jf-fixed jf-top-0 jf-right-0 jf-bottom-0 jf-z-[10000] jf-w-[480px] jf-max-w-[90vw] jf-bg-white jf-shadow-2xl jf-flex jf-flex-col"
+        style={{ animation: "jf-slide-in 0.2s ease-out" }}>
+        
         {/* Header */}
-        <div style={{
-          padding: "16px 20px", borderBottom: "1px solid var(--background-modifier-border)",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span style={{ fontSize: "14px" }}>{typeIcons[card.issuetype] || "\u{1F4CB}"}</span>
+        <div className="jf-flex jf-items-center jf-justify-between jf-px-5 jf-py-4 jf-border-b jf-border-gray-100">
+          <div className="jf-flex jf-items-center jf-gap-2">
+            <span className="jf-text-sm">{typeIcons[card.issuetype] || "\u{1F4CB}"}</span>
             {jiraUrl ? (
-              <a href={jiraUrl} style={{
-                fontFamily: "var(--font-monospace)", fontSize: "14px", fontWeight: 600,
-                color: "#0052CC", textDecoration: "none",
-              }} title="Open in Jira"
-                onClick={(e) => { e.preventDefault(); window.open(jiraUrl); }}
-              >{card.jiraKey}</a>
-            ) : (
-              <span style={{ fontFamily: "var(--font-monospace)", fontSize: "14px", fontWeight: 600, color: "#0052CC" }}>
+              <a href={jiraUrl} className="jf-font-mono jf-text-sm jf-font-semibold jf-text-blue-600 hover:jf-underline"
+                title="Open in Jira"
+                onClick={(e) => { e.preventDefault(); window.open(jiraUrl); }}>
                 {card.jiraKey}
-              </span>
+              </a>
+            ) : (
+              <span className="jf-font-mono jf-text-sm jf-font-semibold jf-text-blue-600">{card.jiraKey}</span>
             )}
-            <button onClick={handleCopyKey} title="Copy summary - key" style={{
-              background: "none", border: "none", cursor: "pointer", padding: "2px 4px",
-              fontSize: "13px", color: copied ? "#36B37E" : "var(--text-muted)",
-            }}>{copied ? "✓" : "📋"}</button>
-            {isLocal && <Badge text="LOCAL" bg="#DFE1E6" color="#6B778C" />}
+            <button onClick={handleCopyKey} title="复制任务信息" 
+              className={`jf-text-xs jf-px-2 jf-py-1 jf-rounded jf-border jf-transition-colors ${copied ? "jf-bg-green-50 jf-text-green-600 jf-border-green-200" : "jf-bg-white jf-text-blue-600 jf-border-blue-200 hover:jf-bg-blue-50"}`}>
+              {copied ? "已复制" : "复制"}
+            </button>
+            {isLocal && <span className="jf-text-[10px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-gray-200 jf-text-gray-500">LOCAL</span>}
           </div>
-          <button onClick={onClose} style={closeBtnStyle}>✕</button>
+          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-p-1 jf-rounded jf-hover:bg-gray-100">
+            <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Scrollable Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px" }}>
+        <div className="jf-flex-1 jf-overflow-y-auto jf-p-5">
           {/* Summary */}
-          <div style={{ marginBottom: "20px" }}>
+          <div className="jf-mb-5">
             {editingSummary && isLocal ? (
               <input value={summary} onChange={(e) => setSummary(e.target.value)}
                 onBlur={handleSaveSummary} onKeyDown={(e) => e.key === "Enter" && handleSaveSummary()}
-                autoFocus style={{ ...inputStyle, fontSize: "17px", fontWeight: 700 }} />
+                autoFocus className="jf-w-full jf-px-3 jf-py-2 jf-border jf-border-gray-300 jf-rounded-lg jf-text-base jf-font-semibold focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500" />
             ) : (
-              <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700, lineHeight: 1.4, cursor: isLocal ? "pointer" : "default" }}
+              <h3 className="jf-text-base jf-font-semibold jf-text-gray-800 jf-leading-snug jf-cursor-pointer"
                 onClick={() => isLocal && setEditingSummary(true)}>
                 {card.summary}
               </h3>
@@ -269,19 +266,15 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           </div>
 
           {/* Badge Row */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "20px" }}>
-            <Badge text={card.issuetype} bg={`${tColor}18`} color={tColor} />
-            <Badge text={card.priority} bg={`${pColor}18`} color={pColor} dot={pColor} />
-            <Badge text={card.mappedColumn} bg={`${cColor}18`} color={cColor} />
-            {card.sprint && <Badge text={card.sprint} bg="#E3FCEF" color="#006644" />}
+          <div className="jf-flex jf-flex-wrap jf-gap-2 jf-mb-5">
+            <Badge text={card.issuetype} color={tColor} />
+            <Badge text={card.priority} color={pColor} dot />
+            <Badge text={card.mappedColumn} color={cColor} />
+            {card.sprint && <Badge text={card.sprint} color="#006644" bgColor="#E3FCEF" />}
           </div>
 
           {/* Metadata Grid */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0",
-            border: "1px solid var(--background-modifier-border)", borderRadius: "8px",
-            overflow: "hidden", marginBottom: "20px",
-          }}>
+          <div className="jf-grid jf-grid-cols-2 jf-gap-0 jf-border jf-border-gray-200 jf-rounded-lg jf-overflow-hidden jf-mb-5">
             <MetaCell label="Status" value={card.mappedColumn} valueColor={cColor} />
             <MetaCell label="Assignee" value={card.assignee || "-"} />
             <MetaCell label="Type" value={card.issuetype} />
@@ -293,38 +286,37 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           </div>
 
           {/* Editable Fields */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "20px",
-          }}>
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4 jf-mb-5">
             <div>
-              <label style={labelStyle}>Story Points</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Story Points</label>
               <input type="number" min={0} value={storyPoints}
                 onChange={(e) => setStoryPoints(Number(e.target.value))}
-                style={inputStyle} disabled={saving} />
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500"
+                disabled={saving} />
             </div>
             <div>
-              <label style={labelStyle}>Due Date</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Due Date</label>
               <input type="date" value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                style={{ ...inputStyle, color: isOverdue ? "#FF5630" : "var(--text-normal)" }}
+                className={`jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 ${isOverdue ? "jf-text-red-500" : ""}`}
                 disabled={saving} />
             </div>
           </div>
 
           {/* Local-only editable fields */}
           {isLocal && (
-            <div style={{
-              display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "20px",
-            }}>
+            <div className="jf-grid jf-grid-cols-2 jf-gap-4 jf-mb-5">
               <div>
-                <label style={labelStyle}>Type</label>
-                <select value={card.issuetype} onChange={(e) => handleSaveLocalField("issuetype", e.target.value)} style={inputStyle}>
+                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Type</label>
+                <select value={card.issuetype} onChange={(e) => handleSaveLocalField("issuetype", e.target.value)} 
+                  className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500">
                   {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Priority</label>
-                <select value={card.priority} onChange={(e) => handleSaveLocalField("priority", e.target.value)} style={inputStyle}>
+                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Priority</label>
+                <select value={card.priority} onChange={(e) => handleSaveLocalField("priority", e.target.value)} 
+                  className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500">
                   {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
@@ -332,54 +324,46 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           )}
 
           {/* Description */}
-          <div style={{ marginBottom: "20px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-              <label style={{ ...labelStyle, marginBottom: 0 }}>Description</label>
+          <div className="jf-mb-5">
+            <div className="jf-flex jf-items-center jf-justify-between jf-mb-2">
+              <label className="jf-text-xs jf-font-medium jf-text-gray-500 jf-uppercase">Description</label>
               {isLocal && !editingDesc && (
-                <button onClick={() => { setEditingDesc(true); setLocalDesc(description); }}
-                  style={{ ...smallBtnStyle, color: "#0052CC" }}>Edit</button>
+                <button onClick={() => { setEditingDesc(true); setLocalDesc(description); }} 
+                  className="jf-text-xs jf-text-blue-600 hover:jf-text-blue-700 jf-font-medium">Edit</button>
               )}
             </div>
             {editingDesc && isLocal ? (
               <div>
                 <textarea value={localDesc} onChange={(e) => setLocalDesc(e.target.value)}
-                  rows={6} style={{ ...inputStyle, resize: "vertical" }} />
-                <div style={{ display: "flex", gap: "6px", marginTop: "6px" }}>
-                  <button onClick={handleSaveDescription} style={{ ...smallBtnStyle, backgroundColor: "#0052CC", color: "#fff" }}>Save</button>
-                  <button onClick={() => setEditingDesc(false)} style={smallBtnStyle}>Cancel</button>
+                  rows={6} className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-resize-vertical" />
+                <div className="jf-flex jf-gap-2 jf-mt-2">
+                  <button onClick={handleSaveDescription} 
+                    className="jf-px-3 jf-py-1.5 jf-bg-blue-600 jf-text-white jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-blue-700">Save</button>
+                  <button onClick={() => setEditingDesc(false)} 
+                    className="jf-px-3 jf-py-1.5 jf-text-gray-600 jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-gray-100">Cancel</button>
                 </div>
               </div>
             ) : (
-              <div style={{
-                fontSize: "13px", lineHeight: 1.6, color: description ? "var(--text-normal)" : "var(--text-muted)",
-                whiteSpace: "pre-wrap", padding: "10px 12px", borderRadius: "6px",
-                backgroundColor: "var(--background-secondary)", minHeight: "40px",
-              }}>
-                {description || "No description"}
+              <div className="jf-text-sm jf-leading-relaxed jf-p-3 jf-bg-gray-50 jf-rounded-lg jf-min-h-[80px] jf-whitespace-pre-wrap">
+                {description || <span className="jf-text-gray-400">No description</span>}
               </div>
             )}
           </div>
 
           {/* Linked Issues (Jira only) */}
           {isJira && links.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <label style={labelStyle}>Linked Issues</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div className="jf-mb-5">
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">Linked Issues</label>
+              <div className="jf-flex jf-flex-col jf-gap-2">
                 {links.map((link, i) => (
-                  <div key={i} style={{
-                    display: "flex", alignItems: "center", gap: "8px",
-                    padding: "8px 12px", borderRadius: "6px",
-                    backgroundColor: "var(--background-secondary)", fontSize: "13px",
-                  }}>
-                    <span style={{ color: "var(--text-muted)", fontSize: "11px", flexShrink: 0 }}>{link.type}</span>
+                  <div key={i} className="jf-flex jf-items-center jf-gap-2 jf-p-2.5 jf-bg-gray-50 jf-rounded-lg jf-text-sm">
+                    <span className="jf-text-xs jf-text-gray-400 jf-shrink-0">{link.type}</span>
                     <a href={`${plugin.settings.jiraHost}/browse/${link.key}`}
                       onClick={(e) => { e.preventDefault(); window.open(`${plugin.settings.jiraHost}/browse/${link.key}`); }}
-                      style={{ color: "#0052CC", fontFamily: "var(--font-monospace)", fontSize: "12px", fontWeight: 600, textDecoration: "none", flexShrink: 0 }}>
+                      className="jf-font-mono jf-text-xs jf-font-semibold jf-text-blue-600 hover:jf-underline jf-shrink-0">
                       {link.key}
                     </a>
-                    <span style={{ color: "var(--text-normal)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {link.summary}
-                    </span>
+                    <span className="jf-truncate jf-text-gray-700">{link.summary}</span>
                   </div>
                 ))}
               </div>
@@ -388,14 +372,11 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
 
           {/* Tags */}
           {card.tags.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <label style={labelStyle}>Tags</label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            <div className="jf-mb-5">
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">Tags</label>
+              <div className="jf-flex jf-flex-wrap jf-gap-2">
                 {card.tags.map((tag) => (
-                  <span key={tag} style={{
-                    fontSize: "11px", padding: "3px 8px", borderRadius: "4px",
-                    backgroundColor: "var(--background-secondary)", color: "var(--text-muted)",
-                  }}>{tag}</span>
+                  <span key={tag} className="jf-text-[10px] jf-px-2 jf-py-1 jf-rounded jf-bg-gray-100 jf-text-gray-500">{tag}</span>
                 ))}
               </div>
             </div>
@@ -403,57 +384,50 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: "14px 20px", borderTop: "1px solid var(--background-modifier-border)",
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-        }}>
-          <div style={{ display: "flex", gap: "8px" }}>
+        <div className="jf-flex jf-items-center jf-justify-between jf-px-5 jf-py-4 jf-border-t jf-border-gray-100 jf-bg-gray-50/50">
+          <div className="jf-flex jf-gap-2">
             {canArchive && (
-              <button onClick={() => onArchive(card)} style={{
-                ...actionBtnStyle, border: "1px solid #FF5630", color: "#FF5630",
-              }}>Archive</button>
+              <button onClick={() => onArchive(card)} 
+                className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
+                Archive
+              </button>
             )}
             {isLocal && (
-              <button onClick={() => setShowDeleteConfirm(true)} style={{
-                ...actionBtnStyle, border: "1px solid #FF5630", color: "#FF5630",
-              }}>Delete</button>
+              <button onClick={() => setShowDeleteConfirm(true)} 
+                className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
+                Delete
+              </button>
             )}
           </div>
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            {saved && <span style={{ fontSize: "12px", color: "#36B37E" }}>Saved!</span>}
+          <div className="jf-flex jf-items-center jf-gap-3">
+            {saved && <span className="jf-text-xs jf-text-green-600 jf-font-medium">已保存</span>}
             {showSaveToJira && isDirty && (
-              <button onClick={handleSaveToJira} disabled={saving} style={{
-                ...actionBtnStyle, backgroundColor: "#36B37E", color: "#fff", border: "none",
-                opacity: saving ? 0.6 : 1,
-              }}>{saving ? "Saving..." : "Save to Jira"}</button>
+              <button onClick={handleSaveToJira} disabled={saving} 
+                className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-green-600 hover:jf-bg-green-700 jf-rounded-lg jf-transition-colors disabled:jf-opacity-60">
+                {saving ? "Saving..." : "Save to Jira"}
+              </button>
             )}
-            <button onClick={() => { onOpenFile(card.filePath); onClose(); }} style={{
-              ...actionBtnStyle, backgroundColor: "#0052CC", color: "#fff", border: "none",
-            }}>Open File</button>
+            <button onClick={() => { onOpenFile(card.filePath); onClose(); }} 
+              className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-rounded-lg jf-transition-colors">
+              Open File
+            </button>
           </div>
         </div>
 
         {/* Delete Confirmation Dialog */}
         {showDeleteConfirm && (
           <>
-            <div style={{ position: "fixed", inset: 0, zIndex: 10001, backgroundColor: "rgba(0,0,0,0.3)" }}
-              onClick={() => setShowDeleteConfirm(false)} />
-            <div style={{
-              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-              zIndex: 10002, width: "360px", maxWidth: "90vw",
-              backgroundColor: "var(--background-primary)", borderRadius: "12px",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.2)", padding: "24px",
-            }}>
-              <h3 style={{ margin: "0 0 12px 0", fontSize: "16px" }}>Confirm Delete</h3>
-              <p style={{ fontSize: "13px", color: "var(--text-muted)", margin: "0 0 20px 0" }}>
-                Are you sure you want to delete <strong>{card.jiraKey}</strong>?
-                This will permanently remove the task and its markdown file.
+            <div className="jf-fixed jf-inset-0 jf-z-[10001] jf-bg-black/30" onClick={() => setShowDeleteConfirm(false)} />
+            <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-[10002] jf-w-[360px] jf-max-w-[90vw] jf-bg-white jf-rounded-xl jf-shadow-2xl jf-p-6">
+              <h3 className="jf-text-base jf-font-semibold jf-mb-3">Confirm Delete</h3>
+              <p className="jf-text-sm jf-text-gray-500 jf-mb-5">
+                Are you sure you want to delete <strong>{card.jiraKey}</strong>? This will permanently remove the task and its markdown file.
               </p>
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-                <button onClick={() => setShowDeleteConfirm(false)} style={smallBtnStyle}>Cancel</button>
-                <button onClick={() => { setShowDeleteConfirm(false); onDelete(card); }} style={{
-                  ...actionBtnStyle, backgroundColor: "#FF5630", color: "#fff", border: "none",
-                }}>Delete</button>
+              <div className="jf-flex jf-justify-end jf-gap-3">
+                <button onClick={() => setShowDeleteConfirm(false)} 
+                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg">Cancel</button>
+                <button onClick={() => { setShowDeleteConfirm(false); onDelete(card); }} 
+                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-red-600 hover:jf-bg-red-700 jf-rounded-lg">Delete</button>
               </div>
             </div>
           </>
@@ -465,58 +439,20 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
 
 // ===== Sub-components =====
 
-const Badge: React.FC<{ text: string; bg: string; color: string; dot?: string }> = ({ text, bg, color, dot }) => (
-  <span style={{
-    display: "inline-flex", alignItems: "center", gap: "4px",
-    fontSize: "11px", padding: "3px 8px", borderRadius: "12px",
-    backgroundColor: bg, color, fontWeight: 600,
-  }}>
-    {dot && <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: dot, display: "inline-block" }} />}
+const Badge: React.FC<{ text: string; color: string; bgColor?: string; dot?: boolean }> = ({ text, color, bgColor, dot }) => (
+  <span className="jf-inline-flex jf-items-center jf-gap-1 jf-text-[11px] jf-px-2 jf-py-0.5 jf-rounded-full jf-font-semibold"
+    style={{ backgroundColor: bgColor || `${color}18`, color }}>
+    {dot && <span className="jf-w-1.5 jf-h-1.5 jf-rounded-full" style={{ backgroundColor: color }} />}
     {text}
   </span>
 );
 
 const MetaCell: React.FC<{ label: string; value: string; valueColor?: string }> = ({ label, value, valueColor }) => (
-  <div style={{
-    padding: "10px 14px",
-    borderBottom: "1px solid var(--background-modifier-border)",
-    borderRight: "1px solid var(--background-modifier-border)",
-  }}>
-    <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "3px" }}>
-      {label}
-    </div>
-    <div style={{ fontSize: "13px", color: valueColor || "var(--text-normal)", fontWeight: 500 }}>
-      {value}
-    </div>
+  <div className="jf-p-3 jf-border-b jf-border-r jf-border-gray-100">
+    <div className="jf-text-[10px] jf-font-semibold jf-text-gray-400 jf-uppercase jf-tracking-wide jf-mb-1">{label}</div>
+    <div className="jf-text-sm jf-font-medium" style={{ color: valueColor || "#374151" }}>{value}</div>
   </div>
 );
-
-// ===== Styles =====
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "10px", fontWeight: 600, color: "var(--text-muted)",
-  textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px", display: "block",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "7px 10px", borderRadius: "6px",
-  border: "1px solid var(--background-modifier-border)",
-  backgroundColor: "var(--background-primary)", color: "var(--text-normal)", fontSize: "13px",
-};
-
-const closeBtnStyle: React.CSSProperties = {
-  background: "none", border: "none", cursor: "pointer",
-  fontSize: "18px", color: "var(--text-muted)", padding: "4px 8px", lineHeight: 1,
-};
-
-const smallBtnStyle: React.CSSProperties = {
-  padding: "4px 10px", borderRadius: "4px", border: "1px solid var(--background-modifier-border)",
-  background: "transparent", cursor: "pointer", fontSize: "11px", fontWeight: 600,
-};
-
-const actionBtnStyle: React.CSSProperties = {
-  padding: "7px 16px", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 600,
-};
 
 // ===== Create Task Modal =====
 
@@ -531,11 +467,15 @@ export interface CreateTaskData {
 }
 
 interface CreateTaskModalProps {
+  plugin: JiraFlowPlugin;
   onClose: () => void;
   onSave: (data: CreateTaskData) => void;
 }
 
-export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onSave }) => {
+export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClose, onSave }) => {
+  // Trap ESC key to close modal without closing Obsidian tab
+  useEscapeKey(plugin.app, onClose, true);
+
   const [summary, setSummary] = useState("");
   const [issuetype, setIssuetype] = useState("Task");
   const [priority, setPriority] = useState("Medium");
@@ -560,65 +500,118 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ onClose, onSav
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.3)" }} onClick={onClose} />
-      <div style={{
-        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        zIndex: 10000, width: "440px", maxWidth: "90vw",
-        backgroundColor: "var(--background-primary)", borderRadius: "12px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.2)", padding: "24px",
-      }}>
-        <h3 style={{ margin: "0 0 16px 0", fontSize: "16px" }}>Create Local Task</h3>
-        <div style={{ marginBottom: "12px" }}>
-          <label style={labelStyle}>Summary</label>
-          <input value={summary} onChange={(e) => setSummary(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            autoFocus placeholder="Task summary..." style={inputStyle} />
+      {/* Overlay */}
+      <div className="jf-fixed jf-inset-0 jf-bg-black/40 jf-backdrop-blur-sm jf-z-50 jf-flex jf-items-center jf-justify-center" onClick={onClose} />
+      
+      {/* Modal */}
+      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-lg jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
+        
+        {/* Header */}
+        <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
+          <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">Create Local Task</h3>
+          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-transition-colors">
+            <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+
+        {/* Body */}
+        <div className="jf-p-6 jf-space-y-4">
+          {/* Summary - Full width */}
           <div>
-            <label style={labelStyle}>Type</label>
-            <select value={issuetype} onChange={(e) => setIssuetype(e.target.value)} style={inputStyle}>
-              {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Summary</label>
+            <input 
+              value={summary} 
+              onChange={(e) => setSummary(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              autoFocus 
+              placeholder="What needs to be done?"
+              className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+            />
           </div>
-          <div>
-            <label style={labelStyle}>Priority</label>
-            <select value={priority} onChange={(e) => setPriority(e.target.value)} style={inputStyle}>
-              {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
-            </select>
+
+          {/* Row 2: Type & Priority */}
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Type</label>
+              <select 
+                value={issuetype} 
+                onChange={(e) => setIssuetype(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Priority</label>
+              <select 
+                value={priority} 
+                onChange={(e) => setPriority(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Row 3: Column & Story Points */}
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Status</label>
+              <select 
+                value={mappedColumn} 
+                onChange={(e) => setMappedColumn(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Story Points</label>
+              <input 
+                type="number" 
+                min={0} 
+                value={storyPoints}
+                onChange={(e) => setStoryPoints(Number(e.target.value))} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              />
+            </div>
+          </div>
+
+          {/* Row 4: Due Date & Assignee */}
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Due Date</label>
+              <input 
+                type="date" 
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              />
+            </div>
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Assignee</label>
+              <input 
+                value={assignee} 
+                onChange={(e) => setAssignee(e.target.value)}
+                placeholder="Username"
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              />
+            </div>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-          <div>
-            <label style={labelStyle}>Swimlane (Column)</label>
-            <select value={mappedColumn} onChange={(e) => setMappedColumn(e.target.value)} style={inputStyle}>
-              {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Story Points</label>
-            <input type="number" min={0} value={storyPoints}
-              onChange={(e) => setStoryPoints(Number(e.target.value))} style={inputStyle} />
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-          <div>
-            <label style={labelStyle}>Due Date</label>
-            <input type="date" value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Assignee</label>
-            <input value={assignee} onChange={(e) => setAssignee(e.target.value)}
-              placeholder="Username..." style={inputStyle} />
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
-          <button onClick={onClose} style={smallBtnStyle}>Cancel</button>
-          <button onClick={handleSave} disabled={!summary.trim()} style={{
-            ...actionBtnStyle, backgroundColor: "#0052CC", color: "#fff", border: "none",
-            opacity: summary.trim() ? 1 : 0.5,
-          }}>Create</button>
+
+        {/* Footer */}
+        <div className="jf-px-6 jf-py-4 jf-bg-gray-50 jf-flex jf-justify-end jf-gap-3">
+          <button 
+            onClick={onClose} 
+            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg jf-transition-colors">
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave} 
+            disabled={!summary.trim()} 
+            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-shadow-sm jf-rounded-lg jf-transition-all disabled:jf-opacity-50 disabled:jf-cursor-not-allowed">
+            Create Task
+          </button>
         </div>
       </div>
     </>

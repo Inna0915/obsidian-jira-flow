@@ -268,24 +268,20 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
   return (
     <div className="jf-flex jf-flex-col jf-h-full jf-bg-transparent">
       {/* Header */}
-      <div className="jf-flex jf-items-center jf-justify-between jf-px-4 jf-py-3 jf-border-b jf-border-gray-200">
+      <div className="jf-flex jf-items-center jf-justify-between jf-px-4 jf-py-3 jf-border-b jf-border-gray-200 jf-bg-white">
         <div className="jf-flex jf-items-center jf-gap-3">
-          <h2 className="jf-text-xl jf-font-bold jf-m-0">Jira Flow</h2>
-          {/* View Mode Tabs */}
-          <div className="jf-flex jf-gap-0" style={{ borderRadius: "6px", overflow: "hidden", border: "1px solid var(--background-modifier-border)" }}>
+          <h2 className="jf-text-xl jf-font-bold jf-m-0 jf-text-gray-800">Jira Flow</h2>
+          {/* View Mode Tabs - Segmented Control */}
+          <div className="jf-flex jf-bg-gray-100 jf-p-1 jf-rounded-lg jf-border jf-border-gray-200">
             {viewModes.map((vm) => (
               <button
                 key={vm.id}
                 onClick={() => setViewMode(vm.id)}
-                style={{
-                  padding: "4px 12px",
-                  fontSize: "12px",
-                  fontWeight: viewMode === vm.id ? 600 : 400,
-                  border: "none",
-                  cursor: "pointer",
-                  backgroundColor: viewMode === vm.id ? "#0052CC" : "transparent",
-                  color: viewMode === vm.id ? "#fff" : "var(--text-muted)",
-                }}
+                className={`jf-px-3 jf-py-1 jf-text-xs jf-rounded-md jf-transition-all ${
+                  viewMode === vm.id
+                    ? "jf-bg-white jf-text-blue-600 jf-shadow-sm jf-border jf-border-gray-200 jf-font-semibold"
+                    : "jf-text-gray-500 hover:jf-text-gray-700 hover:jf-bg-gray-200/50 jf-font-medium"
+                }`}
               >
                 {vm.label}
               </button>
@@ -293,33 +289,31 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
           </div>
         </div>
         <div className="jf-flex jf-items-center jf-gap-2">
+          {/* Reports Button - Ghost Style */}
           <button
             onClick={() => setShowReportCenter(true)}
-            className="jf-px-3 jf-py-1.5 jf-rounded jf-text-sm jf-font-medium jf-cursor-pointer"
-            style={{
-              backgroundColor: "transparent",
-              border: "1px solid var(--background-modifier-border)",
-              color: "var(--text-normal)",
-            }}
+            className="jf-flex jf-items-center jf-gap-2 jf-px-3 jf-py-1.5 jf-text-gray-600 hover:jf-bg-gray-100 jf-border jf-border-transparent hover:jf-border-gray-200 jf-rounded-md jf-text-sm jf-transition-all"
           >
+            <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
             Reports
           </button>
+          {/* New Task Button - Secondary Style */}
           <button
             onClick={() => setShowCreateModal(true)}
-            className="jf-px-3 jf-py-1.5 jf-rounded jf-text-sm jf-font-medium jf-cursor-pointer"
-            style={{
-              backgroundColor: "transparent",
-              border: "1px solid #0052CC",
-              color: "#0052CC",
-            }}
+            className="jf-bg-white jf-text-gray-700 jf-border jf-border-gray-300 hover:jf-bg-gray-50 jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
           >
             + New Task
           </button>
+          {/* Sync Jira Button - Primary Style */}
           <button
             onClick={handleSync}
-            className="jf-px-4 jf-py-1.5 jf-rounded jf-text-white jf-text-sm jf-font-medium jf-cursor-pointer"
-            style={{ backgroundColor: "#0052CC" }}
+            className="jf-flex jf-items-center jf-gap-2 jf-bg-blue-600 hover:jf-bg-blue-700 jf-text-white jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
           >
+            <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
             Sync Jira
           </button>
         </div>
@@ -352,6 +346,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
       {/* Create Modal */}
       {showCreateModal && (
         <CreateTaskModal
+          plugin={plugin}
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreateTask}
         />

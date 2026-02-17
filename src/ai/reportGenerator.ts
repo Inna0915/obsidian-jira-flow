@@ -46,7 +46,7 @@ export class ReportGenerator {
       throw new Error(`No work logs or tasks found for ${periodLabel}.`);
     }
 
-    const userContent = this.buildPromptContent(period, periodLabel, logs, taskSummaries, stats);
+    const userContent = this.buildPromptContent(period, periodLabel, start, end, logs, taskSummaries, stats);
     const systemPrompt = this.getSystemPrompt(period);
 
     // Call AI
@@ -55,8 +55,8 @@ export class ReportGenerator {
       { role: "user", content: userContent },
     ]);
 
-    // Save report
-    const file = await this.saveReport(period, response.content);
+    // Save report with the period's end date (not current date)
+    const file = await this.saveReport(period, response.content, end);
     return { content: response.content, file };
   }
 
@@ -139,13 +139,18 @@ export class ReportGenerator {
   private buildPromptContent(
     period: ReportPeriod,
     periodLabel: string,
+    start: Date,
+    end: Date,
     logs: import("../sync/workLogService").DailyWorkLog[],
     taskSummaries: string[],
     stats: { totalDays: number; activeDays: number; totalEntries: number; completedEntries: number; taskKeys: Set<string> }
   ): string {
     const parts: string[] = [];
 
-    parts.push(`# Report Period: ${periodLabel} (${period})\n`);
+    parts.push(`# Report Period: ${periodLabel} (${period})`);
+    parts.push(`**Start Date:** ${this.formatDate(start)}`);
+    parts.push(`**End Date:** ${this.formatDate(end)}`);
+    parts.push(`**IMPORTANT:** This report covers work from ${this.formatDate(start)} to ${this.formatDate(end)}. Do not use today's date.\n`);
 
     parts.push(`## Statistics`);
     parts.push(`- Active days: ${stats.activeDays} / ${stats.totalDays}`);
@@ -176,7 +181,7 @@ export class ReportGenerator {
     return parts.join("\n");
   }
 
-  private async saveReport(period: ReportPeriod, content: string): Promise<TFile> {
+  private async saveReport(period: ReportPeriod, content: string, reportDate?: Date): Promise<TFile> {
     const vault = this.plugin.app.vault;
     const folder = this.plugin.settings.reportsFolder;
 
@@ -185,7 +190,8 @@ export class ReportGenerator {
       await vault.createFolder(folderPath);
     }
 
-    const dateStr = this.formatDate(new Date());
+    // Use the report period's end date for the filename, not the current date
+    const dateStr = this.formatDate(reportDate || new Date());
     const prefixMap: Record<ReportPeriod, string> = {
       weekly: "Weekly-Report",
       monthly: "Monthly-Report",
