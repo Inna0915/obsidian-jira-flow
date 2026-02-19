@@ -21,7 +21,9 @@ export class JiraApi {
 
   private get fieldsParam(): string {
     const s = this.plugin.settings;
-    return `summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,issuelinks,${s.storyPointsField},${s.dueDateField},${s.sprintField}`;
+    const fields = `summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,issuelinks,${s.storyPointsField},${s.dueDateField},${s.sprintField}`;
+    console.log(`[Jira Flow Debug] Requesting fields: ${fields}`);
+    return fields;
   }
 
   private async request<T>(endpoint: string, method = "GET", body?: unknown): Promise<T> {
@@ -224,6 +226,13 @@ export class JiraApi {
       const data = await this.request<JiraSearchResponse>(
         `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}&expand=renderedFields`
       );
+      console.log(`[Jira Flow Debug] API response received. Total issues: ${data.total}, fetched: ${data.issues.length}`);
+      if (data.issues.length > 0) {
+        const firstIssue = data.issues[0];
+        console.log(`[Jira Flow Debug] First issue ${firstIssue.key} - Available fields:`, Object.keys(firstIssue.fields).join(', '));
+        const sprintField = this.plugin.settings.sprintField;
+        console.log(`[Jira Flow Debug] First issue ${firstIssue.key} - Sprint field (${sprintField}) value:`, JSON.stringify(firstIssue.fields[sprintField as keyof typeof firstIssue.fields], null, 2));
+      }
       allIssues.push(...data.issues);
       if (startAt + data.maxResults >= data.total) break;
       startAt += maxResults;

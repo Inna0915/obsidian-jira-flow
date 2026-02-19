@@ -29,10 +29,13 @@ export class FileManager {
   }
 
   async syncIssues(issues: JiraIssue[]): Promise<SyncResult> {
+    console.log(`[Jira Flow Debug] ===== Starting sync of ${issues.length} issues =====`);
     await this.ensureFolders();
     const result: SyncResult = { created: 0, updated: 0, errors: [] };
 
     for (const issue of issues) {
+      console.log(`[Jira Flow Debug] ===== Processing issue: ${issue.key} =====`);
+      console.log(`[Jira Flow Debug] ${issue.key} - Full issue data:`, JSON.stringify(issue, null, 2));
       try {
         const frontmatter = this.issueToFrontmatter(issue);
         // Use rendered HTML description if available, fallback to raw text
@@ -99,17 +102,22 @@ export class FileManager {
     let sprintName = "";
     let sprintState = "";
     const sprintFieldName = this.plugin.settings.sprintField;
+    console.log(`[Jira Flow Debug] ${issue.key} - Sprint field name: ${sprintFieldName}`);
     const sprintData = f[sprintFieldName as keyof typeof f];
+    console.log(`[Jira Flow Debug] ${issue.key} - Raw sprint data:`, JSON.stringify(sprintData, null, 2));
     if (sprintData) {
       // Jira API returns sprint as array, get the active one or the first one
       const sprints = Array.isArray(sprintData) ? sprintData : [sprintData];
+      console.log(`[Jira Flow Debug] ${issue.key} - Parsed sprints array:`, sprints);
       // Prefer active sprint, fallback to first sprint
       const activeSprint = sprints.find((s: {state?: string}) => s.state === "active") || sprints[0];
+      console.log(`[Jira Flow Debug] ${issue.key} - Selected sprint:`, activeSprint);
       if (activeSprint) {
         sprintName = activeSprint.name || "";
         sprintState = activeSprint.state || "";
       }
     }
+    console.log(`[Jira Flow Debug] ${issue.key} - Final sprint name: "${sprintName}", state: "${sprintState}"`);
 
     const tags = [
       `jira/status/${status.toLowerCase().replace(/\s+/g, "-")}`,
