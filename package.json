@@ -8,7 +8,11 @@
     "build": "node esbuild.config.mjs production",
     "css": "npx tailwindcss -i ./src/styles/tailwind.css -o ./styles.css --minify"
   },
-  "keywords": ["obsidian", "jira", "kanban"],
+  "keywords": [
+    "obsidian",
+    "jira",
+    "kanban"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",
@@ -21,6 +25,7 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "html-react-parser": "^5.2.17",
     "lucide-react": "^0.312.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

@@ -10,7 +10,7 @@ export class JiraApi {
     this.plugin = plugin;
   }
 
-  private get authHeader(): string {
+  getAuthHeader(): string {
     const { jiraUsername, jiraPassword } = this.plugin.settings;
     return "Basic " + btoa(`${jiraUsername}:${jiraPassword}`);
   }
@@ -30,7 +30,7 @@ export class JiraApi {
       url,
       method,
       headers: {
-        Authorization: this.authHeader,
+        Authorization: this.getAuthHeader(),
         "Content-Type": "application/json",
         Accept: "application/json",
         "X-Atlassian-Token": "no-check",
@@ -70,7 +70,7 @@ export class JiraApi {
       url,
       method: "GET",
       headers: {
-        Authorization: this.authHeader,
+        Authorization: this.getAuthHeader(),
         "Content-Type": "application/json",
         Accept: "application/json",
         "X-Atlassian-Token": "no-check",
@@ -363,7 +363,7 @@ export class JiraApi {
     const response = await requestUrl({
       url,
       headers: {
-        Authorization: this.authHeader,
+        Authorization: this.getAuthHeader(),
       },
     });
     return response.arrayBuffer;

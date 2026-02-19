@@ -4,6 +4,7 @@ import type { KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
 import type { ViewMode } from "./App";
 import { useEscapeKey } from "../hooks/useEscapeKey";
+import { JiraHtmlRenderer } from "./JiraHtmlRenderer";
 
 // ===== Helpers =====
 
@@ -344,8 +345,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="jf-text-sm jf-leading-relaxed jf-p-3 jf-bg-gray-50 jf-rounded-lg jf-min-h-[80px] jf-whitespace-pre-wrap">
-                {description || <span className="jf-text-gray-400">No description</span>}
+              <div className="jf-text-sm jf-leading-relaxed jf-p-3 jf-bg-gray-50 jf-rounded-lg jf-min-h-[80px]">
+                {isJira && description ? (
+                  <JiraHtmlRenderer html={description} plugin={plugin} />
+                ) : (
+                  <span className="jf-whitespace-pre-wrap">{description || <span className="jf-text-gray-400">No description</span>}</span>
+                )}
               </div>
             )}
           </div>
