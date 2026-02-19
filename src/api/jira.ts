@@ -139,7 +139,7 @@ export class JiraApi {
 
     while (true) {
       const data = await this.agileRequest<JiraSearchResponse>(
-        `sprint/${sprintId}/issue?jql=${jql}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}`
+        `sprint/${sprintId}/issue?jql=${jql}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}&expand=renderedFields`
       );
       allIssues.push(...data.issues);
       if (startAt + maxResults >= data.total) break;
@@ -158,7 +158,7 @@ export class JiraApi {
     try {
       while (true) {
         const data = await this.agileRequest<JiraSearchResponse>(
-          `board/${boardId}/backlog?startAt=${startAt}&maxResults=${maxResults}&jql=${encodeURIComponent(`project="${projectKey}" AND assignee=currentUser()`)}&fields=${this.fieldsParam}`
+          `board/${boardId}/backlog?startAt=${startAt}&maxResults=${maxResults}&jql=${encodeURIComponent(`project="${projectKey}" AND assignee=currentUser()`)}&fields=${this.fieldsParam}&expand=renderedFields`
         );
         // Filter out issues that already have a sprint (avoid duplicates)
         const backlogOnly = data.issues.filter((issue) => !issue.fields.sprint);
@@ -215,7 +215,7 @@ export class JiraApi {
     while (true) {
       const jql = this.plugin.settings.jql;
       const data = await this.request<JiraSearchResponse>(
-        `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}`
+        `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}&expand=renderedFields`
       );
       allIssues.push(...data.issues);
       if (startAt + data.maxResults >= data.total) break;

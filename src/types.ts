@@ -386,6 +386,9 @@ export interface JiraIssueFields {
 export interface JiraIssue {
   key: string;
   fields: JiraIssueFields;
+  renderedFields?: {
+    description?: string;
+  };
 }
 
 export interface JiraSearchResponse {

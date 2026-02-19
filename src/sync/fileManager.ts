@@ -35,8 +35,12 @@ export class FileManager {
     for (const issue of issues) {
       try {
         const frontmatter = this.issueToFrontmatter(issue);
+        // Use rendered HTML description if available, fallback to raw text
+        const rawDescription = issue.renderedFields?.description 
+          || issue.fields.description 
+          || "";
         const description = await this.processDescription(
-          issue.fields.description || "",
+          rawDescription,
           issue.key
         );
         const filePath = this.getTaskFilePath(issue.key);
