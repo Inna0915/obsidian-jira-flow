@@ -176,17 +176,9 @@ export default class JiraFlowPlugin extends Plugin {
     const stepFetch = toast.addStep("Fetching issues...");
     let issues: import("./types").JiraIssue[];
     try {
-      if (this.settings.projectKey) {
-        // Agile 4-step sync
-        const result = await this.jiraApi.fetchIssuesAgile(this.settings.projectKey);
-        issues = result.issues;
-        const sprintInfo = result.sprint ? ` (Sprint: ${result.sprint.name})` : " (no active sprint)";
-        toast.updateStep(stepFetch, "success", `${issues.length} issues found${sprintInfo}`);
-      } else {
-        // JQL fallback
-        issues = await this.jiraApi.fetchIssues();
-        toast.updateStep(stepFetch, "success", `${issues.length} issues found`);
-      }
+      // Always use JQL to fetch all issues (not limited by project key)
+      issues = await this.jiraApi.fetchIssues();
+      toast.updateStep(stepFetch, "success", `${issues.length} issues found`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.updateStep(stepFetch, "error", msg);

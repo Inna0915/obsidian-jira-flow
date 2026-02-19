@@ -75,10 +75,14 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
   const filteredCards = allCards.filter((card) => {
     if (viewMode === "local") return card.source === "LOCAL";
     if (viewMode === "sprint") {
-      // Sprint view: only cards that belong to a sprint (have non-empty sprint field)
-      return !!card.sprint;
+      // Sprint view: only cards that belong to the configured project key
+      const projectKey = plugin.settings.projectKey;
+      if (projectKey && card.jiraKey) {
+        return card.jiraKey.startsWith(`${projectKey}-`);
+      }
+      return !!card.sprint; // Fallback: show all sprint tasks if no project key configured
     }
-    return true; // "all"
+    return true; // "all" - show all issues including other projects
   });
 
   // Build swimlane data from filtered cards
