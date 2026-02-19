@@ -95,15 +95,16 @@ export class FileManager {
     const plannedEnd = f[ddField as keyof typeof f] as string | null;
     const dueDate = plannedEnd || f.duedate || "";
 
-    // Sprint info - handle both single sprint and sprint array
+    // Sprint info - read from configured sprint field (customfield)
     let sprintName = "";
     let sprintState = "";
-    const sprintField = f.sprint;
-    if (sprintField) {
+    const sprintFieldName = this.plugin.settings.sprintField;
+    const sprintData = f[sprintFieldName as keyof typeof f];
+    if (sprintData) {
       // Jira API returns sprint as array, get the active one or the first one
-      const sprints = Array.isArray(sprintField) ? sprintField : [sprintField];
+      const sprints = Array.isArray(sprintData) ? sprintData : [sprintData];
       // Prefer active sprint, fallback to first sprint
-      const activeSprint = sprints.find(s => s.state === "active") || sprints[0];
+      const activeSprint = sprints.find((s: {state?: string}) => s.state === "active") || sprints[0];
       if (activeSprint) {
         sprintName = activeSprint.name || "";
         sprintState = activeSprint.state || "";

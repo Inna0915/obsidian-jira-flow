@@ -21,7 +21,7 @@ export class JiraApi {
 
   private get fieldsParam(): string {
     const s = this.plugin.settings;
-    return `summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,sprint,issuelinks,${s.storyPointsField},${s.dueDateField}`;
+    return `summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,issuelinks,${s.storyPointsField},${s.dueDateField},${s.sprintField}`;
   }
 
   private async request<T>(endpoint: string, method = "GET", body?: unknown): Promise<T> {
@@ -162,8 +162,9 @@ export class JiraApi {
         );
         // Filter out issues that already have a sprint (avoid duplicates)
         // Handle sprint as array - check if array is empty or null
+        const sprintField = this.plugin.settings.sprintField;
         const backlogOnly = data.issues.filter((issue) => {
-          const sprint = issue.fields.sprint;
+          const sprint = issue.fields[sprintField as keyof typeof issue.fields];
           if (!sprint) return true;
           if (Array.isArray(sprint)) return sprint.length === 0;
           return false;

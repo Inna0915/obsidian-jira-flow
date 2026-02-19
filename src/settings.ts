@@ -152,6 +152,19 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Sprint 字段")
+      .setDesc("Jira Sprint 的自定义字段 ID（例如：customfield_10020）")
+      .addText((text) =>
+        text
+          .setPlaceholder("customfield_10020")
+          .setValue(this.plugin.settings.sprintField)
+          .onChange(async (value) => {
+            this.plugin.settings.sprintField = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("测试连接")
       .setDesc("测试 Jira 连接是否正常")
       .addButton((button) =>
