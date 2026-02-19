@@ -2,6 +2,7 @@ import { TFile, normalizePath } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import { mapStatusToColumn } from "../types";
 import type { JiraIssue, SyncResult, TaskFrontmatter } from "../types";
+import { parseJiraSprintName, parseJiraSprintState } from "../utils/jiraParser";
 
 export class FileManager {
   private plugin: JiraFlowPlugin;
@@ -98,26 +99,16 @@ export class FileManager {
     const plannedEnd = f[ddField as keyof typeof f] as string | null;
     const dueDate = plannedEnd || f.duedate || "";
 
-    // Sprint info - read from configured sprint field (customfield)
-    let sprintName = "";
-    let sprintState = "";
+    // Sprint info - read from configured sprint field and parse Jira Server format
     const sprintFieldName = this.plugin.settings.sprintField;
-    console.log(`[Jira Flow Debug] ${issue.key} - Sprint field name: ${sprintFieldName}`);
-    const sprintData = f[sprintFieldName as keyof typeof f];
-    console.log(`[Jira Flow Debug] ${issue.key} - Raw sprint data:`, JSON.stringify(sprintData, null, 2));
-    if (sprintData) {
-      // Jira API returns sprint as array, get the active one or the first one
-      const sprints = Array.isArray(sprintData) ? sprintData : [sprintData];
-      console.log(`[Jira Flow Debug] ${issue.key} - Parsed sprints array:`, sprints);
-      // Prefer active sprint, fallback to first sprint
-      const activeSprint = sprints.find((s: {state?: string}) => s.state === "active") || sprints[0];
-      console.log(`[Jira Flow Debug] ${issue.key} - Selected sprint:`, activeSprint);
-      if (activeSprint) {
-        sprintName = activeSprint.name || "";
-        sprintState = activeSprint.state || "";
-      }
-    }
-    console.log(`[Jira Flow Debug] ${issue.key} - Final sprint name: "${sprintName}", state: "${sprintState}"`);
+    const rawSprintData = f[sprintFieldName as keyof typeof f];
+    
+    // Use parser to handle Jira Server/Data Center's messy sprint format
+    const sprintName = parseJiraSprintName(rawSprintData);
+    const sprintState = parseJiraSprintState(rawSprintData);
+    
+    console.log(`[Jira Flow Debug] ${issue.key} - Sprint field: ${sprintFieldName}, Raw:`, JSON.stringify(rawSprintData, null, 2));
+    console.log(`[Jira Flow Debug] ${issue.key} - Parsed sprint name: "${sprintName}", state: "${sprintState}"`);
 
     const tags = [
       `jira/status/${status.toLowerCase().replace(/\s+/g, "-")}`,
