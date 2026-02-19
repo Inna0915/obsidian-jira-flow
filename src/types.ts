@@ -379,7 +379,7 @@ export interface JiraIssueFields {
   updated: string;
   duedate: string | null;
   labels: string[];
-  sprint?: JiraSprint | null;
+  sprint?: JiraSprint | JiraSprint[] | null;
   [key: string]: unknown;
 }
 

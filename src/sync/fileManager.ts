@@ -95,10 +95,20 @@ export class FileManager {
     const plannedEnd = f[ddField as keyof typeof f] as string | null;
     const dueDate = plannedEnd || f.duedate || "";
 
-    // Sprint info
-    const sprint = f.sprint;
-    const sprintName = sprint?.name || "";
-    const sprintState = sprint?.state || "";
+    // Sprint info - handle both single sprint and sprint array
+    let sprintName = "";
+    let sprintState = "";
+    const sprintField = f.sprint;
+    if (sprintField) {
+      // Jira API returns sprint as array, get the active one or the first one
+      const sprints = Array.isArray(sprintField) ? sprintField : [sprintField];
+      // Prefer active sprint, fallback to first sprint
+      const activeSprint = sprints.find(s => s.state === "active") || sprints[0];
+      if (activeSprint) {
+        sprintName = activeSprint.name || "";
+        sprintState = activeSprint.state || "";
+      }
+    }
 
     const tags = [
       `jira/status/${status.toLowerCase().replace(/\s+/g, "-")}`,

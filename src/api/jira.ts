@@ -161,7 +161,13 @@ export class JiraApi {
           `board/${boardId}/backlog?startAt=${startAt}&maxResults=${maxResults}&jql=${encodeURIComponent(`project="${projectKey}" AND assignee=currentUser()`)}&fields=${this.fieldsParam}&expand=renderedFields`
         );
         // Filter out issues that already have a sprint (avoid duplicates)
-        const backlogOnly = data.issues.filter((issue) => !issue.fields.sprint);
+        // Handle sprint as array - check if array is empty or null
+        const backlogOnly = data.issues.filter((issue) => {
+          const sprint = issue.fields.sprint;
+          if (!sprint) return true;
+          if (Array.isArray(sprint)) return sprint.length === 0;
+          return false;
+        });
         allIssues.push(...backlogOnly);
         if (startAt + maxResults >= data.total) break;
         startAt += maxResults;
