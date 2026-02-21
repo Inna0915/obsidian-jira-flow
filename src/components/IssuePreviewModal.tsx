@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { JiraHtmlRenderer } from './JiraHtmlRenderer';
+import { openLocalWikiPage } from '../utils/linkHandler';
 import type JiraFlowPlugin from '../main';
 
 interface IssuePreviewModalProps {
@@ -17,7 +18,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey, 
       setLoading(true);
       console.log(`[Jira Flow Preview] Loading issue: ${issueKey}`);
       
-      // Fetch issue with renderedFields
+      // Fetch issue with renderedFields and remote links
       const data = await plugin.jiraApi.fetchIssue(issueKey); 
       
       console.log(`[Jira Flow Preview] API Response for ${issueKey}:`, data);
@@ -32,7 +33,18 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey, 
           priority: data.fields?.priority?.name,
           descriptionLength: data.fields?.description?.length || 0,
           renderedDescriptionLength: data.renderedFields?.description?.length || 0,
+          remoteLinksCount: data.remotelinks?.length || 0,
         });
+        
+        // Log remote links if present
+        if (data.remotelinks && data.remotelinks.length > 0) {
+          console.log(`[Jira Flow Preview] Remote links for ${issueKey}:`, data.remotelinks.map((l: any) => ({
+            id: l.id,
+            title: l.object?.title,
+            url: l.object?.url,
+            application: l.application?.name,
+          })));
+        }
         
         // Run description through asset downloader
         const rawDesc = data.renderedFields?.description || data.fields?.description || "";
@@ -69,6 +81,8 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey, 
                 <span className="jf-bg-blue-50 jf-text-blue-700 jf-px-2 jf-py-1 jf-rounded">{issue.fields.status?.name}</span>
                 <span className="jf-bg-gray-100 jf-px-2 jf-py-1 jf-rounded">{issue.fields.assignee?.displayName || 'Unassigned'}</span>
               </div>
+              
+              {/* Description Section */}
               <div className="jf-mt-4">
                 <h3 className="jf-text-xs jf-font-bold jf-text-gray-400 jf-uppercase jf-mb-2">Description</h3>
                 <div className="jf-bg-gray-50 jf-p-4 jf-rounded-lg">
@@ -79,6 +93,48 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey, 
                   )}
                 </div>
               </div>
+
+              {/* Wiki / Remote Links Section */}
+              {issue.remotelinks && issue.remotelinks.length > 0 && (
+                <div className="jf-mt-6">
+                  <h3 className="jf-text-xs jf-font-bold jf-text-gray-400 jf-uppercase jf-mb-2 jf-flex jf-items-center jf-gap-1">
+                    <svg className="jf-w-4 jf-h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                    Wiki Pages & Web Links
+                  </h3>
+                  <div className="jf-flex jf-flex-col jf-gap-2">
+                    {issue.remotelinks.map((link: any) => (
+                      <a 
+                        key={link.id}
+                        href={link.object?.url}
+                        className="jf-flex jf-items-center jf-gap-3 jf-p-3 jf-bg-blue-50 hover:jf-bg-blue-100 jf-border jf-border-blue-100 jf-rounded-lg jf-transition-colors jf-cursor-pointer jf-group"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          const targetUrl = link.object?.url;
+                          if (!targetUrl) return;
+
+                          // Use our interceptor to try opening the local Obsidian file
+                          const openedLocally = await openLocalWikiPage(plugin.app, targetUrl);
+                          
+                          // Fallback to browser if no local file is matched
+                          if (!openedLocally) {
+                             window.open(targetUrl, '_blank');
+                          }
+                        }}
+                      >
+                        {/* Use Confluence icon if it's a confluence link, otherwise generic link icon */}
+                        {link.application?.name === "Confluence" ? (
+                           <span className="jf-text-blue-600 jf-text-lg">📘</span>
+                        ) : (
+                           <span className="jf-text-gray-500 jf-text-lg">🔗</span>
+                        )}
+                        <span className="jf-text-sm jf-font-medium jf-text-blue-700 group-hover:jf-text-blue-800 jf-truncate">
+                          {link.object?.title || link.object?.url}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="jf-text-red-500 jf-text-center jf-py-10">Failed to load issue.</div>

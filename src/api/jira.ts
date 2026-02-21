@@ -364,13 +364,24 @@ export class JiraApi {
     }
   }
 
-  /** Fetch full issue details */
-  async fetchIssue(issueKey: string): Promise<JiraIssue | null> {
+  /** Fetch full issue details including remote links (Confluence/Wiki pages) */
+  async fetchIssue(issueKey: string): Promise<JiraIssue & { remotelinks?: any[] } | null> {
     try {
-      return await this.request<JiraIssue>(
-        `issue/${issueKey}?fields=${this.fieldsParam}&expand=renderedFields`
-      );
-    } catch {
+      // Fire both requests concurrently for speed
+      const [issue, remoteLinks] = await Promise.all([
+        this.request<JiraIssue>(`issue/${issueKey}?fields=${this.fieldsParam}&expand=renderedFields`),
+        // Catch errors on remotelink just in case the endpoint fails, returning empty array
+        this.request<any[]>(`issue/${issueKey}/remotelink`).catch(() => []) 
+      ]);
+
+      if (issue) {
+        // Attach the remote links to our issue object
+        (issue as JiraIssue & { remotelinks?: any[] }).remotelinks = remoteLinks;
+        console.log(`[Jira Flow] Fetched ${remoteLinks.length} remote links for ${issueKey}`);
+      }
+      return issue as JiraIssue & { remotelinks?: any[] };
+    } catch (error) {
+      console.error(`[Jira Flow] Failed to fetch issue ${issueKey}`, error);
       return null;
     }
   }
