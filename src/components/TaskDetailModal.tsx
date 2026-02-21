@@ -5,6 +5,7 @@ import type JiraFlowPlugin from "../main";
 import type { ViewMode } from "./App";
 import { useEscapeKey } from "../hooks/useEscapeKey";
 import { JiraHtmlRenderer } from "./JiraHtmlRenderer";
+import { IssuePreviewModal } from "./IssuePreviewModal";
 
 // ===== Helpers =====
 
@@ -85,6 +86,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const [localDesc, setLocalDesc] = useState("");
   const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [previewIssueKey, setPreviewIssueKey] = useState<string | null>(null);
 
   const isLocal = card.source === "LOCAL";
   const isJira = card.source === "JIRA";
@@ -369,13 +371,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">Linked Issues</label>
               <div className="jf-flex jf-flex-col jf-gap-2">
                 {links.map((link, i) => (
-                  <div key={i} className="jf-flex jf-items-center jf-gap-2 jf-p-2.5 jf-bg-gray-50 jf-rounded-lg jf-text-sm">
+                  <div key={i} className="jf-flex jf-items-center jf-gap-2 jf-p-2.5 jf-bg-gray-50 jf-rounded-lg jf-text-sm jf-cursor-pointer hover:jf-bg-gray-100 jf-transition-colors"
+                    onClick={() => setPreviewIssueKey(link.key)}>
                     <span className="jf-text-xs jf-text-gray-400 jf-shrink-0">{link.type}</span>
-                    <a href={`${plugin.settings.jiraHost}/browse/${link.key}`}
-                      onClick={(e) => { e.preventDefault(); window.open(`${plugin.settings.jiraHost}/browse/${link.key}`); }}
-                      className="jf-font-mono jf-text-xs jf-font-semibold jf-text-blue-600 hover:jf-underline jf-shrink-0">
+                    <span className="jf-font-mono jf-text-xs jf-font-semibold jf-text-blue-600 hover:jf-underline jf-shrink-0">
                       {link.key}
-                    </a>
+                    </span>
                     <span className="jf-truncate jf-text-gray-700">{link.summary}</span>
                   </div>
                 ))}
@@ -444,6 +445,15 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               </div>
             </div>
           </>
+        )}
+
+        {/* Issue Preview Modal */}
+        {previewIssueKey && (
+          <IssuePreviewModal 
+            issueKey={previewIssueKey} 
+            plugin={plugin} 
+            onClose={() => setPreviewIssueKey(null)} 
+          />
         )}
       </div>
     </>

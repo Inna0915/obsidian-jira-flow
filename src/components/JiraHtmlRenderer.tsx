@@ -1,6 +1,7 @@
 import React from 'react';
-import parse, { Element, HTMLReactParserOptions } from 'html-react-parser';
+import parse, { Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
 import { JiraAuthImage } from './JiraAuthImage';
+import { openLocalWikiPage } from '../utils/linkHandler';
 import type JiraFlowPlugin from '../main';
 
 interface JiraHtmlRendererProps {
@@ -18,20 +19,29 @@ export const JiraHtmlRenderer: React.FC<JiraHtmlRendererProps> = ({ html, plugin
           return <JiraAuthImage src={src} alt={alt} className={className} plugin={plugin} />;
         }
       }
-      // Handle other Jira-specific HTML elements if needed
+      
+      // Handle links - intercept Confluence links
       if (domNode instanceof Element && domNode.name === 'a') {
-        const { href, class: className } = domNode.attribs;
-        // Make links open in external browser
+        const href = domNode.attribs.href;
+        if (!href) return;
+
         return (
           <a 
-            href={href}
-            className={className || 'jf-text-blue-600 hover:jf-underline'}
-            onClick={(e) => {
+            href={href} 
+            className="jf-text-blue-600 hover:jf-underline jf-cursor-pointer"
+            onClick={async (e) => {
               e.preventDefault();
-              window.open(href, '_blank');
+              
+              // If it looks like a Confluence link
+              if (href.includes('viewpage.action') || href.includes('confluence')) {
+                 const opened = await openLocalWikiPage(plugin.app, href);
+                 if (!opened) window.open(href, '_blank'); // Fallback to external
+              } else {
+                 window.open(href, '_blank'); // Regular external link
+              }
             }}
           >
-            {domNode.children}
+            {domToReact(domNode.children, options)}
           </a>
         );
       }
