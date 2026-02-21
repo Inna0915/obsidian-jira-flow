@@ -147,7 +147,8 @@ export class FileManager {
     await this.ensureFolders();
     const filePath = this.getTaskFilePath(key);
     const yaml = this.frontmatterToYaml(frontmatter);
-    const content = `---\n${yaml}---\n\n# [${key}] ${summary}\n\n## Description\n${description}\n`;
+    // Simple format: frontmatter + description HTML
+    const content = `---\n${yaml}---\n${description}`;
     return await this.vault.create(filePath, content);
   }
 
@@ -156,42 +157,46 @@ export class FileManager {
     frontmatter: TaskFrontmatter,
     description?: string
   ): Promise<void> {
-    // Update frontmatter
-    await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
-      fm.jira_key = frontmatter.jira_key;
-      fm.source = frontmatter.source;
-      fm.status = frontmatter.status;
-      fm.mapped_column = frontmatter.mapped_column;
-      fm.issuetype = frontmatter.issuetype;
-      fm.priority = frontmatter.priority;
-      fm.story_points = frontmatter.story_points;
-      fm.due_date = frontmatter.due_date;
-      fm.assignee = frontmatter.assignee;
-      fm.sprint = frontmatter.sprint;
-      fm.sprint_state = frontmatter.sprint_state;
-      fm.tags = frontmatter.tags;
-      fm.summary = frontmatter.summary;
-      fm.updated = frontmatter.updated;
-    });
-    
-    // Update description body if provided
-    if (description !== undefined) {
-      const content = await this.vault.read(file);
-      const lines = content.split('\n');
-      const descIndex = lines.findIndex(l => l.trim() === '## Description');
-      
-      if (descIndex >= 0) {
-        // Find where frontmatter ends (after '---')
-        const frontmatterEnd = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
-        // Keep everything up to and including '## Description' line
-        const beforeDesc = lines.slice(0, descIndex + 1);
-        // New description content
-        const newContent = [...beforeDesc, description].join('\n');
+    try {
+      // STEP 1: Update Frontmatter safely using Obsidian API
+      await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+        fm.jira_key = frontmatter.jira_key;
+        fm.source = frontmatter.source;
+        fm.status = frontmatter.status;
+        fm.mapped_column = frontmatter.mapped_column;
+        fm.issuetype = frontmatter.issuetype;
+        fm.priority = frontmatter.priority;
+        fm.story_points = frontmatter.story_points;
+        fm.due_date = frontmatter.due_date;
+        fm.assignee = frontmatter.assignee;
+        fm.sprint = frontmatter.sprint;
+        fm.sprint_state = frontmatter.sprint_state;
+        fm.tags = frontmatter.tags;
+        fm.summary = frontmatter.summary;
+        fm.updated = frontmatter.updated;
+      });
+
+      // STEP 2: Only after frontmatter is updated, update the body
+      if (description !== undefined) {
+        // Read the latest state with updated frontmatter
+        const content = await this.vault.read(file);
+        
+        // Extract the frontmatter block safely
+        const frontmatterRegex = /^---\n[\s\S]*?\n---\n/;
+        const match = content.match(frontmatterRegex);
+        const frontmatterString = match ? match[0] : '';
+        
+        // Reconstruct file: Frontmatter + Description
+        // Completely replace body to avoid fragile regex matching
+        const newContent = `${frontmatterString}${description}`;
         
         if (newContent !== content) {
           await this.vault.modify(file, newContent);
         }
       }
+    } catch (error) {
+      console.error(`[Jira Flow] Failed to update file ${file.name}:`, error);
+      throw error;
     }
   }
 
