@@ -7,6 +7,7 @@ import { WorkLogger } from "./sync/logger";
 import { ReportGenerator } from "./ai/reportGenerator";
 import { KANBAN_VIEW_TYPE, KanbanView } from "./views/KanbanView";
 import { ARCHIVE_VIEW_TYPE, ArchiveView } from "./views/ArchiveView";
+import { SIDEBAR_VIEW_TYPE, SidebarView } from "./views/SidebarView";
 import { StatusToast } from "./ui/StatusToast";
 
 export default class JiraFlowPlugin extends Plugin {
@@ -29,10 +30,15 @@ export default class JiraFlowPlugin extends Plugin {
       this.activateKanbanView();
     });
 
+    this.addRibbonIcon("check-circle", "Open Jira Flow Focus", () => {
+      this.activateSidebarView();
+    });
+
     this.addSettingTab(new JiraFlowSettingTab(this.app, this));
 
     this.registerView(KANBAN_VIEW_TYPE, (leaf) => new KanbanView(leaf, this));
     this.registerView(ARCHIVE_VIEW_TYPE, (leaf) => new ArchiveView(leaf, this));
+    this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarView(leaf, this));
 
     this.addCommand({
       id: "open-kanban",
@@ -80,6 +86,12 @@ export default class JiraFlowPlugin extends Plugin {
       id: "open-archive",
       name: "Open Archive View",
       callback: () => this.activateArchiveView(),
+    });
+
+    this.addCommand({
+      id: "open-focus-view",
+      name: "Open Focus View (Sidebar)",
+      callback: () => this.activateSidebarView(),
     });
 
     if (this.settings.autoSyncOnStartup) {
@@ -152,6 +164,30 @@ export default class JiraFlowPlugin extends Plugin {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: ARCHIVE_VIEW_TYPE, active: true });
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  async activateSidebarView(): Promise<void> {
+    const { workspace } = this.app;
+    
+    let leaf = workspace.getLeavesOfType(SIDEBAR_VIEW_TYPE)[0];
+
+    if (!leaf) {
+      // Create in right sidebar
+      const rightLeaf = workspace.getRightLeaf(false);
+      if (rightLeaf) {
+        await rightLeaf.setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
+        leaf = rightLeaf;
+      } else {
+        // Fallback to tab if no right leaf available
+        const newLeaf = workspace.getLeaf("tab");
+        await newLeaf.setViewState({ type: SIDEBAR_VIEW_TYPE, active: true });
+        leaf = newLeaf;
+      }
+    }
+
+    if (leaf) {
+      workspace.revealLeaf(leaf);
+    }
   }
 
   async syncJira(): Promise<void> {
