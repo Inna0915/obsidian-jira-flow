@@ -89,6 +89,20 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
     window.open(url, '_blank');
   };
 
+  // Add the native hover trigger function
+  const onHoverLocalFile = (e: React.MouseEvent) => {
+    if (localFile && plugin?.app) {
+      plugin.app.workspace.trigger('hover-link', {
+        event: e.nativeEvent,
+        source: 'jira-flow-preview',
+        hoverParent: e.currentTarget,
+        targetEl: e.currentTarget,
+        linktext: localFile.path,
+        sourcePath: '',
+      });
+    }
+  };
+
   return (
     <div className="jf-flex jf-flex-col jf-mb-2">
       <span className="jf-text-[11px] jf-font-semibold jf-text-gray-500 jf-mb-1 jf-capitalize">
@@ -99,6 +113,7 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
         {/* Primary Click Area */}
         <div 
           onClick={localFile ? openLocal : openWeb}
+          onMouseEnter={onHoverLocalFile}
           className="jf-flex jf-items-center jf-gap-2 jf-flex-1 jf-cursor-pointer jf-overflow-hidden"
         >
           <span className="jf-text-blue-600 jf-text-base jf-shrink-0">
