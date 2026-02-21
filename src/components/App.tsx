@@ -64,6 +64,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
         tags: fm.tags,
         swimlane,
         sprint: fm.sprint,
+        sprint_state: fm.sprint_state,
       });
     }
 

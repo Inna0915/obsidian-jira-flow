@@ -437,6 +437,7 @@ export interface KanbanCard {
   tags: string[];
   swimlane: SwimlaneType;
   sprint: string;
+  sprint_state?: string;
   archived?: boolean;
 }
 
