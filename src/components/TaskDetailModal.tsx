@@ -102,8 +102,10 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     (async () => {
       const issue = await plugin.jiraApi.fetchIssue(card.jiraKey);
       if (!issue) return;
-      // Description
-      const desc = issue.fields.description || "";
+      // Description - use rendered HTML if available
+      const desc = issue.renderedFields?.description 
+        || issue.fields.description 
+        || "";
       setDescription(typeof desc === "string" ? desc : "");
       // Links
       const issueLinks = (issue.fields as Record<string, unknown>).issuelinks as Array<{

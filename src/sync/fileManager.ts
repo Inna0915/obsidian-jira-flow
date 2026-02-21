@@ -51,7 +51,7 @@ export class FileManager {
         const existing = this.vault.getAbstractFileByPath(filePath);
 
         if (existing instanceof TFile) {
-          await this.updateTaskFile(existing, frontmatter);
+          await this.updateTaskFile(existing, frontmatter, description);
           result.updated++;
         } else {
           await this.createTaskFile(
@@ -153,8 +153,10 @@ export class FileManager {
 
   private async updateTaskFile(
     file: TFile,
-    frontmatter: TaskFrontmatter
+    frontmatter: TaskFrontmatter,
+    description?: string
   ): Promise<void> {
+    // Update frontmatter
     await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
       fm.jira_key = frontmatter.jira_key;
       fm.source = frontmatter.source;
@@ -171,6 +173,26 @@ export class FileManager {
       fm.summary = frontmatter.summary;
       fm.updated = frontmatter.updated;
     });
+    
+    // Update description body if provided
+    if (description !== undefined) {
+      const content = await this.vault.read(file);
+      const lines = content.split('\n');
+      const descIndex = lines.findIndex(l => l.trim() === '## Description');
+      
+      if (descIndex >= 0) {
+        // Find where frontmatter ends (after '---')
+        const frontmatterEnd = lines.findIndex((l, i) => i > 0 && l.trim() === '---');
+        // Keep everything up to and including '## Description' line
+        const beforeDesc = lines.slice(0, descIndex + 1);
+        // New description content
+        const newContent = [...beforeDesc, description].join('\n');
+        
+        if (newContent !== content) {
+          await this.vault.modify(file, newContent);
+        }
+      }
+    }
   }
 
   async updateStatus(file: TFile, newColumnId: string): Promise<void> {
