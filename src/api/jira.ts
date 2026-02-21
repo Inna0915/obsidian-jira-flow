@@ -368,7 +368,7 @@ export class JiraApi {
   async fetchIssue(issueKey: string): Promise<JiraIssue | null> {
     try {
       return await this.request<JiraIssue>(
-        `issue/${issueKey}?fields=${this.fieldsParam}`
+        `issue/${issueKey}?fields=${this.fieldsParam}&expand=renderedFields`
       );
     } catch {
       return null;

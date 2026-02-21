@@ -102,11 +102,17 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     (async () => {
       const issue = await plugin.jiraApi.fetchIssue(card.jiraKey);
       if (!issue) return;
-      // Description - use rendered HTML if available
-      const desc = issue.renderedFields?.description 
+      
+      const rawDesc = issue.renderedFields?.description 
         || issue.fields.description 
         || "";
-      setDescription(typeof desc === "string" ? desc : "");
+
+      // CRITICAL FIX: We MUST process the description just like we do in sync!
+      // This converts Wiki images and ensures we use local downloaded assets instead of hitting cert errors.
+      const processedDesc = await plugin.fileManager.processDescription(rawDesc, issue.key);
+      
+      setDescription(processedDesc);
+      
       // Links
       const issueLinks = (issue.fields as Record<string, unknown>).issuelinks as Array<{
         type: { name: string; inward: string; outward: string };

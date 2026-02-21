@@ -174,7 +174,12 @@ export class FileManager {
         fm.tags = frontmatter.tags;
         fm.summary = frontmatter.summary;
         fm.updated = frontmatter.updated;
+        // Remove old description if it was in frontmatter
+        delete (fm as { description?: unknown }).description;
       });
+
+      // CRITICAL FIX: Wait 300ms for Windows and Obsidian to release the file lock
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // STEP 2: Only after frontmatter is updated, update the body
       if (description !== undefined) {
@@ -195,7 +200,7 @@ export class FileManager {
         }
       }
     } catch (error) {
-      console.error(`[Jira Flow] Failed to update file ${file.name}:`, error);
+      console.error(`[Jira Flow] EBUSY or Write Error on ${file.name}:`, error);
       throw error;
     }
   }
@@ -245,55 +250,46 @@ export class FileManager {
     return lines.join("\n") + "\n";
   }
 
-  private async processDescription(
-    html: string,
-    issueKey: string
-  ): Promise<string> {
+  /**
+   * Process description HTML: convert Jira Wiki images to HTML and download assets.
+   * Public so it can be used by UI components to process API-fetched descriptions.
+   */
+  async processDescription(html: string, issueKey: string): Promise<string> {
     if (!html) return "";
 
-    let md = html
-      // Headers
-      .replace(/<h([1-6])[^>]*>(.*?)<\/h[1-6]>/gi, (_m, level: string, text: string) => {
-        return "#".repeat(parseInt(level)) + " " + text.trim();
-      })
-      // Bold
-      .replace(/<strong>(.*?)<\/strong>/gi, "**$1**")
-      .replace(/<b>(.*?)<\/b>/gi, "**$1**")
-      // Italic
-      .replace(/<em>(.*?)<\/em>/gi, "*$1*")
-      .replace(/<i>(.*?)<\/i>/gi, "*$1*")
-      // Code blocks
-      .replace(/<pre>(.*?)<\/pre>/gis, "\n```\n$1\n```\n")
-      .replace(/<code>(.*?)<\/code>/gi, "`$1`")
-      // Links
-      .replace(/<a[^>]+href="([^"]*)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)")
-      // Lists
-      .replace(/<li>(.*?)<\/li>/gi, "- $1")
-      .replace(/<\/?[uo]l[^>]*>/gi, "")
-      // Line breaks
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<p>(.*?)<\/p>/gis, "$1\n\n")
-      // Strip remaining tags
-      .replace(/<[^>]+>/g, "")
-      // Clean up whitespace
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
+    // Keep HTML clean for JiraHtmlRenderer - only process images to local assets
+    let processedHtml = html;
 
-    // Download images
-    const imgRegex = /<img[^>]+src="([^"]+)"[^>]*(?:alt="([^"]*)")?[^>]*>/gi;
-    const imgMatches = html.matchAll(imgRegex);
+    // NEW: Convert Jira Wiki Images (!image.png|width=100! or !http://...!) to HTML
+    // This handles 3rd-party plugins like Xray/Raven that return raw Wiki syntax
+    const wikiImageRegex = /!([^|!\n]+)(?:\|[^!\n]*)?!/g;
+    processedHtml = processedHtml.replace(wikiImageRegex, (match, imageUrl) => {
+      return `<img src="${imageUrl}" alt="Jira Wiki Image" />`;
+    });
+
+    // EXISTING: Now process all <img> tags (both native and the ones we just converted)
+    const imgRegex = /<img[^>]+src="([^"]+)"([^>]*)>/gi;
+    const imgMatches = Array.from(processedHtml.matchAll(imgRegex));
+    
     for (const match of imgMatches) {
       const imgUrl = match[1];
-      const alt = match[2] || "image";
+      const restOfTag = match[2];
       try {
-        const localPath = await this.downloadAsset(imgUrl, issueKey);
-        md = md.replace(match[0], `![${alt}](${localPath})`);
-      } catch {
-        md += `\n![${alt}](${imgUrl})`;
+        // If it's an internal Jira image, download it
+        if (imgUrl.startsWith('http') || imgUrl.startsWith('/')) {
+          const localPath = await this.downloadAsset(imgUrl, issueKey);
+          // Replace src with local path, keep all other attributes
+          processedHtml = processedHtml.replace(
+            match[0],
+            `<img src="${localPath}"${restOfTag}>`
+          );
+        }
+      } catch (e) {
+        console.log(`[Jira Flow] Failed to download image ${imgUrl}, keeping original.`);
       }
     }
 
-    return md;
+    return processedHtml;
   }
 
   private async downloadAsset(
@@ -344,6 +340,18 @@ export class FileManager {
       archived: fm.archived || false,
       archived_date: fm.archived_date || "",
     };
+  }
+
+  /**
+   * Read the description from the file body (content after frontmatter).
+   * For JIRA tasks, this is HTML content. For local tasks, this may be markdown.
+   */
+  async readDescription(file: TFile): Promise<string> {
+    const content = await this.vault.read(file);
+    // Remove frontmatter to get body content
+    const frontmatterRegex = /^---\n[\s\S]*?\n---\n?/;
+    const body = content.replace(frontmatterRegex, "").trim();
+    return body;
   }
 
   async archiveTask(file: TFile): Promise<void> {
