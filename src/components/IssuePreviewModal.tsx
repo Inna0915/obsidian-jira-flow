@@ -15,14 +15,35 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey, 
   useEffect(() => {
     const loadIssue = async () => {
       setLoading(true);
+      console.log(`[Jira Flow Preview] Loading issue: ${issueKey}`);
+      
       // Fetch issue with renderedFields
       const data = await plugin.jiraApi.fetchIssue(issueKey); 
       
+      console.log(`[Jira Flow Preview] API Response for ${issueKey}:`, data);
+      
       if (data) {
+        // Log key fields
+        console.log(`[Jira Flow Preview] Issue ${issueKey} fields:`, {
+          summary: data.fields?.summary,
+          status: data.fields?.status?.name,
+          assignee: data.fields?.assignee?.displayName,
+          issuetype: data.fields?.issuetype?.name,
+          priority: data.fields?.priority?.name,
+          descriptionLength: data.fields?.description?.length || 0,
+          renderedDescriptionLength: data.renderedFields?.description?.length || 0,
+        });
+        
         // Run description through asset downloader
         const rawDesc = data.renderedFields?.description || data.fields?.description || "";
+        console.log(`[Jira Flow Preview] Raw description (first 500 chars):`, rawDesc.substring(0, 500));
+        
         const processedDesc = await plugin.fileManager.processDescription(rawDesc, issueKey);
+        console.log(`[Jira Flow Preview] Processed description (first 500 chars):`, processedDesc.substring(0, 500));
+        
         setIssue({ ...data, processedDesc });
+      } else {
+        console.error(`[Jira Flow Preview] Failed to load issue ${issueKey}`);
       }
       setLoading(false);
     };
