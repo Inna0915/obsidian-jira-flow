@@ -1,88 +1,74 @@
 /**
- * Parses Jira Server/Data Center sprint field format.
- * Jira returns sprint as an array of Java toString() representations like:
- * ["com.atlassian.greenhopper.service.sprint.Sprint@...[id=123,name=Sprint 1,state=ACTIVE,...]"]
+ * Universal Sprint Name Parser
+ * Handles Jira Agile API objects, Core API string arrays, and edge cases.
  */
+export const parseJiraSprintName = (sprintData: unknown): string | null => {
+  if (!sprintData) return null;
 
-/**
- * Extract sprint name from messy Jira Server sprint data
- */
-export const parseJiraSprintName = (sprintFieldData: unknown): string => {
-  if (!sprintFieldData) return "";
-
-  // Jira returns an array of sprint strings
-  const sprintArray = Array.isArray(sprintFieldData) ? sprintFieldData : [sprintFieldData];
-  if (sprintArray.length === 0) return "";
-
-  // Find active sprint first, otherwise use the last one (most recent)
-  let targetSprint = sprintArray[sprintArray.length - 1];
-  
-  for (const sprintStr of sprintArray) {
-    const str = String(sprintStr);
-    if (str.includes("state=ACTIVE") || str.includes("state=active")) {
-      targetSprint = sprintStr;
-      break;
+  try {
+    // Case 1: It's already a clean object (Agile API format)
+    if (typeof sprintData === 'object' && !Array.isArray(sprintData) && (sprintData as {name?: string}).name) {
+      return (sprintData as {name: string}).name;
     }
-  }
 
-  const sprintString = String(targetSprint);
+    // Convert to array to handle historical sprints
+    const sprintArray = Array.isArray(sprintData) ? sprintData : [sprintData];
+    if (sprintArray.length === 0) return null;
 
-  // Extract content inside the brackets: [...]
-  const match = sprintString.match(/\[(.*?)\]/);
-  if (!match) {
-    // If no brackets, return as-is (might be a normal string)
-    return sprintString;
-  }
+    // Get the most recent sprint (usually the last one in the array)
+    const latestSprint = sprintArray[sprintArray.length - 1];
 
-  // Parse key=value pairs inside brackets
-  const sprintData: Record<string, string> = {};
-  const pairs = match[1].split(',');
-  
-  for (const pair of pairs) {
-    const [key, ...valueParts] = pair.split('=');
-    if (key) {
-      const value = valueParts.join('='); // Handle values that contain '='
-      sprintData[key.trim()] = value !== '<null>' && value !== 'null' ? value.trim() : '';
+    // Case 2: Array of clean objects
+    if (typeof latestSprint === 'object' && latestSprint !== null && (latestSprint as {name?: string}).name) {
+      return (latestSprint as {name: string}).name;
     }
-  }
 
-  return sprintData['name'] || "";
+    // Case 3: Ugly Jira Server String (Core API format)
+    const sprintString = String(latestSprint);
+    
+    // Improved Regex: specifically look for 'name=VALUE' followed by a comma or closing bracket
+    const nameMatch = sprintString.match(/name=(.*?)(?:,|$|\])/);
+    if (nameMatch && nameMatch[1]) {
+      return nameMatch[1].trim() === '<null>' ? null : nameMatch[1].trim();
+    }
+
+    // Fallback: If regex fails, return the string itself so the user at least sees something instead of nothing
+    return sprintString; 
+  } catch (error) {
+    console.error('[Jira Flow] Error parsing sprint name:', error, sprintData);
+    return null;
+  }
 };
 
 /**
- * Extract sprint state from messy Jira Server sprint data
+ * Universal Sprint State Parser
  */
-export const parseJiraSprintState = (sprintFieldData: unknown): string => {
-  if (!sprintFieldData) return "";
+export const parseJiraSprintState = (sprintData: unknown): string | null => {
+  if (!sprintData) return null;
 
-  const sprintArray = Array.isArray(sprintFieldData) ? sprintFieldData : [sprintFieldData];
-  if (sprintArray.length === 0) return "";
-
-  // Find active sprint first
-  let targetSprint = sprintArray[sprintArray.length - 1];
-  
-  for (const sprintStr of sprintArray) {
-    const str = String(sprintStr);
-    if (str.includes("state=ACTIVE") || str.includes("state=active")) {
-      targetSprint = sprintStr;
-      break;
+  try {
+    if (typeof sprintData === 'object' && !Array.isArray(sprintData) && (sprintData as {state?: string}).state) {
+      return (sprintData as {state: string}).state;
     }
-  }
 
-  const sprintString = String(targetSprint);
-  const match = sprintString.match(/\[(.*?)\]/);
-  if (!match) return "";
+    const sprintArray = Array.isArray(sprintData) ? sprintData : [sprintData];
+    if (sprintArray.length === 0) return null;
 
-  const sprintData: Record<string, string> = {};
-  const pairs = match[1].split(',');
-  
-  for (const pair of pairs) {
-    const [key, ...valueParts] = pair.split('=');
-    if (key) {
-      const value = valueParts.join('=');
-      sprintData[key.trim()] = value !== '<null>' && value !== 'null' ? value.trim() : '';
+    const latestSprint = sprintArray[sprintArray.length - 1];
+
+    if (typeof latestSprint === 'object' && latestSprint !== null && (latestSprint as {state?: string}).state) {
+      return (latestSprint as {state: string}).state;
     }
-  }
 
-  return sprintData['state'] || "";
+    const sprintString = String(latestSprint);
+    const stateMatch = sprintString.match(/state=(.*?)(?:,|$|\])/);
+    if (stateMatch && stateMatch[1]) {
+      return stateMatch[1].trim() === '<null>' ? null : stateMatch[1].trim().toUpperCase();
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[Jira Flow] Error parsing sprint state:', error);
+    return null;
+  }
 };
