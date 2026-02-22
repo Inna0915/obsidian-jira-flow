@@ -14,16 +14,14 @@ interface SidebarTask {
   sprint_state: string;
 }
 
-// --- Pomodoro Timer Constants ---
-const POMODORO_SECONDS = 35 * 60; // 35 minutes
-
 export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const [tasks, setTasks] = useState<SidebarTask[]>([]);
   const [loading, setLoading] = useState(true);
 
   // --- Pomodoro Timer State ---
+  const [defaultMinutes, setDefaultMinutes] = useState(35);
   const [activeTask, setActiveTask] = useState<SidebarTask | null>(null);
-  const [timeLeft, setTimeLeft] = useState(POMODORO_SECONDS);
+  const [timeLeft, setTimeLeft] = useState(35 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
   const loadTasks = useCallback(async () => {
@@ -105,7 +103,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     
     // Reset
     setActiveTask(null);
-    setTimeLeft(POMODORO_SECONDS);
+    setTimeLeft(defaultMinutes * 60);
   };
 
   const startTimer = (e: React.MouseEvent, task: SidebarTask) => {
@@ -114,14 +112,14 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       if (!window.confirm('当前已有专注任务，是否放弃当前进度并切换？')) return;
     }
     setActiveTask(task);
-    setTimeLeft(POMODORO_SECONDS);
+    setTimeLeft(defaultMinutes * 60);
     setIsTimerRunning(true);
   };
 
   const stopTimer = () => {
     setIsTimerRunning(false);
     setActiveTask(null);
-    setTimeLeft(POMODORO_SECONDS);
+    setTimeLeft(defaultMinutes * 60);
   };
 
   const formatTime = (seconds: number) => {
@@ -237,7 +235,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
             {/* PLAY BUTTON */}
             <button 
               onClick={(e) => startTimer(e, task)}
-              title="开始专注 (35分钟)"
+              title={`开始专注 (${defaultMinutes}分钟)`}
               className={`${isActive ? 'jf-text-blue-500' : 'jf-text-gray-300 hover:jf-text-blue-500'} jf-transition-colors`}
             >
               <svg className="jf-w-5 jf-h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -269,9 +267,25 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
 
   return (
     <div className="jf-h-full jf-bg-gray-50 jf-p-3 jf-overflow-y-auto">
-      <h2 className="jf-text-sm jf-font-bold jf-text-gray-800 jf-mb-3 jf-flex jf-items-center jf-gap-2">
-        <span className="jf-text-blue-500">📅</span> Focus View
-      </h2>
+      <div className="jf-flex jf-justify-between jf-items-center jf-mb-4">
+        <h2 className="jf-text-sm jf-font-bold jf-text-gray-800 jf-flex jf-items-center jf-gap-2">
+          <span className="jf-text-blue-500">📅</span> Focus View
+        </h2>
+        
+        {/* Global Duration Setting */}
+        <div className="jf-flex jf-items-center jf-gap-1 jf-text-xs jf-font-medium jf-text-gray-500 jf-bg-white jf-px-2 jf-py-1 jf-border jf-border-gray-200 jf-rounded-md jf-shadow-sm">
+          <svg className="jf-w-3.5 jf-h-3.5 jf-text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <input 
+            type="number" 
+            min="1" 
+            max="120"
+            value={defaultMinutes}
+            onChange={(e) => setDefaultMinutes(Number(e.target.value) || 35)}
+            className="jf-w-8 jf-p-0 jf-text-center jf-border-none jf-bg-transparent focus:jf-ring-0 jf-text-gray-700 jf-font-bold"
+          />
+          <span>min</span>
+        </div>
+      </div>
       
       {/* ACTIVE TIMER WIDGET (LIGHT THEME) */}
       {activeTask && (
@@ -292,9 +306,29 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
             </button>
           </div>
           
-          {/* Timer Display */}
-          <div className="jf-text-4xl jf-font-mono jf-font-bold jf-text-center jf-text-slate-800 jf-my-3 jf-tracking-wider">
-            {formatTime(timeLeft)}
+          {/* Timer Display with Quick Adjustments */}
+          <div className="jf-flex jf-justify-center jf-items-center jf-gap-4 jf-my-3">
+            {/* -5 Min Button */}
+            <button 
+              onClick={() => setTimeLeft(prev => Math.max(0, prev - 300))}
+              className="jf-text-gray-300 hover:jf-text-blue-500 jf-transition-colors jf-p-1 jf-rounded hover:jf-bg-blue-50"
+              title="减少 5 分钟"
+            >
+              <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4"></path></svg>
+            </button>
+            
+            <div className="jf-text-4xl jf-font-mono jf-font-bold jf-text-center jf-text-slate-800 jf-tracking-wider jf-w-24">
+              {formatTime(timeLeft)}
+            </div>
+
+            {/* +5 Min Button */}
+            <button 
+              onClick={() => setTimeLeft(prev => prev + 300)}
+              className="jf-text-gray-300 hover:jf-text-blue-500 jf-transition-colors jf-p-1 jf-rounded hover:jf-bg-blue-50"
+              title="增加 5 分钟"
+            >
+              <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+            </button>
           </div>
           
           {/* Task Summary */}
