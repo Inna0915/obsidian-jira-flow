@@ -92,18 +92,18 @@ export interface ColumnDef {
 }
 
 export const KANBAN_COLUMNS: ColumnDef[] = [
-  { id: "FUNNEL",            label: "FUNNEL",            phase: "Backlog",  color: "#F4F5F7", headerColor: "#6B778C" },
-  { id: "DEFINING",          label: "DEFINING",          phase: "Backlog",  color: "#F4F5F7", headerColor: "#6B778C" },
-  { id: "READY",             label: "READY",             phase: "Backlog",  color: "#DFE1E6", headerColor: "#42526E" },
-  { id: "TO DO",             label: "TO DO",             phase: "Todo",     color: "#DFE1E6", headerColor: "#42526E" },
-  { id: "EXECUTION",         label: "EXECUTION",         phase: "Active",   color: "#DEEBFF", headerColor: "#0052CC" },
-  { id: "EXECUTED",          label: "EXECUTED",          phase: "Active",   color: "#DEEBFF", headerColor: "#0052CC" },
-  { id: "TESTING & REVIEW",  label: "TESTING & REVIEW",  phase: "Testing",  color: "#EAE6FF", headerColor: "#6554C0" },
-  { id: "TEST DONE",         label: "TEST DONE",         phase: "Testing",  color: "#EAE6FF", headerColor: "#6554C0" },
-  { id: "VALIDATING",        label: "VALIDATING",        phase: "Validate", color: "#FFF0B3", headerColor: "#FF8B00" },
-  { id: "RESOLVED",          label: "RESOLVED",          phase: "Done",     color: "#E3FCEF", headerColor: "#006644" },
-  { id: "DONE",              label: "DONE",              phase: "Done",     color: "#E3FCEF", headerColor: "#006644" },
-  { id: "CLOSED",            label: "CLOSED",            phase: "Done",     color: "#E3FCEF", headerColor: "#006644" },
+  { id: "FUNNEL",            label: "FUNNEL 需求池",            phase: "Backlog",  color: "#F4F5F7", headerColor: "#6B778C" },
+  { id: "DEFINING",          label: "DEFINING 定义中",          phase: "Backlog",  color: "#F4F5F7", headerColor: "#6B778C" },
+  { id: "READY",             label: "READY 就绪",             phase: "Backlog",  color: "#DFE1E6", headerColor: "#42526E" },
+  { id: "TO DO",             label: "TO DO 待办",             phase: "Todo",     color: "#DFE1E6", headerColor: "#42526E" },
+  { id: "EXECUTION",         label: "EXECUTION 执行中",         phase: "Active",   color: "#DEEBFF", headerColor: "#0052CC" },
+  { id: "EXECUTED",          label: "EXECUTED 已构建",          phase: "Active",   color: "#DEEBFF", headerColor: "#0052CC" },
+  { id: "TESTING & REVIEW",  label: "TESTING & REVIEW 测试审核",  phase: "Testing",  color: "#EAE6FF", headerColor: "#6554C0" },
+  { id: "TEST DONE",         label: "TEST DONE 测试完成",         phase: "Testing",  color: "#EAE6FF", headerColor: "#6554C0" },
+  { id: "VALIDATING",        label: "VALIDATING 验收中",        phase: "Validate", color: "#FFF0B3", headerColor: "#FF8B00" },
+  { id: "RESOLVED",          label: "RESOLVED 已解决",          phase: "Done",     color: "#E3FCEF", headerColor: "#006644" },
+  { id: "DONE",              label: "DONE 已完成",              phase: "Done",     color: "#E3FCEF", headerColor: "#006644" },
+  { id: "CLOSED",            label: "CLOSED 已关闭",            phase: "Done",     color: "#E3FCEF", headerColor: "#006644" },
 ];
 
 export const COLUMN_IDS = KANBAN_COLUMNS.map((c) => c.id);
@@ -118,9 +118,9 @@ export interface SwimlaneDef {
 }
 
 export const SWIMLANES: SwimlaneDef[] = [
-  { id: "overdue",    label: "OVERDUE",     color: "#FFEBE6" },
-  { id: "onSchedule", label: "ON SCHEDULE", color: "#E6FCFF" },
-  { id: "others",     label: "OTHERS",      color: "#F4F5F7" },
+  { id: "overdue",    label: "OVERDUE 已逾期",     color: "#FFEBE6" },
+  { id: "onSchedule", label: "ON SCHEDULE 按时", color: "#E6FCFF" },
+  { id: "others",     label: "OTHERS 其他",      color: "#F4F5F7" },
 ];
 
 // ===== Status → Column Mapping =====

@@ -20,7 +20,7 @@ export class SidebarView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Jira Flow Focus";
+    return "Jira Flow 专注";
   }
 
   getIcon(): string {

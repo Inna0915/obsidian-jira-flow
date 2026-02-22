@@ -26,11 +26,11 @@ export default class JiraFlowPlugin extends Plugin {
     this.workLogger = new WorkLogger(this);
     this.reportGenerator = new ReportGenerator(this);
 
-    this.addRibbonIcon("kanban", "Open Jira Flow Kanban", () => {
+    this.addRibbonIcon("kanban", "打开 Jira Flow 看板", () => {
       this.activateKanbanView();
     });
 
-    this.addRibbonIcon("check-circle", "Open Jira Flow Focus", () => {
+    this.addRibbonIcon("check-circle", "打开 Jira Flow 专注视图", () => {
       this.activateSidebarView();
     });
 
@@ -42,55 +42,55 @@ export default class JiraFlowPlugin extends Plugin {
 
     this.addCommand({
       id: "open-kanban",
-      name: "Open Kanban Board",
+      name: "打开看板",
       callback: () => this.activateKanbanView(),
     });
 
     this.addCommand({
       id: "sync-jira",
-      name: "Sync Now",
+      name: "立即同步",
       callback: () => this.syncJira(),
     });
 
     this.addCommand({
       id: "create-local-task",
-      name: "Create Local Task",
+      name: "创建本地任务",
       callback: () => this.createLocalTask(),
     });
 
     this.addCommand({
       id: "generate-weekly-report",
-      name: "Generate Weekly Report",
+      name: "生成周报",
       callback: () => this.generateReport("weekly"),
     });
 
     this.addCommand({
       id: "generate-monthly-report",
-      name: "Generate Monthly Report",
+      name: "生成月报",
       callback: () => this.generateReport("monthly"),
     });
 
     this.addCommand({
       id: "generate-quarterly-report",
-      name: "Generate Quarterly Report",
+      name: "生成季报",
       callback: () => this.generateReport("quarterly"),
     });
 
     this.addCommand({
       id: "generate-yearly-report",
-      name: "Generate Yearly Report",
+      name: "生成年报",
       callback: () => this.generateReport("yearly"),
     });
 
     this.addCommand({
       id: "open-archive",
-      name: "Open Archive View",
+      name: "打开归档视图",
       callback: () => this.activateArchiveView(),
     });
 
     this.addCommand({
       id: "open-focus-view",
-      name: "Open Focus View (Sidebar)",
+      name: "打开专注视图（侧边栏）",
       callback: () => this.activateSidebarView(),
     });
 

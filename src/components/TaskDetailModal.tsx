@@ -240,7 +240,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             <span className="jf-text-sm">{typeIcons[card.issuetype] || "\u{1F4CB}"}</span>
             {jiraUrl ? (
               <a href={jiraUrl} className="jf-font-mono jf-text-sm jf-font-semibold jf-text-blue-600 hover:jf-underline"
-                title="Open in Jira"
+                title="在 Jira 中打开"
                 onClick={(e) => { e.preventDefault(); window.open(jiraUrl); }}>
                 {card.jiraKey}
               </a>
@@ -286,27 +286,27 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
 
           {/* Metadata Grid */}
           <div className="jf-grid jf-grid-cols-2 jf-gap-0 jf-border jf-border-gray-200 jf-rounded-lg jf-overflow-hidden jf-mb-5">
-            <MetaCell label="Status" value={card.mappedColumn} valueColor={cColor} />
-            <MetaCell label="Assignee" value={card.assignee || "-"} />
-            <MetaCell label="Type" value={card.issuetype} />
-            <MetaCell label="Priority" value={card.priority} valueColor={pColor} />
-            <MetaCell label="Source" value={card.source} />
-            <MetaCell label="Swimlane" value={
-              card.swimlane === "overdue" ? "OVERDUE" : card.swimlane === "onSchedule" ? "ON SCHEDULE" : "OTHERS"
+            <MetaCell label="状态" value={card.mappedColumn} valueColor={cColor} />
+            <MetaCell label="负责人" value={card.assignee || "-"} />
+            <MetaCell label="类型" value={card.issuetype} />
+            <MetaCell label="优先级" value={card.priority} valueColor={pColor} />
+            <MetaCell label="来源" value={card.source} />
+            <MetaCell label="泳道" value={
+              card.swimlane === "overdue" ? "已逾期" : card.swimlane === "onSchedule" ? "按时" : "其他"
             } valueColor={isOverdue ? "#FF5630" : undefined} />
           </div>
 
           {/* Editable Fields */}
           <div className="jf-grid jf-grid-cols-2 jf-gap-4 jf-mb-5">
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Story Points</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">故事点</label>
               <input type="number" min={0} value={storyPoints}
                 onChange={(e) => setStoryPoints(Number(e.target.value))}
                 className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500"
                 disabled={saving} />
             </div>
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Due Date</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">截止日期</label>
               <input type="date" value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
                 className={`jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 ${isOverdue ? "jf-text-red-500" : ""}`}
@@ -318,14 +318,14 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           {isLocal && (
             <div className="jf-grid jf-grid-cols-2 jf-gap-4 jf-mb-5">
               <div>
-                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Type</label>
+                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">类型</label>
                 <select value={card.issuetype} onChange={(e) => handleSaveLocalField("issuetype", e.target.value)} 
                   className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500">
                   {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">Priority</label>
+                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">优先级</label>
                 <select value={card.priority} onChange={(e) => handleSaveLocalField("priority", e.target.value)} 
                   className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500">
                   {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
@@ -337,10 +337,10 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           {/* Description */}
           <div className="jf-mb-5">
             <div className="jf-flex jf-items-center jf-justify-between jf-mb-2">
-              <label className="jf-text-xs jf-font-medium jf-text-gray-500 jf-uppercase">Description</label>
+              <label className="jf-text-xs jf-font-medium jf-text-gray-500 jf-uppercase">描述</label>
               {isLocal && !editingDesc && (
                 <button onClick={() => { setEditingDesc(true); setLocalDesc(description); }} 
-                  className="jf-text-xs jf-text-blue-600 hover:jf-text-blue-700 jf-font-medium">Edit</button>
+                  className="jf-text-xs jf-text-blue-600 hover:jf-text-blue-700 jf-font-medium">编辑</button>
               )}
             </div>
             {editingDesc && isLocal ? (
@@ -349,9 +349,9 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                   rows={6} className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-resize-vertical" />
                 <div className="jf-flex jf-gap-2 jf-mt-2">
                   <button onClick={handleSaveDescription} 
-                    className="jf-px-3 jf-py-1.5 jf-bg-blue-600 jf-text-white jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-blue-700">Save</button>
+                    className="jf-px-3 jf-py-1.5 jf-bg-blue-600 jf-text-white jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-blue-700">保存</button>
                   <button onClick={() => setEditingDesc(false)} 
-                    className="jf-px-3 jf-py-1.5 jf-text-gray-600 jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-gray-100">Cancel</button>
+                    className="jf-px-3 jf-py-1.5 jf-text-gray-600 jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-gray-100">取消</button>
                 </div>
               </div>
             ) : (
@@ -359,7 +359,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                 {isJira && description ? (
                   <JiraHtmlRenderer html={description} plugin={plugin} />
                 ) : (
-                  <span className="jf-whitespace-pre-wrap">{description || <span className="jf-text-gray-400">No description</span>}</span>
+                  <span className="jf-whitespace-pre-wrap">{description || <span className="jf-text-gray-400">暂无描述</span>}</span>
                 )}
               </div>
             )}
@@ -368,7 +368,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           {/* Linked Issues (Jira only) */}
           {isJira && links.length > 0 && (
             <div className="jf-mb-5">
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">Linked Issues</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">关联任务</label>
               <div className="jf-flex jf-flex-col jf-gap-2">
                 {links.map((link, i) => (
                   <div key={i} className="jf-flex jf-items-center jf-gap-2 jf-p-2.5 jf-bg-gray-50 jf-rounded-lg jf-text-sm jf-cursor-pointer hover:jf-bg-gray-100 jf-transition-colors"
@@ -387,7 +387,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           {/* Tags */}
           {card.tags.length > 0 && (
             <div className="jf-mb-5">
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">Tags</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">标签</label>
               <div className="jf-flex jf-flex-wrap jf-gap-2">
                 {card.tags.map((tag) => (
                   <span key={tag} className="jf-text-[10px] jf-px-2 jf-py-1 jf-rounded jf-bg-gray-100 jf-text-gray-500">{tag}</span>
@@ -403,13 +403,13 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {canArchive && (
               <button onClick={() => onArchive(card)} 
                 className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
-                Archive
+                归档
               </button>
             )}
             {isLocal && (
               <button onClick={() => setShowDeleteConfirm(true)} 
                 className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
-                Delete
+                删除
               </button>
             )}
           </div>
@@ -418,12 +418,12 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             {showSaveToJira && isDirty && (
               <button onClick={handleSaveToJira} disabled={saving} 
                 className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-green-600 hover:jf-bg-green-700 jf-rounded-lg jf-transition-colors disabled:jf-opacity-60">
-                {saving ? "Saving..." : "Save to Jira"}
+                {saving ? "保存中..." : "保存到 Jira"}
               </button>
             )}
             <button onClick={() => { onOpenFile(card.filePath); onClose(); }} 
               className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-rounded-lg jf-transition-colors">
-              Open File
+              打开文件
             </button>
           </div>
         </div>
@@ -433,15 +433,15 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           <>
             <div className="jf-fixed jf-inset-0 jf-z-[10001] jf-bg-black/30" onClick={() => setShowDeleteConfirm(false)} />
             <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-[10002] jf-w-[360px] jf-max-w-[90vw] jf-bg-white jf-rounded-xl jf-shadow-2xl jf-p-6">
-              <h3 className="jf-text-base jf-font-semibold jf-mb-3">Confirm Delete</h3>
+              <h3 className="jf-text-base jf-font-semibold jf-mb-3">确认删除</h3>
               <p className="jf-text-sm jf-text-gray-500 jf-mb-5">
-                Are you sure you want to delete <strong>{card.jiraKey}</strong>? This will permanently remove the task and its markdown file.
+                确定要删除 <strong>{card.jiraKey}</strong> 吗？这将永久删除该任务及其 Markdown 文件。
               </p>
               <div className="jf-flex jf-justify-end jf-gap-3">
                 <button onClick={() => setShowDeleteConfirm(false)} 
-                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg">Cancel</button>
+                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg">取消</button>
                 <button onClick={() => { setShowDeleteConfirm(false); onDelete(card); }} 
-                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-red-600 hover:jf-bg-red-700 jf-rounded-lg">Delete</button>
+                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-red-600 hover:jf-bg-red-700 jf-rounded-lg">删除</button>
               </div>
             </div>
           </>
@@ -531,7 +531,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
         
         {/* Header */}
         <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
-          <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">Create Local Task</h3>
+          <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">创建本地任务</h3>
           <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-transition-colors">
             <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -543,13 +543,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
         <div className="jf-p-6 jf-space-y-4">
           {/* Summary - Full width */}
           <div>
-            <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Summary</label>
+            <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
             <input 
               value={summary} 
               onChange={(e) => setSummary(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
               autoFocus 
-              placeholder="What needs to be done?"
+              placeholder="需要做什么？"
               className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
             />
           </div>
@@ -557,7 +557,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
           {/* Row 2: Type & Priority */}
           <div className="jf-grid jf-grid-cols-2 jf-gap-4">
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Type</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">类型</label>
               <select 
                 value={issuetype} 
                 onChange={(e) => setIssuetype(e.target.value)} 
@@ -566,7 +566,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
               </select>
             </div>
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Priority</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">优先级</label>
               <select 
                 value={priority} 
                 onChange={(e) => setPriority(e.target.value)} 
@@ -579,7 +579,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
           {/* Row 3: Column & Story Points */}
           <div className="jf-grid jf-grid-cols-2 jf-gap-4">
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Status</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">状态</label>
               <select 
                 value={mappedColumn} 
                 onChange={(e) => setMappedColumn(e.target.value)} 
@@ -588,7 +588,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
               </select>
             </div>
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Story Points</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">故事点</label>
               <input 
                 type="number" 
                 min={0} 
@@ -602,7 +602,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
           {/* Row 4: Due Date & Assignee */}
           <div className="jf-grid jf-grid-cols-2 jf-gap-4">
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Due Date</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">截止日期</label>
               <input 
                 type="date" 
                 value={dueDate}
@@ -611,11 +611,11 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
               />
             </div>
             <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Assignee</label>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">负责人</label>
               <input 
                 value={assignee} 
                 onChange={(e) => setAssignee(e.target.value)}
-                placeholder="Username"
+                placeholder="用户名"
                 className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
               />
             </div>
@@ -627,13 +627,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
           <button 
             onClick={onClose} 
             className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg jf-transition-colors">
-            Cancel
+            取消
           </button>
           <button 
             onClick={handleSave} 
             disabled={!summary.trim()} 
             className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-shadow-sm jf-rounded-lg jf-transition-all disabled:jf-opacity-50 disabled:jf-cursor-not-allowed">
-            Create Task
+            创建任务
           </button>
         </div>
       </div>

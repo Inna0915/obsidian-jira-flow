@@ -17,7 +17,7 @@ export class ArchiveView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Jira Flow Archive";
+    return "Jira Flow 归档";
   }
 
   getIcon(): string {
@@ -52,13 +52,13 @@ export class ArchiveView extends ItemView {
     header.style.justifyContent = "space-between";
     header.style.marginBottom = "16px";
 
-    const title = header.createEl("h2", { text: "Archived Tasks" });
+    const title = header.createEl("h2", { text: "已归档任务" });
     title.style.margin = "0";
 
     // Collect archived tasks
     const archivedTasks = this.getArchivedTasks();
 
-    const countBadge = header.createSpan({ text: `${archivedTasks.length} tasks` });
+    const countBadge = header.createSpan({ text: `${archivedTasks.length} 个任务` });
     countBadge.style.fontSize = "13px";
     countBadge.style.color = "var(--text-muted)";
     countBadge.style.padding = "4px 10px";
@@ -71,7 +71,7 @@ export class ArchiveView extends ItemView {
       empty.style.padding = "60px 20px";
       empty.style.color = "var(--text-muted)";
       empty.style.fontSize = "14px";
-      empty.setText("No archived tasks yet. Archive LOCAL tasks from the Kanban board.");
+      empty.setText("暂无归档任务。请从看板归档本地任务。");
       return;
     }
 
@@ -84,7 +84,7 @@ export class ArchiveView extends ItemView {
     // Table header
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
-    const columns = ["Key", "Summary", "Type", "Priority", "Points", "Due Date", "Assignee", "Archived"];
+    const columns = ["任务键", "摘要", "类型", "优先级", "故事点", "截止日期", "负责人", "归档时间"];
     for (const col of columns) {
       const th = headerRow.createEl("th", { text: col });
       th.style.textAlign = "left";

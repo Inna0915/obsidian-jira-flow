@@ -20,7 +20,7 @@ export class KanbanView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Jira Flow Kanban";
+    return "Jira Flow 看板";
   }
 
   getIcon(): string {

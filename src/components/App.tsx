@@ -138,7 +138,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
       const originalColumn = fm.mapped_column;
 
       if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn, fm.source)) {
-        new Notice(`Jira Flow: Cannot move ${fm.issuetype} from ${originalColumn} to ${targetColumn}`);
+        new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);
         return;
       }
 
@@ -148,7 +148,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
         const result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
         if (!result.success) {
           await plugin.fileManager.updateStatus(file, originalColumn);
-          new Notice(`Jira Flow: Transition failed for ${fm.jira_key}, rolled back to ${originalColumn}`);
+          new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
           return;
         }
         // Update local file with the actual Jira status after transition
@@ -208,7 +208,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
         updated: now,
       };
       await plugin.fileManager.createTaskFile(key, data.summary, frontmatter, "");
-      new Notice("Jira Flow: Local task created.");
+      new Notice("Jira Flow：本地任务已创建。");
       loadCards();
     },
     [plugin, loadCards]
@@ -219,7 +219,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (!file || !(file instanceof TFile)) return;
       await plugin.fileManager.archiveTask(file);
-      new Notice(`Jira Flow: ${card.jiraKey} archived.`);
+      new Notice(`Jira Flow：${card.jiraKey} 已归档。`);
       setDetailCard(null);
       loadCards();
     },
@@ -231,7 +231,7 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (!file || !(file instanceof TFile)) return;
       await plugin.app.vault.delete(file);
-      new Notice(`Jira Flow: ${card.jiraKey} deleted.`);
+      new Notice(`Jira Flow：${card.jiraKey} 已删除。`);
       setDetailCard(null);
       loadCards();
     },
@@ -261,9 +261,9 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
   }
 
   const viewModes: { id: ViewMode; label: string }[] = [
-    { id: "sprint", label: "Sprint" },
-    { id: "all", label: "Backlog" },
-    { id: "local", label: "Local" },
+    { id: "sprint", label: "当前迭代" },
+    { id: "all", label: "待办列表" },
+    { id: "local", label: "本地任务" },
   ];
 
   return (
