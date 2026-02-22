@@ -110,7 +110,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
 
         // 3. Append to Body
         const content = await plugin.app.vault.read(file);
-        const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        const timestamp = window.moment().format('YYYY-MM-DD HH:mm');
         const logEntry = `\n> 🍅 **专注记录**: [${timestamp}] 耗时 \`${minutes} 分钟\`\n`;
         
         await plugin.app.vault.modify(file, content + logEntry);
