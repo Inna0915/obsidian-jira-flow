@@ -1,6 +1,6 @@
 # Jira Flow - Obsidian Plugin
 
-将 Jira 项目管理无缝集成到 Obsidian 中。提供看板视图、双向同步、每日工作日志和 AI 驱动的报告生成。
+将 Jira 项目管理无缝集成到 Obsidian 中。提供看板视图、双向同步、每日工作日志、AI 驱动的报告生成，以及 Focus View 聚焦视图。
 
 ## 核心理念
 
@@ -14,12 +14,37 @@
 - 卡片按类型区分样式（Bug 红色边框背景、Story 绿色边框背景）
 - 卡片展示：Jira Key、类型图标、优先级、故事点、截止日期、负责人头像
 - 侧边栏详情面板，支持编辑故事点和截止日期并同步到 Jira
+- **悬停预览**：鼠标悬停在卡片上可预览任务详情
+
+### Focus View 聚焦视图
+- 独立的侧边栏视图（类似 Git 插件）
+- **今日/逾期**：显示今天到期或已逾期的任务
+- **本周剩余**：显示本周内到期的其他任务
+- 自动过滤已完成和已归档任务
+- **悬停预览**：悬停任务卡片可快速预览内容
+- 点击任务卡片直接打开文件
+
+### Issue Preview 任务预览
+- 点击 Linked Issue 打开浮动预览弹窗
+- 显示任务详情：状态、负责人、描述、关联任务
+- **Linked Issues**：显示关联的任务（relates to/blocks/is blocked by 等）
+- **Confluence Pages**：显示关联的 Wiki 页面，支持本地文件解析
+- 导航支持：点击关联任务可在预览中切换，带返回按钮
+
+### Confluence 链接集成
+- 自动识别 Jira 描述中的 Confluence 链接
+- **本地文件解析**：匹配 `confluence_url` 或 `confluence_page_id` frontmatter
+- **智能打开**：本地存在时优先打开本地文件，否则打开网页
+- **双操作设计**：本地文件可一键切换到网页版本
+- **悬停预览**：悬停时显示本地文件的 Obsidian 预览
 
 ### Jira 同步
 - 基于 Obsidian `requestUrl` 的 Jira REST API 集成（无 CORS 问题）
 - 支持 Agile API（Sprint 模式）和 JQL 回退查询
 - 自动检测活跃 Sprint 并过滤当前用户任务
 - 双向同步：本地修改可推送回 Jira（状态转换、故事点、截止日期）
+- **Wiki 图片转换**：自动将 `!image.png!` 转换为 HTML 图片
+- **300ms I/O 延迟**：修复 Windows EBUSY 文件锁问题
 
 ### 每日工作日志
 - 任务完成时自动追加到当日 Daily Note
@@ -47,7 +72,7 @@ src/
 ├── types.ts                   # TypeScript 类型定义
 ├── settings.ts                # 设置界面
 ├── api/
-│   └── jira.ts                # Jira REST API 客户端
+│   └── jira.ts                # Jira REST API 客户端（含 remotelink 获取）
 ├── sync/
 │   ├── fileManager.ts         # Markdown 文件 CRUD（Frontmatter 管理）
 │   ├── logger.ts              # Daily Note 工作日志写入
@@ -56,8 +81,9 @@ src/
 │   ├── aiService.ts           # AI 模型抽象层（多提供商）
 │   └── reportGenerator.ts     # 报告生成编排
 ├── views/
-│   ├── KanbanView.ts          # Obsidian ItemView（React 挂载）
-│   └── ArchiveView.ts         # 归档视图
+│   ├── KanbanView.ts          # 看板视图（React 挂载）
+│   ├── ArchiveView.ts         # 归档视图
+│   └── SidebarView.ts         # Focus View 侧边栏视图
 ├── components/
 │   ├── App.tsx                # React 主容器，路由状态管理
 │   ├── Board.tsx              # 看板布局（泳道 + 列）
@@ -65,7 +91,13 @@ src/
 │   ├── Column.tsx             # 看板列组件
 │   ├── Card.tsx               # 任务卡片（Bug/Story 样式区分）
 │   ├── TaskDetailModal.tsx    # 侧边栏详情面板（含 Save to Jira）
+│   ├── IssuePreviewModal.tsx  # 任务预览弹窗（含 Linked Issues / Confluence）
+│   ├── SidebarPanel.tsx       # Focus View 聚焦视图面板
+│   ├── JiraHtmlRenderer.tsx   # HTML 渲染器（含链接拦截）
+│   ├── JiraAuthImage.tsx      # 认证图片加载组件
 │   └── ReportCenter.tsx       # 报告中心（农历日历 + 视图切换）
+├── utils/
+│   └── linkHandler.ts         # Confluence 链接本地文件查找
 ├── ui/
 │   └── StatusToast.ts         # Toast 通知
 └── styles/
@@ -74,7 +106,7 @@ src/
 
 ## 数据模型
 
-每个任务文件的 Frontmatter 结构：
+### 任务文件 Frontmatter
 
 ```yaml
 ---
@@ -93,6 +125,18 @@ tags:
   - jira/status/in-progress
   - jira/type/bug
   - jira/source/jira
+---
+```
+
+### Confluence 本地文件 Frontmatter
+
+要实现 Confluence 链接到本地文件的映射，本地文件需要包含以下 frontmatter：
+
+```yaml
+---
+confluence_url: "http://wiki.company.com/pages/viewpage.action?pageId=90801066"
+confluence_page_id: "90801066"
+title: "页面标题"
 ---
 ```
 
@@ -148,6 +192,7 @@ npm run css
 | 命令 | 说明 |
 |------|------|
 | Open Kanban Board | 打开看板视图 |
+| Open Focus View (Sidebar) | 打开 Focus View 聚焦视图 |
 | Sync Now | 立即同步 Jira 数据 |
 | Create Local Task | 创建本地任务 |
 | Generate Weekly Report | 生成周报 |
@@ -155,6 +200,16 @@ npm run css
 | Generate Quarterly Report | 生成季报 |
 | Generate Yearly Report | 生成年报 |
 | Open Archive View | 打开归档视图 |
+
+## 最近更新
+
+### v1.x.x (最新)
+- **Focus View**: 新增侧边栏聚焦视图，快速查看今日/本周任务
+- **Issue Preview**: 点击关联任务可预览详情，支持导航和返回
+- **Confluence 集成**: 自动解析 Confluence 链接，优先打开本地文件
+- **悬停预览**: 任务卡片和链接支持 Obsidian 原生悬停预览
+- **Wiki 图片**: 自动转换 Jira Wiki 图片语法 `!image.png!`
+- **稳定性**: 修复 Windows EBUSY 文件锁问题
 
 ## License
 
