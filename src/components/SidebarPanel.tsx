@@ -130,29 +130,35 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     return `${m}:${s}`;
   };
 
-  // Get today's date at start of day
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Get current moment for date comparisons
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
   
   // Get end of week (Sunday)
-  const endOfWeek = new Date(today);
-  endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+  const endOfWeek = new Date(now);
+  endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
   endOfWeek.setHours(23, 59, 59, 999);
 
   const todayTasks = tasks.filter(t => {
     // STRICT SPRINT FILTER: Must be an ACTIVE sprint
     if (t.sprint_state.toUpperCase() !== 'ACTIVE') return false;
+    if (!t.dueDate) return false;
     
     const due = new Date(t.dueDate);
-    return due <= today && !isDone(t.status);
+    due.setHours(0, 0, 0, 0);
+    // FIX: Check if the date is exactly today OR before today (overdue)
+    return due.getTime() <= now.getTime() && !isDone(t.status);
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   const weekTasks = tasks.filter(t => {
     // STRICT SPRINT FILTER: Must be an ACTIVE sprint
     if (t.sprint_state.toUpperCase() !== 'ACTIVE') return false;
+    if (!t.dueDate) return false;
     
     const due = new Date(t.dueDate);
-    return due > today && due <= endOfWeek && !isDone(t.status);
+    due.setHours(0, 0, 0, 0);
+    // FIX: Strictly AFTER today, and BEFORE OR ON the end of the week
+    return due.getTime() > now.getTime() && due <= endOfWeek && !isDone(t.status);
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   function isDone(status: string): boolean {
@@ -267,33 +273,56 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
         <span className="jf-text-blue-500">📅</span> Focus View
       </h2>
       
-      {/* ACTIVE TIMER WIDGET */}
+      {/* ACTIVE TIMER WIDGET (LIGHT THEME) */}
       {activeTask && (
-        <div className="jf-mb-6 jf-p-4 jf-bg-slate-800 jf-rounded-xl jf-shadow-lg jf-text-white">
+        <div className="jf-mb-6 jf-p-4 jf-bg-white jf-border jf-border-blue-100 jf-rounded-xl jf-shadow-[0_4px_12px_rgba(0,0,0,0.05)]">
+          
+          {/* Header */}
           <div className="jf-flex jf-justify-between jf-items-center jf-mb-2">
-            <span className="jf-text-xs jf-font-bold jf-bg-white/20 jf-px-2 jf-py-1 jf-rounded jf-flex jf-items-center jf-gap-1">
+            <span className="jf-text-xs jf-font-bold jf-bg-blue-50 jf-text-blue-600 jf-px-2 jf-py-1 jf-rounded jf-flex jf-items-center jf-gap-1 jf-border jf-border-blue-100">
               🍅 {activeTask.key}
             </span>
             <button 
               onClick={stopTimer} 
-              className="jf-text-white/60 hover:jf-text-white jf-transition-colors"
+              className="jf-text-xs jf-font-medium jf-text-gray-400 hover:jf-text-red-500 hover:jf-bg-red-50 jf-px-2 jf-py-1 jf-rounded jf-transition-colors jf-flex jf-items-center jf-gap-1"
               title="停止计时"
             >
-              ✕
+              <svg className="jf-w-3 jf-h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              停止
             </button>
           </div>
-          <div className="jf-text-4xl jf-font-mono jf-font-bold jf-text-center jf-my-3 jf-tracking-wider">
+          
+          {/* Timer Display */}
+          <div className="jf-text-4xl jf-font-mono jf-font-bold jf-text-center jf-text-slate-800 jf-my-3 jf-tracking-wider">
             {formatTime(timeLeft)}
           </div>
-          <div className="jf-text-xs jf-text-center jf-text-white/80 jf-truncate jf-mb-4">
+          
+          {/* Task Summary */}
+          <div className="jf-text-xs jf-text-center jf-text-gray-500 jf-truncate jf-mb-4" title={activeTask.summary}>
             {activeTask.summary}
           </div>
+          
+          {/* Controls */}
           <div className="jf-flex jf-justify-center">
             <button 
               onClick={() => setIsTimerRunning(!isTimerRunning)} 
-              className="jf-text-xs jf-font-bold jf-bg-white/10 hover:jf-bg-white/20 jf-text-white jf-px-6 jf-py-1.5 jf-rounded-full jf-transition-colors jf-border jf-border-white/20"
+              className={`jf-text-xs jf-font-bold jf-px-6 jf-py-1.5 jf-rounded-full jf-transition-all jf-shadow-sm jf-border jf-flex jf-items-center jf-gap-1 ${
+                isTimerRunning 
+                  ? 'jf-bg-amber-50 jf-text-amber-600 jf-border-amber-200 hover:jf-bg-amber-100' 
+                  : 'jf-bg-blue-600 jf-text-white jf-border-blue-600 hover:jf-bg-blue-700 hover:jf-shadow-md'
+              }`}
             >
-              {isTimerRunning ? '⏸ 暂停' : '▶ 继续'}
+              {isTimerRunning ? (
+                <>
+                  <svg className="jf-w-3.5 jf-h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
+                  暂停
+                </>
+              ) : (
+                <>
+                  <svg className="jf-w-3.5 jf-h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"></path></svg>
+                  继续
+                </>
+              )}
             </button>
           </div>
         </div>
