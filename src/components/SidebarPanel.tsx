@@ -11,6 +11,7 @@ interface SidebarTask {
   priority: string;
   issuetype: string;
   filePath: string;
+  sprint_state: string;
 }
 
 export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
@@ -39,6 +40,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
         priority: fm.priority,
         issuetype: fm.issuetype,
         filePath: file.path,
+        sprint_state: fm.sprint_state || '',
       });
     }
 
@@ -77,11 +79,17 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   endOfWeek.setHours(23, 59, 59, 999);
 
   const todayTasks = tasks.filter(t => {
+    // STRICT SPRINT FILTER: Must be an ACTIVE sprint
+    if (t.sprint_state.toUpperCase() !== 'ACTIVE') return false;
+    
     const due = new Date(t.dueDate);
     return due <= today && !isDone(t.status);
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   const weekTasks = tasks.filter(t => {
+    // STRICT SPRINT FILTER: Must be an ACTIVE sprint
+    if (t.sprint_state.toUpperCase() !== 'ACTIVE') return false;
+    
     const due = new Date(t.dueDate);
     return due > today && due <= endOfWeek && !isDone(t.status);
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
