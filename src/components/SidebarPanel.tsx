@@ -221,10 +221,10 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     now.setHours(0, 0, 0, 0);
     
     if (date < now) {
-      return 'Overdue';
+      return '已逾期';
     }
     if (date.getTime() === now.getTime()) {
-      return 'Today';
+      return '今日';
     }
     return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
   }
@@ -311,7 +311,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   if (loading) {
     return (
       <div className="jf-h-full jf-bg-gray-50 jf-p-3 jf-flex jf-items-center jf-justify-center">
-        <span className="jf-text-xs jf-text-gray-400">Loading...</span>
+        <span className="jf-text-xs jf-text-gray-400">加载中...</span>
       </div>
     );
   }
@@ -320,7 +320,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     <div className="jf-h-full jf-bg-gray-50 jf-p-3 jf-overflow-y-auto">
       <div className="jf-flex jf-justify-between jf-items-center jf-mb-4">
         <h2 className="jf-text-sm jf-font-bold jf-text-gray-800 jf-flex jf-items-center jf-gap-2">
-          <span className="jf-text-blue-500">📅</span> Focus View
+          <span className="jf-text-blue-500">📅</span> 专注视图
         </h2>
         
         {/* Global Duration Setting */}
@@ -334,7 +334,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
             onChange={(e) => setDefaultMinutes(Number(e.target.value) || 35)}
             className="jf-w-8 jf-p-0 jf-text-center jf-border-none jf-bg-transparent focus:jf-ring-0 jf-text-gray-700 jf-font-bold"
           />
-          <span>min</span>
+          <span>分钟</span>
         </div>
       </div>
       
@@ -416,14 +416,14 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       {/* Today Section */}
       <div className="jf-mb-6">
         <h3 className="jf-text-xs jf-font-bold jf-text-gray-500 jf-uppercase jf-mb-2 jf-border-b jf-border-gray-200 jf-pb-1 jf-flex jf-justify-between">
-          <span>Today / Overdue</span>
+          <span>今日 / 已逾期</span>
           <span className="jf-bg-red-100 jf-text-red-600 jf-px-1.5 jf-rounded-full">{todayTasks.length}</span>
         </h3>
         <div className="jf-flex jf-flex-col">
           {todayTasks.length > 0 ? (
             todayTasks.map(renderTask)
           ) : (
-            <div className="jf-text-xs jf-text-gray-400 jf-italic jf-py-2">No tasks for today. 🎉</div>
+            <div className="jf-text-xs jf-text-gray-400 jf-italic jf-py-2">今日暂无任务 🎉</div>
           )}
         </div>
       </div>
@@ -431,14 +431,14 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       {/* This Week Section */}
       <div>
         <h3 className="jf-text-xs jf-font-bold jf-text-gray-500 jf-uppercase jf-mb-2 jf-border-b jf-border-gray-200 jf-pb-1 jf-flex jf-justify-between">
-          <span>Later This Week</span>
+          <span>本周待办</span>
           <span className="jf-bg-blue-100 jf-text-blue-600 jf-px-1.5 jf-rounded-full">{weekTasks.length}</span>
         </h3>
         <div className="jf-flex jf-flex-col">
           {weekTasks.length > 0 ? (
             weekTasks.map(renderTask)
           ) : (
-            <div className="jf-text-xs jf-text-gray-400 jf-italic jf-py-2">No tasks for this week.</div>
+            <div className="jf-text-xs jf-text-gray-400 jf-italic jf-py-2">本周暂无任务 ☕</div>
           )}
         </div>
       </div>

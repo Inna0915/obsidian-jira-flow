@@ -11,16 +11,35 @@ interface IssuePreviewModalProps {
 
 // ===== Sub-Components =====
 
+// Relation text mapping
+const relationTextMap: Record<string, string> = {
+  'Parent of': '父任务',
+  'Child of': '子任务',
+  'Blocks': '阻塞',
+  'Is blocked by': '被阻塞',
+  'Relates to': '关联于',
+  'Clones': '克隆',
+  'Is cloned by': '被克隆',
+  'Duplicates': '重复',
+  'Is duplicated by': '被重复',
+  'relates to': '关联于',
+  'blocks': '阻塞',
+  'is blocked by': '被阻塞',
+  'parent of': '父任务',
+  'child of': '子任务',
+};
+
 const LinkedIssueItem = ({ link, onIssueClick }: { link: any, onIssueClick: (key: string) => void }) => {
   const isOutward = !!link.outwardIssue;
   const targetIssue = link.outwardIssue || link.inwardIssue;
   
   if (!targetIssue) return null;
 
-  const relationText = isOutward ? link.type?.outward : link.type?.inward;
+  const rawRelation = isOutward ? link.type?.outward : link.type?.inward;
+  const relationText = relationTextMap[rawRelation] || rawRelation || '关联';
   const issueKey = targetIssue.key;
-  const summary = targetIssue.fields?.summary || "Unknown Issue";
-  const statusName = targetIssue.fields?.status?.name || "UNKNOWN";
+  const summary = targetIssue.fields?.summary || "未知任务";
+  const statusName = targetIssue.fields?.status?.name || "未知";
   const isDone = targetIssue.fields?.status?.statusCategory?.key === 'done';
 
   return (
@@ -50,8 +69,16 @@ const LinkedIssueItem = ({ link, onIssueClick }: { link: any, onIssueClick: (key
 
 const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin }) => {
   const [localFile, setLocalFile] = useState<TFile | null>(null);
-  const [displayTitle, setDisplayTitle] = useState(link.object?.title || "Wiki Page");
+  const [displayTitle, setDisplayTitle] = useState(link.object?.title || "Wiki 页面");
   const url = link.object?.url;
+
+  // Relationship text mapping
+  const relationshipMap: Record<string, string> = {
+    'Wiki Page': 'Wiki 页面',
+    'mentioned in': '提及于',
+    'relates to': '关联于',
+    'links to': '链接到',
+  };
 
   useEffect(() => {
     if (!url) return;
@@ -103,10 +130,12 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
     }
   };
 
+  const relationshipText = relationshipMap[link.relationship] || link.relationship || '外部链接';
+
   return (
     <div className="jf-flex jf-flex-col jf-mb-2">
       <span className="jf-text-[11px] jf-font-semibold jf-text-gray-500 jf-mb-1 jf-capitalize">
-        {link.relationship || 'External Link'}
+        {relationshipText}
       </span>
       <div className="jf-flex jf-items-center jf-p-2 jf-bg-blue-50/50 hover:jf-bg-blue-50 jf-border jf-border-blue-100 jf-rounded-md jf-transition-colors jf-group">
         
@@ -123,7 +152,7 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
             {displayTitle}
           </span>
           {localFile && (
-            <span className="jf-shrink-0 jf-text-[10px] jf-bg-blue-100 jf-text-blue-600 jf-px-1.5 jf-py-0.5 jf-rounded">Local</span>
+            <span className="jf-shrink-0 jf-text-[10px] jf-bg-blue-100 jf-text-blue-600 jf-px-1.5 jf-py-0.5 jf-rounded">本地匹配</span>
           )}
         </div>
 
@@ -131,7 +160,7 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
         {localFile && (
           <button 
             onClick={openWeb}
-            title="Open in Web Browser"
+            title="在浏览器中打开"
             className="jf-ml-2 jf-p-1 jf-text-gray-400 hover:jf-text-blue-600 hover:jf-bg-blue-100 jf-rounded jf-transition-colors"
           >
             <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
@@ -206,7 +235,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
               <button 
                 onClick={() => setIssueKey(initialIssueKey)}
                 className="jf-mr-2 jf-p-1 jf-text-gray-500 hover:jf-text-blue-600 hover:jf-bg-blue-50 jf-rounded jf-transition-colors"
-                title="Back to initial issue"
+                title="返回初始任务"
               >
                 <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
               </button>
@@ -219,23 +248,23 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
         {/* Body */}
         <div className="jf-p-6 jf-overflow-y-auto">
           {loading ? (
-            <div className="jf-flex jf-justify-center jf-py-10 jf-text-gray-500">Loading details from Jira...</div>
+            <div className="jf-flex jf-justify-center jf-py-10 jf-text-gray-500">正在从 Jira 加载详情...</div>
           ) : issue ? (
             <div className="jf-space-y-4">
               {/* Status & Assignee */}
               <div className="jf-flex jf-gap-4 jf-text-sm jf-text-gray-600">
                 <span className="jf-bg-blue-50 jf-text-blue-700 jf-px-2 jf-py-1 jf-rounded">{issue.fields.status?.name}</span>
-                <span className="jf-bg-gray-100 jf-px-2 jf-py-1 jf-rounded">{issue.fields.assignee?.displayName || 'Unassigned'}</span>
+                <span className="jf-bg-gray-100 jf-px-2 jf-py-1 jf-rounded">{issue.fields.assignee?.displayName || '未分配'}</span>
               </div>
               
               {/* Description Section */}
               <div className="jf-mt-4">
-                <h3 className="jf-text-xs jf-font-bold jf-text-gray-400 jf-uppercase jf-mb-2">Description</h3>
+                <h3 className="jf-text-xs jf-font-bold jf-text-gray-400 jf-uppercase jf-mb-2">任务描述</h3>
                 <div className="jf-bg-gray-50 jf-p-4 jf-rounded-lg">
                   {issue.processedDesc ? (
                     <JiraHtmlRenderer html={issue.processedDesc} plugin={plugin} />
                   ) : (
-                    <span className="jf-text-gray-400">No description provided.</span>
+                    <span className="jf-text-gray-400">暂无描述。</span>
                   )}
                 </div>
               </div>
@@ -244,7 +273,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
               {issue.fields?.issuelinks?.length > 0 && (
                 <div className="jf-mt-6 jf-border-t jf-border-gray-100 jf-pt-4">
                   <h3 className="jf-text-xs jf-font-bold jf-text-gray-800 jf-uppercase jf-mb-3 jf-flex jf-items-center jf-gap-1">
-                    Linked Issues
+                    关联任务
                   </h3>
                   <div className="jf-flex jf-flex-col">
                     {issue.fields.issuelinks.map((link: any) => (
@@ -262,7 +291,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
               {issue.remotelinks?.length > 0 && (
                 <div className="jf-mt-6 jf-border-t jf-border-gray-100 jf-pt-4">
                   <h3 className="jf-text-xs jf-font-bold jf-text-gray-800 jf-uppercase jf-mb-3 jf-flex jf-items-center jf-gap-1">
-                    Confluence Pages
+                    Confluence 文档
                   </h3>
                   <div className="jf-flex jf-flex-col">
                     {issue.remotelinks.map((link: any) => (
@@ -273,7 +302,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
               )}
             </div>
           ) : (
-            <div className="jf-text-red-500 jf-text-center jf-py-10">Failed to load issue.</div>
+            <div className="jf-text-red-500 jf-text-center jf-py-10">加载任务失败。</div>
           )}
         </div>
       </div>
