@@ -124,6 +124,20 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     }
   };
 
+  // Trigger Obsidian native hover preview
+  const onHoverTask = (e: React.MouseEvent, task: SidebarTask) => {
+    if (plugin?.app) {
+      plugin.app.workspace.trigger('hover-link', {
+        event: e.nativeEvent,
+        source: 'jira-flow-sidebar',
+        hoverParent: e.currentTarget,
+        targetEl: e.currentTarget,
+        linktext: task.filePath,
+        sourcePath: '',
+      });
+    }
+  };
+
   // Render a compact task item
   const renderTask = (task: SidebarTask) => {
     const dateLabel = formatDate(task.dueDate);
@@ -133,6 +147,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       <div 
         key={task.key} 
         onClick={() => handleTaskClick(task)}
+        onMouseEnter={(e) => onHoverTask(e, task)}
         className="jf-p-2 jf-mb-2 jf-bg-white jf-border jf-border-gray-200 jf-rounded-md jf-shadow-sm hover:jf-border-blue-300 jf-transition-colors jf-cursor-pointer jf-group"
       >
         <div className="jf-flex jf-justify-between jf-items-start jf-mb-1">
