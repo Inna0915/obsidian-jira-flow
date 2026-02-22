@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { TFile } from 'obsidian';
+import { TFile, Notice } from 'obsidian';
 import type JiraFlowPlugin from '../main';
 import type { TaskFrontmatter } from '../types';
 
@@ -14,9 +14,17 @@ interface SidebarTask {
   sprint_state: string;
 }
 
+// --- Pomodoro Timer Constants ---
+const POMODORO_SECONDS = 35 * 60; // 35 minutes
+
 export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const [tasks, setTasks] = useState<SidebarTask[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // --- Pomodoro Timer State ---
+  const [activeTask, setActiveTask] = useState<SidebarTask | null>(null);
+  const [timeLeft, setTimeLeft] = useState(POMODORO_SECONDS);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
 
   const loadTasks = useCallback(async () => {
     const files = plugin.fileManager.getAllTaskFiles();
@@ -68,6 +76,59 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       plugin.app.vault.offref(deleteRef);
     };
   }, [loadTasks, plugin]);
+
+  // --- Pomodoro Timer Effect ---
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTimerRunning && timeLeft > 0) {
+      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    } else if (isTimerRunning && timeLeft === 0) {
+      setIsTimerRunning(false);
+      handlePomodoroComplete();
+    }
+    return () => clearInterval(interval);
+  }, [isTimerRunning, timeLeft]);
+
+  const handlePomodoroComplete = () => {
+    // 1. Show Obsidian Notice
+    new Notice(
+      `🍅 时间到！你在 ${activeTask?.key} 上的 35 分钟专注已完成。\n请前往看板更新任务状态。`,
+      10000
+    );
+    
+    // 2. Try HTML5 Notification if permitted
+    if (Notification.permission === 'granted') {
+      new Notification('🍅 番茄钟完成！', { 
+        body: `在 ${activeTask?.key} 上的专注已结束。` 
+      });
+    }
+    
+    // Reset
+    setActiveTask(null);
+    setTimeLeft(POMODORO_SECONDS);
+  };
+
+  const startTimer = (e: React.MouseEvent, task: SidebarTask) => {
+    e.stopPropagation(); // Prevent triggering hover preview or opening file
+    if (isTimerRunning && activeTask?.key !== task.key) {
+      if (!window.confirm('当前已有专注任务，是否放弃当前进度并切换？')) return;
+    }
+    setActiveTask(task);
+    setTimeLeft(POMODORO_SECONDS);
+    setIsTimerRunning(true);
+  };
+
+  const stopTimer = () => {
+    setIsTimerRunning(false);
+    setActiveTask(null);
+    setTimeLeft(POMODORO_SECONDS);
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   // Get today's date at start of day
   const today = new Date();
@@ -150,21 +211,32 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const renderTask = (task: SidebarTask) => {
     const dateLabel = formatDate(task.dueDate);
     const isOverdue = dateLabel === 'Overdue';
+    const isActive = activeTask?.key === task.key;
     
     return (
       <div 
         key={task.key} 
         onClick={() => handleTaskClick(task)}
         onMouseEnter={(e) => onHoverTask(e, task)}
-        className="jf-p-2 jf-mb-2 jf-bg-white jf-border jf-border-gray-200 jf-rounded-md jf-shadow-sm hover:jf-border-blue-300 jf-transition-colors jf-cursor-pointer jf-group"
+        className={`jf-p-2 jf-mb-2 jf-bg-white jf-border ${isActive ? 'jf-border-blue-500 jf-ring-1 jf-ring-blue-500' : 'jf-border-gray-200'} jf-rounded-md jf-shadow-sm hover:jf-border-blue-300 jf-transition-all jf-cursor-pointer jf-group`}
       >
         <div className="jf-flex jf-justify-between jf-items-start jf-mb-1">
           <span className="jf-text-[10px] jf-font-mono jf-bg-blue-50 jf-text-blue-600 jf-px-1 jf-rounded">
             {task.key}
           </span>
-          <span className={`jf-text-[10px] jf-px-1 jf-rounded ${isOverdue ? 'jf-bg-red-100 jf-text-red-600 jf-font-semibold' : 'jf-text-gray-400'}`}>
-            {dateLabel}
-          </span>
+          <div className="jf-flex jf-items-center jf-gap-2">
+            <span className={`jf-text-[10px] jf-px-1 jf-rounded ${isOverdue ? 'jf-bg-red-100 jf-text-red-600 jf-font-semibold' : 'jf-text-gray-400'}`}>
+              {dateLabel}
+            </span>
+            {/* PLAY BUTTON */}
+            <button 
+              onClick={(e) => startTimer(e, task)}
+              title="开始专注 (35分钟)"
+              className={`${isActive ? 'jf-text-blue-500' : 'jf-text-gray-300 hover:jf-text-blue-500'} jf-transition-colors`}
+            >
+              <svg className="jf-w-5 jf-h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          </div>
         </div>
         <div className="jf-text-xs jf-font-medium jf-text-gray-700 jf-line-clamp-2 jf-mb-1">
           {task.summary}
@@ -194,6 +266,38 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       <h2 className="jf-text-sm jf-font-bold jf-text-gray-800 jf-mb-3 jf-flex jf-items-center jf-gap-2">
         <span className="jf-text-blue-500">📅</span> Focus View
       </h2>
+      
+      {/* ACTIVE TIMER WIDGET */}
+      {activeTask && (
+        <div className="jf-mb-6 jf-p-4 jf-bg-slate-800 jf-rounded-xl jf-shadow-lg jf-text-white">
+          <div className="jf-flex jf-justify-between jf-items-center jf-mb-2">
+            <span className="jf-text-xs jf-font-bold jf-bg-white/20 jf-px-2 jf-py-1 jf-rounded jf-flex jf-items-center jf-gap-1">
+              🍅 {activeTask.key}
+            </span>
+            <button 
+              onClick={stopTimer} 
+              className="jf-text-white/60 hover:jf-text-white jf-transition-colors"
+              title="停止计时"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="jf-text-4xl jf-font-mono jf-font-bold jf-text-center jf-my-3 jf-tracking-wider">
+            {formatTime(timeLeft)}
+          </div>
+          <div className="jf-text-xs jf-text-center jf-text-white/80 jf-truncate jf-mb-4">
+            {activeTask.summary}
+          </div>
+          <div className="jf-flex jf-justify-center">
+            <button 
+              onClick={() => setIsTimerRunning(!isTimerRunning)} 
+              className="jf-text-xs jf-font-bold jf-bg-white/10 hover:jf-bg-white/20 jf-text-white jf-px-6 jf-py-1.5 jf-rounded-full jf-transition-colors jf-border jf-border-white/20"
+            >
+              {isTimerRunning ? '⏸ 暂停' : '▶ 继续'}
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* Today Section */}
       <div className="jf-mb-6">
