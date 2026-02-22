@@ -23,6 +23,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const [activeTask, setActiveTask] = useState<SidebarTask | null>(null);
   const [timeLeft, setTimeLeft] = useState(35 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0); // Track actual time spent
 
   const loadTasks = useCallback(async () => {
     const files = plugin.fileManager.getAllTaskFiles();
@@ -79,7 +80,10 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isTimerRunning && timeLeft > 0) {
-      interval = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+      interval = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+        setElapsedSeconds((prev) => prev + 1); // Track actual time spent
+      }, 1000);
     } else if (isTimerRunning && timeLeft === 0) {
       setIsTimerRunning(false);
       handlePomodoroComplete();
@@ -87,11 +91,40 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     return () => clearInterval(interval);
   }, [isTimerRunning, timeLeft]);
 
-  const handlePomodoroComplete = () => {
+  // --- Log Focus Time to File ---
+  const logFocusTime = async (taskKey: string, seconds: number) => {
+    if (seconds < 60) return; // Do not log if less than 1 minute
+    
+    const minutes = Math.round(seconds / 60);
+    const file = plugin.app.metadataCache.getFirstLinkpathDest(taskKey, '');
+    
+    if (file && file instanceof TFile) {
+      try {
+        // 1. Update Frontmatter (Cumulative Total)
+        await plugin.app.fileManager.processFrontMatter(file, (fm: any) => {
+          fm.focused_minutes = (fm.focused_minutes || 0) + minutes;
+        });
+
+        // 2. Wait a brief moment to avoid EBUSY lock from frontmatter update
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // 3. Append to Body
+        const content = await plugin.app.vault.read(file);
+        const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+        const logEntry = `\n> 🍅 **专注记录**: [${timestamp}] 耗时 \`${minutes} 分钟\`\n`;
+        
+        await plugin.app.vault.modify(file, content + logEntry);
+      } catch (error) {
+        console.error(`[Jira Flow] Failed to log focus time for ${taskKey}:`, error);
+      }
+    }
+  };
+
+  const handlePomodoroComplete = async () => {
     // 1. Show Obsidian Notice
     new Notice(
-      `🍅 时间到！你在 ${activeTask?.key} 上的 35 分钟专注已完成。\n请前往看板更新任务状态。`,
-      10000
+      `🍅 时间到！你在 ${activeTask?.key} 上的专注已完成。`,
+      5000
     );
     
     // 2. Try HTML5 Notification if permitted
@@ -101,25 +134,43 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       });
     }
     
+    // 3. Log the time
+    if (activeTask) {
+      await logFocusTime(activeTask.key, elapsedSeconds);
+    }
+
     // Reset
     setActiveTask(null);
     setTimeLeft(defaultMinutes * 60);
+    setElapsedSeconds(0);
   };
 
-  const startTimer = (e: React.MouseEvent, task: SidebarTask) => {
+  const startTimer = async (e: React.MouseEvent, task: SidebarTask) => {
     e.stopPropagation(); // Prevent triggering hover preview or opening file
     if (isTimerRunning && activeTask?.key !== task.key) {
       if (!window.confirm('当前已有专注任务，是否放弃当前进度并切换？')) return;
+      // Log the previous task's time when switching
+      if (activeTask) {
+        await logFocusTime(activeTask.key, elapsedSeconds);
+      }
     }
     setActiveTask(task);
     setTimeLeft(defaultMinutes * 60);
+    setElapsedSeconds(0); // Reset for new session
     setIsTimerRunning(true);
   };
 
-  const stopTimer = () => {
+  const stopTimer = async () => {
     setIsTimerRunning(false);
+    
+    // Log the time if stopped manually
+    if (activeTask) {
+      await logFocusTime(activeTask.key, elapsedSeconds);
+    }
+
     setActiveTask(null);
     setTimeLeft(defaultMinutes * 60);
+    setElapsedSeconds(0);
   };
 
   const formatTime = (seconds: number) => {
