@@ -744,15 +744,14 @@ const TaskRow: React.FC<{ task: TaskItem; plugin: JiraFlowPlugin }> = ({ task, p
       const targetFile = plugin.app.metadataCache.getFirstLinkpathDest(taskKey, '');
       const linkText = targetFile ? targetFile.path : taskKey;
 
-      plugin.app.workspace.trigger(
-        'hover-link',
-        e.nativeEvent,
-        'jira-flow-report',
-        { hoverPopover: null },
-        e.currentTarget,
-        linkText,
-        ''
-      );
+      plugin.app.workspace.trigger('hover-link', {
+        event: e.nativeEvent,
+        source: 'jira-flow-report',
+        hoverParent: { hoverPopover: null, disabled: false },
+        targetEl: e.currentTarget,
+        linktext: linkText,
+        sourcePath: ''
+      });
     }
   };
 
