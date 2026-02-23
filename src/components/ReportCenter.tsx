@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import type { ReportPeriod } from "../types";
 import type { DailyWorkLog } from "../sync/workLogService";
@@ -641,7 +642,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
               <EmptyState text="暂无预计完成的任务" sub="当前时间范围内没有截止的待完成任务" />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {pendingTasks.map((t) => <TaskRow key={t.key} task={t} />)}
+                {pendingTasks.map((t) => <TaskRow key={t.key} task={t} plugin={plugin} />)}
               </div>
             )}
           </div>
@@ -655,7 +656,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
               <EmptyState text="暂无工作日志" sub="在指定时间范围内没有找到记录" />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {completedTasks.map((t) => <TaskRow key={t.key} task={t} />)}
+                {completedTasks.map((t) => <TaskRow key={t.key} task={t} plugin={plugin} />)}
               </div>
             )}
           </div>
@@ -737,22 +738,56 @@ const typeIconMap: Record<string, string> = {
   Bug: "🐛", Story: "📗", Task: "✅", "Sub-task": "📎", Epic: "⚡",
 };
 
-const TaskRow: React.FC<{ task: TaskItem }> = ({ task }) => (
-  <div style={{
-    display: "flex", alignItems: "center", gap: "10px", padding: "8px 14px",
-    borderRadius: "6px", backgroundColor: "var(--background-secondary)", fontSize: "13px",
-  }}>
-    <span style={{ fontSize: "12px" }}>{typeIconMap[task.issuetype] || "📋"}</span>
-    <span style={{ fontFamily: "var(--font-monospace)", fontSize: "11px", color: "#0052CC", fontWeight: 600, flexShrink: 0 }}>{task.key}</span>
-    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.summary}</span>
-    <span style={{
-      fontSize: "10px", padding: "2px 8px", borderRadius: "10px", fontWeight: 600, flexShrink: 0,
-      backgroundColor: task.completed ? "#E3FCEF" : "#DEEBFF",
-      color: task.completed ? "#006644" : "#0052CC",
-    }}>{task.status}</span>
-    {task.dueDate && <span style={{ fontSize: "11px", color: "var(--text-muted)", flexShrink: 0 }}>{task.dueDate.slice(0, 10)}</span>}
-  </div>
-);
+const TaskRow: React.FC<{ task: TaskItem; plugin: JiraFlowPlugin }> = ({ task, plugin }) => {
+  const onHoverTask = (e: React.MouseEvent, taskKey: string) => {
+    if (plugin?.app) {
+      const targetFile = plugin.app.metadataCache.getFirstLinkpathDest(taskKey, '');
+      const linkText = targetFile ? targetFile.path : taskKey;
+
+      plugin.app.workspace.trigger(
+        'hover-link',
+        e.nativeEvent,
+        'jira-flow-report',
+        { hoverPopover: null },
+        e.currentTarget,
+        linkText,
+        ''
+      );
+    }
+  };
+
+  const onClickTask = async (taskKey: string) => {
+    if (plugin?.app) {
+      const targetFile = plugin.app.metadataCache.getFirstLinkpathDest(taskKey, '');
+      if (targetFile instanceof TFile) {
+        await plugin.app.workspace.getLeaf('tab').openFile(targetFile);
+      }
+    }
+  };
+
+  return (
+    <div 
+      style={{
+        display: "flex", alignItems: "center", gap: "10px", padding: "8px 14px",
+        borderRadius: "6px", backgroundColor: "var(--background-secondary)", fontSize: "13px",
+        cursor: "pointer", transition: "background-color 0.15s ease",
+      }}
+      className="jf-hover:bg-[var(--background-modifier-hover)]"
+      onClick={() => onClickTask(task.key)}
+      onMouseEnter={(e) => onHoverTask(e, task.key)}
+    >
+      <span style={{ fontSize: "12px" }}>{typeIconMap[task.issuetype] || "📋"}</span>
+      <span style={{ fontFamily: "var(--font-monospace)", fontSize: "11px", color: "#0052CC", fontWeight: 600, flexShrink: 0 }}>{task.key}</span>
+      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.summary}</span>
+      <span style={{
+        fontSize: "10px", padding: "2px 8px", borderRadius: "10px", fontWeight: 600, flexShrink: 0,
+        backgroundColor: task.completed ? "#E3FCEF" : "#DEEBFF",
+        color: task.completed ? "#006644" : "#0052CC",
+      }}>{task.status}</span>
+      {task.dueDate && <span style={{ fontSize: "11px", color: "var(--text-muted)", flexShrink: 0 }}>{task.dueDate.slice(0, 10)}</span>}
+    </div>
+  );
+};
 
 interface ReportModalProps {
   plugin: JiraFlowPlugin;

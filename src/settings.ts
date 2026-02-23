@@ -1,4 +1,5 @@
-import { App, Modal, Notice, PluginSettingTab, Setting, TFolder } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, Setting } from "obsidian";
+import { FolderSuggest } from "./utils/FolderSuggest";
 import type JiraFlowPlugin from "./main";
 import type { AIModelConfig, AIProvider } from "./types";
 
@@ -183,24 +184,14 @@ export class JiraFlowSettingTab extends PluginSettingTab {
     // === Folders ===
     containerEl.createEl("h3", { text: "文件夹" });
 
-    // Fetch all existing folders in the vault
-    const folders = this.app.vault.getAllLoadedFiles()
-      .filter((file) => file instanceof TFolder)
-      .map((folder) => folder.path);
-    
-    // Sort alphabetically and add root folder '/' as an option
-    folders.sort((a, b) => a.localeCompare(b));
-    if (!folders.includes('/')) folders.unshift('/');
-
     new Setting(containerEl)
       .setName("根文件夹")
       .setDesc("Jira Flow 文件的根文件夹")
-      .addDropdown((dropdown) => {
-        folders.forEach((folder) => {
-          dropdown.addOption(folder, folder === '/' ? '/' : folder);
-        });
-        dropdown.setValue(this.plugin.settings.rootFolder || '/');
-        dropdown.onChange(async (value) => {
+      .addText((text) => {
+        text.setPlaceholder('输入或选择文件夹路径...');
+        text.setValue(this.plugin.settings.rootFolder || '/');
+        new FolderSuggest(this.app, text.inputEl);
+        text.onChange(async (value) => {
           this.plugin.settings.rootFolder = value;
           this.plugin.settings.tasksFolder = value + "/Tasks";
           this.plugin.settings.reportsFolder = value + "/Reports";
@@ -212,12 +203,11 @@ export class JiraFlowSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Daily Notes 文件夹")
       .setDesc("存放每日笔记的文件夹")
-      .addDropdown((dropdown) => {
-        folders.forEach((folder) => {
-          dropdown.addOption(folder, folder === '/' ? '/' : folder);
-        });
-        dropdown.setValue(this.plugin.settings.dailyNotesFolder || '/');
-        dropdown.onChange(async (value) => {
+      .addText((text) => {
+        text.setPlaceholder('输入或选择文件夹路径...');
+        text.setValue(this.plugin.settings.dailyNotesFolder || '/');
+        new FolderSuggest(this.app, text.inputEl);
+        text.onChange(async (value) => {
           this.plugin.settings.dailyNotesFolder = value;
           await this.plugin.saveSettings();
         });
