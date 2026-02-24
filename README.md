@@ -11,6 +11,7 @@
 ### 看板视图
 - 拖拽式任务管理，状态变更自动同步到 Jira
 - 泳道分组：逾期 / 按时 / 其他
+- **双语列标签**：看板列显示英文+中文双语标识（如 "IN PROGRESS 进行中"）
 - 卡片按类型区分样式（Bug 红色边框背景、Story 绿色边框背景）
 - 卡片展示：Jira Key、类型图标、优先级、故事点、截止日期、负责人头像
 - 侧边栏详情面板，支持编辑故事点和截止日期并同步到 Jira
@@ -18,11 +19,19 @@
 
 ### Focus View 聚焦视图
 - 独立的侧边栏视图（类似 Git 插件）
+- **活跃 Sprint 过滤**：只显示当前活跃 Sprint 中的任务
 - **今日/逾期**：显示今天到期或已逾期的任务
 - **本周剩余**：显示本周内到期的其他任务
 - 自动过滤已完成和已归档任务
 - **悬停预览**：悬停任务卡片可快速预览内容
 - 点击任务卡片直接打开文件
+
+#### Pomodoro 番茄钟
+- 内置可配置的番茄钟计时器（默认 35 分钟）
+- 支持 +/- 5 分钟快速调整
+- 专注时间自动记录到任务文件：
+  - 更新 `focused_minutes` frontmatter
+  - 在文件末尾追加时间戳日志条目
 
 ### Issue Preview 任务预览
 - 点击 Linked Issue 打开浮动预览弹窗
@@ -55,7 +64,9 @@
 - 农历日历（显示农历日期、节日、天干地支年份）
 - 左侧周数栏标记已有周报的周（绿色圆点）
 - 日 / 周 / 月 / 年四种视图切换
+- **活跃 Sprint 任务**：报告中心只显示活跃 Sprint 的任务
 - 每个视图展示：预计完成任务 + 已完成工作 + 工作日志
+- **交互式任务列表**：点击任务打开文件，悬停预览任务内容
 - 弹窗式报告查看与 AI 生成（周报 / 月报 / 季报 / 年报）
 
 ### AI 报告生成
@@ -70,7 +81,7 @@
 src/
 ├── main.ts                    # 插件入口，注册命令和视图
 ├── types.ts                   # TypeScript 类型定义
-├── settings.ts                # 设置界面
+├── settings.ts                # 设置界面（含 FolderSuggest 集成）
 ├── api/
 │   └── jira.ts                # Jira REST API 客户端（含 remotelink 获取）
 ├── sync/
@@ -92,17 +103,33 @@ src/
 │   ├── Card.tsx               # 任务卡片（Bug/Story 样式区分）
 │   ├── TaskDetailModal.tsx    # 侧边栏详情面板（含 Save to Jira）
 │   ├── IssuePreviewModal.tsx  # 任务预览弹窗（含 Linked Issues / Confluence）
-│   ├── SidebarPanel.tsx       # Focus View 聚焦视图面板
+│   ├── SidebarPanel.tsx       # Focus View 聚焦视图面板（含 Pomodoro 计时器）
 │   ├── JiraHtmlRenderer.tsx   # HTML 渲染器（含链接拦截）
 │   ├── JiraAuthImage.tsx      # 认证图片加载组件
-│   └── ReportCenter.tsx       # 报告中心（农历日历 + 视图切换）
+│   └── ReportCenter.tsx       # 报告中心（农历日历 + 视图切换 + 任务交互）
 ├── utils/
+│   ├── FolderSuggest.ts       # Obsidian 文件夹自动补全组件
+│   ├── jiraParser.ts          # Jira 内容解析工具
 │   └── linkHandler.ts         # Confluence 链接本地文件查找
 ├── ui/
 │   └── StatusToast.ts         # Toast 通知
 └── styles/
     └── tailwind.css           # Tailwind CSS 源文件
 ```
+
+## 设置面板
+
+### 智能文件夹选择
+- 文件夹路径输入支持**自动补全**（类似 Daily Notes 插件）
+- 输入时实时显示匹配的文件夹列表
+- 支持键盘导航和选择
+
+### 功能设置
+- **Jira 配置**：Host URL、Email、API Token、Project Key
+- **文件夹路径**：Tasks、Reports、Daily Notes、Assets（支持自动补全）
+- **日期格式**：Daily Note 命名格式 (YYYY-MM-DD)
+- **AI 模型**：多模型管理（名称、提供商、API Key、端点、启用/禁用）
+- **报告模板**：各周期的自定义 Prompt
 
 ## 数据模型
 
@@ -169,7 +196,8 @@ Vault Root/
 1. 将 `main.js`、`manifest.json`、`styles.css` 复制到 Vault 的 `.obsidian/plugins/obsidian-jira-flow/` 目录
 2. 在 Obsidian 设置中启用插件
 3. 配置 Jira 连接信息（Host、API Token、Project Key）
-4. 配置 AI 模型（可选，用于报告生成）
+4. 配置文件夹路径（支持自动补全输入）
+5. 配置 AI 模型（可选，用于报告生成）
 
 ## 开发
 
@@ -204,6 +232,11 @@ npm run css
 ## 最近更新
 
 ### v1.x.x (最新)
+- **FolderSuggest**: 设置面板文件夹选择支持智能自动补全
+- **Pomodoro 计时器**: Focus View 新增番茄钟，专注时间自动记录到任务文件
+- **活跃 Sprint 过滤**: 侧边栏和报告中心只显示当前活跃 Sprint 的任务
+- **双语看板列**: 看板列显示英文+中文双语标签
+- **报告任务交互**: 报告中心的任务列表支持点击打开和悬停预览
 - **Focus View**: 新增侧边栏聚焦视图，快速查看今日/本周任务
 - **Issue Preview**: 点击关联任务可预览详情，支持导航和返回
 - **Confluence 集成**: 自动解析 Confluence 链接，优先打开本地文件
