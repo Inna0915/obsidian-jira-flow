@@ -47,16 +47,18 @@ export class FileManager {
           rawDescription,
           issue.key
         );
-        const filePath = this.getTaskFilePath(issue.key);
-        const existing = this.vault.getAbstractFileByPath(filePath);
+        
+        // Try to find existing file with new naming format first, then old format
+        const summary = issue.fields.summary;
+        const existing = this.findExistingTaskFile(issue.key, summary);
 
-        if (existing instanceof TFile) {
+        if (existing) {
           await this.updateTaskFile(existing, frontmatter, description);
           result.updated++;
         } else {
           await this.createTaskFile(
             issue.key,
-            issue.fields.summary,
+            summary,
             frontmatter,
             description
           );
@@ -145,7 +147,8 @@ export class FileManager {
     description: string
   ): Promise<TFile> {
     await this.ensureFolders();
-    const filePath = this.getTaskFilePath(key);
+    // Use new naming format: jira_key-summary.md
+    const filePath = this.getTaskFilePath(key, summary);
     const yaml = this.frontmatterToYaml(frontmatter);
     // Simple format: frontmatter + description HTML
     const content = `---\n${yaml}---\n${description}`;
@@ -219,8 +222,51 @@ export class FileManager {
     });
   }
 
-  private getTaskFilePath(key: string): string {
+  private getTaskFilePath(key: string, summary?: string): string {
+    if (summary) {
+      // New format: jira_key-summary.md
+      const sanitizedSummary = this.sanitizeFilename(summary);
+      return normalizePath(`${this.plugin.settings.tasksFolder}/${key}-${sanitizedSummary}.md`);
+    }
+    // Old format (fallback): jira_key.md
     return normalizePath(`${this.plugin.settings.tasksFolder}/${key}.md`);
+  }
+
+  private sanitizeFilename(summary: string): string {
+    // Remove characters that are problematic in filenames
+    // Keep: alphanumeric, spaces, hyphens, underscores
+    // Replace: slashes, colons, etc. with hyphens
+    return summary
+      .replace(/[\/\\:?*"<>|]/g, '-')  // Replace invalid chars with hyphen
+      .replace(/\s+/g, ' ')              // Collapse multiple spaces
+      .trim();
+  }
+
+  private findExistingTaskFile(key: string, summary: string): TFile | null {
+    // First try new naming format: key-summary.md
+    const newPath = this.getTaskFilePath(key, summary);
+    const newFile = this.vault.getAbstractFileByPath(newPath);
+    if (newFile instanceof TFile) {
+      return newFile;
+    }
+
+    // Fallback to old format: key.md
+    const oldPath = this.getTaskFilePath(key);
+    const oldFile = this.vault.getAbstractFileByPath(oldPath);
+    if (oldFile instanceof TFile) {
+      return oldFile;
+    }
+
+    // Last resort: scan all task files and match by jira_key frontmatter
+    const allFiles = this.getAllTaskFiles();
+    for (const file of allFiles) {
+      const fm = this.getTaskFrontmatter(file);
+      if (fm && fm.jira_key === key) {
+        return file;
+      }
+    }
+
+    return null;
   }
 
   private frontmatterToYaml(fm: TaskFrontmatter): string {
