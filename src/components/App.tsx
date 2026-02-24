@@ -307,6 +307,16 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
           >
             + 新建任务
           </button>
+          {/* Archive View Button */}
+          <button
+            onClick={() => plugin.activateArchiveView()}
+            className="jf-flex jf-items-center jf-gap-2 jf-bg-white jf-text-gray-700 jf-border jf-border-gray-300 hover:jf-bg-gray-50 jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
+          >
+            <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            归档视图
+          </button>
           {/* Sync Jira Button - Primary Style */}
           <button
             onClick={handleSync}

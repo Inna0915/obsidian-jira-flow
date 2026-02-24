@@ -640,3 +640,170 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
     </>
   );
 };
+
+// ===== Edit Task Modal =====
+
+export interface EditTaskData {
+  key: string;
+  summary: string;
+  issuetype: string;
+  priority: string;
+  mappedColumn: string;
+  storyPoints: number;
+  dueDate: string;
+  assignee: string;
+}
+
+interface EditTaskModalProps {
+  plugin: JiraFlowPlugin;
+  task: EditTaskData;
+  onClose: () => void;
+  onSave: (data: EditTaskData) => void;
+}
+
+export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onClose, onSave }) => {
+  useEscapeKey(plugin.app, onClose, true);
+
+  const [summary, setSummary] = useState(task.summary);
+  const [issuetype, setIssuetype] = useState(task.issuetype);
+  const [priority, setPriority] = useState(task.priority);
+  const [mappedColumn, setMappedColumn] = useState(task.mappedColumn);
+  const [storyPoints, setStoryPoints] = useState(task.storyPoints);
+  const [dueDate, setDueDate] = useState(task.dueDate);
+  const [assignee, setAssignee] = useState(task.assignee);
+
+  const handleSave = useCallback(() => {
+    if (!summary.trim()) return;
+    onSave({
+      key: task.key,
+      summary: summary.trim(),
+      issuetype,
+      priority,
+      mappedColumn,
+      storyPoints,
+      dueDate,
+      assignee,
+    });
+    onClose();
+  }, [summary, issuetype, priority, mappedColumn, storyPoints, dueDate, assignee, task.key, onSave, onClose]);
+
+  return (
+    <>
+      {/* Overlay */}
+      <div className="jf-fixed jf-inset-0 jf-bg-black/40 jf-backdrop-blur-sm jf-z-50 jf-flex jf-items-center jf-justify-center" onClick={onClose} />
+      
+      {/* Modal */}
+      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-lg jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
+        
+        {/* Header */}
+        <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
+          <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">编辑本地任务</h3>
+          <span className="jf-text-sm jf-font-mono jf-text-blue-600 jf-bg-blue-50 jf-px-2 jf-py-1 jf-rounded">{task.key}</span>
+          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-transition-colors">
+            <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="jf-p-6 jf-space-y-4">
+          {/* Summary - Full width */}
+          <div>
+            <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
+            <input 
+              value={summary} 
+              onChange={(e) => setSummary(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              autoFocus 
+              placeholder="需要做什么？"
+              className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+            />
+          </div>
+
+          {/* Row 2: Type & Priority */}
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">类型</label>
+              <select 
+                value={issuetype} 
+                onChange={(e) => setIssuetype(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">优先级</label>
+              <select 
+                value={priority} 
+                onChange={(e) => setPriority(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Row 3: Column & Story Points */}
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">状态</label>
+              <select 
+                value={mappedColumn} 
+                onChange={(e) => setMappedColumn(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">故事点</label>
+              <input 
+                type="number" 
+                min={0} 
+                value={storyPoints}
+                onChange={(e) => setStoryPoints(Number(e.target.value))} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              />
+            </div>
+          </div>
+
+          {/* Row 4: Due Date & Assignee */}
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">截止日期</label>
+              <input 
+                type="date" 
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)} 
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              />
+            </div>
+            <div>
+              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">负责人</label>
+              <input 
+                value={assignee} 
+                onChange={(e) => setAssignee(e.target.value)}
+                placeholder="用户名"
+                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="jf-px-6 jf-py-4 jf-bg-gray-50 jf-flex jf-justify-end jf-gap-3">
+          <button 
+            onClick={onClose} 
+            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg jf-transition-colors">
+            取消
+          </button>
+          <button 
+            onClick={handleSave} 
+            disabled={!summary.trim()} 
+            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-shadow-sm jf-rounded-lg jf-transition-all disabled:jf-opacity-50 disabled:jf-cursor-not-allowed">
+            保存修改
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
