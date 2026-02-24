@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { TFile } from "obsidian";
 import { KANBAN_COLUMNS, SWIMLANES } from "../types";
 import type { KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
