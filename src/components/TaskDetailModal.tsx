@@ -139,8 +139,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     if (!isLocal) return;
     (async () => {
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-      if (!file || !(file instanceof (await import("obsidian")).TFile)) return;
-      const content = await plugin.app.vault.read(file as import("obsidian").TFile);
+      if (!file || !(file instanceof TFile)) return;
+      const content = await plugin.app.vault.read(file as TFile);
       // Strip frontmatter
       const fmEnd = content.indexOf("---", content.indexOf("---") + 3);
       const body = fmEnd > 0 ? content.slice(fmEnd + 3).trim() : "";
@@ -166,7 +166,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
       // Update local file
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (file) {
-        await plugin.app.fileManager.processFrontMatter(file as import("obsidian").TFile, (fm) => {
+        await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
           fm.story_points = storyPoints;
           fm.due_date = dueDate;
         });
@@ -184,7 +184,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setEditingSummary(false);
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
     if (file) {
-      await plugin.app.fileManager.processFrontMatter(file as import("obsidian").TFile, (fm) => {
+      await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
         fm.summary = summary;
       });
     }
@@ -195,7 +195,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     if (!isLocal) return;
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
     if (file) {
-      await plugin.app.fileManager.processFrontMatter(file as import("obsidian").TFile, (fm) => {
+      await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
         fm[field] = value;
       });
     }
@@ -206,13 +206,13 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     if (!isLocal) return;
     setEditingDesc(false);
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-    if (!file || !(file instanceof (await import("obsidian")).TFile)) return;
-    const content = await plugin.app.vault.read(file as import("obsidian").TFile);
+    if (!file || !(file instanceof TFile)) return;
+    const content = await plugin.app.vault.read(file as TFile);
     const fmEnd = content.indexOf("---", content.indexOf("---") + 3);
     const newContent = fmEnd > 0
       ? content.slice(0, fmEnd + 3) + "\n" + localDesc
       : content + "\n" + localDesc;
-    await plugin.app.vault.modify(file as import("obsidian").TFile, newContent);
+    await plugin.app.vault.modify(file as TFile, newContent);
     setDescription(localDesc);
   }, [isLocal, localDesc, card, plugin]);
 

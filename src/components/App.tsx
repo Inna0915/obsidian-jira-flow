@@ -35,6 +35,14 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showReportCenter, setShowReportCenter] = useState(false);
 
+  // Keep detailCard in sync with allCards after edits
+  useEffect(() => {
+    if (detailCard) {
+      const updated = allCards.find((c) => c.filePath === detailCard.filePath);
+      if (updated && updated !== detailCard) setDetailCard(updated);
+    }
+  }, [allCards]);
+
   const loadCards = useCallback(() => {
     const files = plugin.fileManager.getAllTaskFiles();
     const cards: KanbanCard[] = [];
