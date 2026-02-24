@@ -231,18 +231,21 @@ npm run css
 
 ## 最近更新
 
-### v1.x.x (最新)
+### v1.1.0 (2026-02-24)
 - **FolderSuggest**: 设置面板文件夹选择支持智能自动补全
 - **Pomodoro 计时器**: Focus View 新增番茄钟，专注时间自动记录到任务文件
 - **活跃 Sprint 过滤**: 侧边栏和报告中心只显示当前活跃 Sprint 的任务
 - **双语看板列**: 看板列显示英文+中文双语标签
 - **报告任务交互**: 报告中心的任务列表支持点击打开和悬停预览
-- **Focus View**: 新增侧边栏聚焦视图，快速查看今日/本周任务
-- **Issue Preview**: 点击关联任务可预览详情，支持导航和返回
-- **Confluence 集成**: 自动解析 Confluence 链接，优先打开本地文件
-- **悬停预览**: 任务卡片和链接支持 Obsidian 原生悬停预览
-- **Wiki 图片**: 自动转换 Jira Wiki 图片语法 `!image.png!`
-- **稳定性**: 修复 Windows EBUSY 文件锁问题
+- **Focus View**: 新增侧边栏聚焦视图
+- **Issue Preview**: 任务预览弹窗支持关联任务导航
+- **Confluence 集成**: 自动解析 Confluence 链接
+
+[查看完整更新日志](./CHANGELOG.md)
+
+## 版本历史
+
+详见 [CHANGELOG.md](./CHANGELOG.md)
 
 ## License
 
