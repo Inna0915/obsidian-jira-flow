@@ -86,6 +86,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const [localDesc, setLocalDesc] = useState("");
   const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [previewIssueKey, setPreviewIssueKey] = useState<string | null>(null);
 
   const isLocal = card.source === "LOCAL";
@@ -407,10 +408,16 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               </button>
             )}
             {isLocal && (
-              <button onClick={() => setShowDeleteConfirm(true)} 
-                className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
-                删除
-              </button>
+              <>
+                <button onClick={() => setShowEditModal(true)} 
+                  className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-blue-600 hover:jf-bg-blue-50 jf-rounded-lg jf-transition-colors">
+                  编辑
+                </button>
+                <button onClick={() => setShowDeleteConfirm(true)} 
+                  className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
+                  删除
+                </button>
+              </>
             )}
           </div>
           <div className="jf-flex jf-items-center jf-gap-3">
@@ -427,6 +434,42 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Edit Task Modal */}
+        {showEditModal && isLocal && (
+          <EditTaskModal
+            plugin={plugin}
+            task={{
+              key: card.jiraKey,
+              summary: card.summary,
+              issuetype: card.issuetype,
+              priority: card.priority,
+              mappedColumn: card.mappedColumn,
+              storyPoints: card.storyPoints,
+              dueDate: card.dueDate?.slice(0, 10) || "",
+              assignee: card.assignee,
+            }}
+            onClose={() => setShowEditModal(false)}
+            onSave={async (data) => {
+              const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
+              if (file && file instanceof TFile) {
+                await plugin.app.fileManager.processFrontMatter(file, (fm) => {
+                  fm.summary = data.summary;
+                  fm.issuetype = data.issuetype;
+                  fm.priority = data.priority;
+                  fm.mapped_column = data.mappedColumn;
+                  fm.status = data.mappedColumn;
+                  fm.story_points = data.storyPoints;
+                  fm.due_date = data.dueDate;
+                  fm.assignee = data.assignee;
+                });
+                new Notice(`任务 ${data.key} 已更新`);
+                onCardUpdated();
+              }
+              setShowEditModal(false);
+            }}
+          />
+        )}
 
         {/* Delete Confirmation Dialog */}
         {showDeleteConfirm && (

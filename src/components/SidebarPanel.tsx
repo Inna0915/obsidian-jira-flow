@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { TFile, Notice } from 'obsidian';
 import type JiraFlowPlugin from '../main';
 import type { TaskFrontmatter } from '../types';
-import { EditTaskModal, type EditTaskData } from './TaskDetailModal';
+
 
 interface SidebarTask {
   key: string;
@@ -13,7 +13,6 @@ interface SidebarTask {
   issuetype: string;
   filePath: string;
   sprint_state: string;
-  source: string;
 }
 
 export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
@@ -26,7 +25,6 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const [timeLeft, setTimeLeft] = useState(35 * 60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0); // Track actual time spent
-  const [editingTask, setEditingTask] = useState<SidebarTask | null>(null);
 
   const loadTasks = useCallback(async () => {
     const files = plugin.fileManager.getAllTaskFiles();
@@ -51,7 +49,6 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
         issuetype: fm.issuetype,
         filePath: file.path,
         sprint_state: fm.sprint_state || '',
-        source: fm.source,
       });
     }
 
@@ -271,7 +268,6 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     const dateLabel = formatDate(task.dueDate);
     const isOverdue = dateLabel === 'Overdue';
     const isActive = activeTask?.key === task.key;
-    const isLocal = task.source === 'LOCAL';
     
     return (
       <div 
@@ -288,18 +284,6 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
             <span className={`jf-text-[10px] jf-px-1 jf-rounded ${isOverdue ? 'jf-bg-red-100 jf-text-red-600 jf-font-semibold' : 'jf-text-gray-400'}`}>
               {dateLabel}
             </span>
-            {/* EDIT BUTTON - Only for local tasks */}
-            {isLocal && (
-              <button 
-                onClick={(e) => { e.stopPropagation(); setEditingTask(task); }}
-                title="编辑任务"
-                className="jf-text-gray-300 hover:jf-text-blue-500 jf-transition-colors"
-              >
-                <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-            )}
             {/* PLAY BUTTON */}
             <button 
               onClick={(e) => startTimer(e, task)}
@@ -324,51 +308,6 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       </div>
     );
   };
-
-  // Handle edit save
-  const handleEditSave = useCallback(async (data: EditTaskData) => {
-    const file = plugin.app.vault.getAbstractFileByPath(data.key);
-    if (!file || !(file instanceof TFile)) {
-      // Try to find by frontmatter
-      const allFiles = plugin.fileManager.getAllTaskFiles();
-      let targetFile: TFile | null = null;
-      for (const f of allFiles) {
-        const fm = plugin.fileManager.getTaskFrontmatter(f);
-        if (fm && fm.jira_key === data.key) {
-          targetFile = f;
-          break;
-        }
-      }
-      if (!targetFile) {
-        new Notice('未找到任务文件');
-        return;
-      }
-      
-      // Update frontmatter
-      await plugin.app.fileManager.processFrontMatter(targetFile, (fm) => {
-        fm.summary = data.summary;
-        fm.issuetype = data.issuetype;
-        fm.priority = data.priority;
-        fm.mapped_column = data.mappedColumn;
-        fm.story_points = data.storyPoints;
-        fm.due_date = data.dueDate;
-        fm.assignee = data.assignee;
-      });
-    } else {
-      await plugin.app.fileManager.processFrontMatter(file, (fm) => {
-        fm.summary = data.summary;
-        fm.issuetype = data.issuetype;
-        fm.priority = data.priority;
-        fm.mapped_column = data.mappedColumn;
-        fm.story_points = data.storyPoints;
-        fm.due_date = data.dueDate;
-        fm.assignee = data.assignee;
-      });
-    }
-    
-    new Notice(`任务 ${data.key} 已更新`);
-    loadTasks();
-  }, [plugin, loadTasks]);
 
   if (loading) {
     return (
@@ -505,24 +444,6 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
         </div>
       </div>
 
-      {/* Edit Task Modal */}
-      {editingTask && (
-        <EditTaskModal
-          plugin={plugin}
-          task={{
-            key: editingTask.key,
-            summary: editingTask.summary,
-            issuetype: editingTask.issuetype,
-            priority: editingTask.priority,
-            mappedColumn: editingTask.status,
-            storyPoints: 0,
-            dueDate: editingTask.dueDate,
-            assignee: '',
-          }}
-          onClose={() => setEditingTask(null)}
-          onSave={handleEditSave}
-        />
-      )}
     </div>
   );
 };
