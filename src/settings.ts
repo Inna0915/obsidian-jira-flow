@@ -154,10 +154,10 @@ export class JiraFlowSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Sprint 字段")
-      .setDesc("Jira Sprint 的自定义字段 ID（例如：customfield_10020）")
+      .setDesc("Jira Sprint 的自定义字段 ID（例如：customfield_10109）")
       .addText((text) =>
         text
-          .setPlaceholder("customfield_10020")
+          .setPlaceholder("customfield_10109")
           .setValue(this.plugin.settings.sprintField)
           .onChange(async (value) => {
             this.plugin.settings.sprintField = value.trim();

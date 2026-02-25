@@ -277,7 +277,7 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
   syncIntervalMinutes: 30,
   storyPointsField: "customfield_10111",
   dueDateField: "customfield_10329",
-  sprintField: "customfield_10020",
+  sprintField: "customfield_10109",
   ai: {
     models: [...BUILTIN_MODELS],
     activeModelId: "",
