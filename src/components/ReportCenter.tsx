@@ -256,8 +256,8 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
       const fm = plugin.fileManager.getTaskFrontmatter(file);
       if (!fm) continue;
       const isLocal = fm.source === "LOCAL";
-      const hasCurrentSprint = !!fm.sprint;
-      if (!isLocal && !hasCurrentSprint) continue;
+      const hasActiveSprint = fm.sprint_state?.toUpperCase() === "ACTIVE";
+      if (!isLocal && !hasActiveSprint) continue;
 
       const item: TaskItem = {
         key: fm.jira_key,
@@ -811,6 +811,19 @@ const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, content, save
   // Format the date range for display
   const dateRangeStr = `${formatDate(dateRange.start)} ~ ${formatDate(dateRange.end)}`;
 
+  // Copy functionality
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(async () => {
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.error("Failed to copy:", e);
+    }
+  }, [content]);
+
   return (
   <>
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.3)" }} onClick={onClose} />
@@ -837,9 +850,17 @@ const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, content, save
             fontFamily: "var(--font-monospace)",
           }}>{dateRangeStr}</span>
         </div>
-        <button onClick={onClose} style={{
-          background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "var(--text-muted)", padding: "4px 8px",
-        }}>✕</button>
+        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <button onClick={handleCopy} disabled={!content} title="复制内容" style={{
+            background: copied ? "var(--background-secondary)" : "none",
+            border: "none", cursor: content ? "pointer" : "not-allowed",
+            fontSize: "14px", color: copied ? "var(--text-success)" : "var(--text-muted)",
+            padding: "4px 10px", borderRadius: "4px", opacity: content ? 1 : 0.5,
+          }}>{copied ? "已复制" : "复制"}</button>
+          <button onClick={onClose} style={{
+            background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "var(--text-muted)", padding: "4px 8px",
+          }}>✕</button>
+        </div>
       </div>
 
       {/* Content */}

@@ -124,10 +124,10 @@ export class ReportGenerator {
     for (const file of files) {
       const fm = this.plugin.fileManager.getTaskFrontmatter(file);
       if (!fm) continue;
-      // Only include local tasks and current sprint tasks
+      // Only include local tasks and active sprint tasks
       const isLocal = fm.source === "LOCAL";
-      const hasCurrentSprint = !!fm.sprint;
-      if (!isLocal && !hasCurrentSprint) continue;
+      const hasActiveSprint = fm.sprint_state?.toUpperCase() === "ACTIVE";
+      if (!isLocal && !hasActiveSprint) continue;
       summaries.push(
         `- [${fm.mapped_column}] ${fm.jira_key}: ${fm.summary} (${fm.issuetype}, ${fm.priority})`
       );
