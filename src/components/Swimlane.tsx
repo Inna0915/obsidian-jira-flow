@@ -12,6 +12,9 @@ interface SwimlaneProps {
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardClick: (card: KanbanCard) => void;
   onOpenFile: (filePath: string) => void;
+  searchQuery: string;
+  matchedCards: KanbanCard[];
+  searchMatchIndex: number;
 }
 
 // Swimlane indicator colors (left border)
@@ -29,6 +32,9 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
   onCardMove,
   onCardClick,
   onOpenFile,
+  searchQuery,
+  matchedCards,
+  searchMatchIndex,
 }) => {
   const accentColor = swimlaneAccentColors[swimlane.id];
 
@@ -80,6 +86,9 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
               onCardMove={onCardMove}
               onCardClick={onCardClick}
               onOpenFile={onOpenFile}
+              searchQuery={searchQuery}
+              matchedCards={matchedCards}
+              searchMatchIndex={searchMatchIndex}
             />
           );
         })}

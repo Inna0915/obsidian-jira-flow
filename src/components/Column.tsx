@@ -9,6 +9,9 @@ interface ColumnProps {
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardClick: (card: KanbanCard) => void;
   onOpenFile: (filePath: string) => void;
+  searchQuery: string;
+  matchedCards: KanbanCard[];
+  searchMatchIndex: number;
 }
 
 export const Column: React.FC<ColumnProps> = ({
@@ -17,6 +20,9 @@ export const Column: React.FC<ColumnProps> = ({
   cards,
   onCardMove,
   onCardClick,
+  searchQuery,
+  matchedCards,
+  searchMatchIndex,
 }) => {
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -44,7 +50,13 @@ export const Column: React.FC<ColumnProps> = ({
       {/* Column Body - No header here anymore, just cards */}
       <div className="jf-px-2 jf-py-3 jf-space-y-2 jf-min-h-[120px]">
         {cards.map((card) => (
-          <Card key={card.filePath} card={card} onCardClick={onCardClick} />
+          <Card
+            key={card.filePath}
+            card={card}
+            onCardClick={onCardClick}
+            searchQuery={searchQuery}
+            isCurrentMatch={matchedCards.length > 0 && matchedCards[searchMatchIndex]?.filePath === card.filePath}
+          />
         ))}
       </div>
     </div>

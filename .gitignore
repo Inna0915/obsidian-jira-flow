@@ -3,3 +3,5 @@ node_modules/
 *.log
 data.json
 .claude/
+.agents/
+tmpclaude-*-cwd

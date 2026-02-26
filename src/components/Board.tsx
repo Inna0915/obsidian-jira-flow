@@ -11,6 +11,9 @@ interface BoardProps {
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardClick: (card: KanbanCard) => void;
   onOpenFile: (filePath: string) => void;
+  searchQuery: string;
+  matchedCards: KanbanCard[];
+  searchMatchIndex: number;
 }
 
 // Column top border colors
@@ -36,6 +39,9 @@ export const Board: React.FC<BoardProps> = ({
   onCardMove,
   onCardClick,
   onOpenFile,
+  searchQuery,
+  matchedCards,
+  searchMatchIndex,
 }) => {
   // Calculate total cards per column across all swimlanes
   const columnCounts = React.useMemo(() => {
@@ -111,6 +117,9 @@ export const Board: React.FC<BoardProps> = ({
             onCardMove={onCardMove}
             onCardClick={onCardClick}
             onOpenFile={onOpenFile}
+            searchQuery={searchQuery}
+            matchedCards={matchedCards}
+            searchMatchIndex={searchMatchIndex}
           />
         );
       })}

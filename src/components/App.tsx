@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { Notice, TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import {
@@ -15,6 +15,7 @@ import { ReportCenter } from "./ReportCenter";
 
 interface AppProps {
   plugin: JiraFlowPlugin;
+  searchInputId?: string;
 }
 
 export type ViewMode = "sprint" | "all" | "local";
@@ -26,7 +27,7 @@ export interface SwimlaneData {
   columns: Map<string, KanbanCard[]>;
 }
 
-export const App: React.FC<AppProps> = ({ plugin }) => {
+export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [allCards, setAllCards] = useState<KanbanCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsedSwimlanes, setCollapsedSwimlanes] = useState<Set<SwimlaneType>>(new Set());
@@ -34,6 +35,69 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
   const [detailCard, setDetailCard] = useState<KanbanCard | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showReportCenter, setShowReportCenter] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchMatchIndex, setSearchMatchIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Calculate matched cards for navigation
+  const matchedCards = searchQuery
+    ? allCards.filter((card) =>
+        card.jiraKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.assignee?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.priority.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.issuetype.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : [];
+
+  // Reset match index when search query changes
+  useEffect(() => {
+    setSearchMatchIndex(0);
+  }, [searchQuery]);
+
+  // Auto-scroll to matched card when searchMatchIndex changes
+  useEffect(() => {
+    if (matchedCards.length === 0) return;
+
+    const currentCard = matchedCards[searchMatchIndex];
+    if (!currentCard) return;
+
+    // Find the card element and scroll to it
+    const cardElement = document.querySelector(`[data-card-path="${CSS.escape(currentCard.filePath)}"]`);
+    if (cardElement) {
+      cardElement.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [searchMatchIndex, matchedCards]);
+
+  // Navigate to previous match
+  const goToPrevMatch = useCallback(() => {
+    if (matchedCards.length === 0) return;
+    setSearchMatchIndex((prev) => (prev - 1 + matchedCards.length) % matchedCards.length);
+  }, [matchedCards.length]);
+
+  // Navigate to next match
+  const goToNextMatch = useCallback(() => {
+    if (matchedCards.length === 0) return;
+    setSearchMatchIndex((prev) => (prev + 1) % matchedCards.length);
+  }, [matchedCards.length]);
+
+  // Handle keyboard navigation in search input
+  const handleSearchKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        if (e.shiftKey) {
+          goToPrevMatch();
+        } else {
+          goToNextMatch();
+        }
+        e.preventDefault();
+      } else if (e.key === "Escape") {
+        setSearchQuery("");
+        searchInputRef.current?.blur();
+      }
+    },
+    [goToNextMatch, goToPrevMatch]
+  );
 
   // Keep detailCard in sync with allCards after edits
   useEffect(() => {
@@ -296,6 +360,58 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
               </button>
             ))}
           </div>
+          {/* Search Input - Chrome Style */}
+          <div className="jf-flex jf-items-center jf-gap-1 jf-relative">
+            <div className="jf-relative jf-flex jf-items-center">
+              <input
+                ref={searchInputRef}
+                id={searchInputId}
+                type="text"
+                placeholder="搜索任务... (Ctrl+F)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="jf-w-56 jf-px-3 jf-py-1.5 jf-text-sm jf-border jf-border-gray-300 jf-rounded-md jf-bg-white focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500 focus:jf-border-transparent jf-transition-all jf-placeholder-gray-400"
+              />
+              {/* Match count and navigation */}
+              {searchQuery && matchedCards.length > 0 && (
+                <div className="jf-absolute jf-right-20 jf-flex jf-items-center jf-gap-1 jf-text-xs jf-text-gray-500">
+                  <span className="jf-font-medium">
+                    {searchMatchIndex + 1}/{matchedCards.length}
+                  </span>
+                  <button
+                    onClick={goToPrevMatch}
+                    className="jf-p-1 jf-hover:bg-gray-100 jf-rounded jf-transition-colors"
+                    title="上一个 (Shift+Enter)"
+                  >
+                    <svg className="jf-w-3 jf-h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={goToNextMatch}
+                    className="jf-p-1 jf-hover:bg-gray-100 jf-rounded jf-transition-colors"
+                    title="下一个 (Enter)"
+                  >
+                    <svg className="jf-w-3 jf-h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              {/* Clear button */}
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="jf-absolute jf-right-2 jf-top-1/2 jf-transform jf--translate-y-1/2 jf-text-gray-400 hover:jf-text-gray-600 jf-p-0.5"
+                >
+                  <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
         <div className="jf-flex jf-items-center jf-gap-2">
           {/* Reports Button - Ghost Style */}
@@ -346,6 +462,9 @@ export const App: React.FC<AppProps> = ({ plugin }) => {
         onCardMove={handleCardMove}
         onCardClick={handleCardClick}
         onOpenFile={handleOpenFile}
+        searchQuery={searchQuery}
+        matchedCards={matchedCards}
+        searchMatchIndex={searchMatchIndex}
       />
 
       {/* Detail Side Panel */}

@@ -4,7 +4,30 @@ import type { KanbanCard } from "../types";
 interface CardProps {
   card: KanbanCard;
   onCardClick: (card: KanbanCard) => void;
+  searchQuery: string;
+  isCurrentMatch?: boolean;
 }
+
+// Helper function to highlight matching text
+const highlightText = (text: string, query: string): React.ReactNode => {
+  if (!query || !text) return text;
+
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const index = lowerText.indexOf(lowerQuery);
+
+  if (index === -1) return text;
+
+  return (
+    <>
+      {text.slice(0, index)}
+      <span className="jf-bg-yellow-200 jf-text-gray-900 jf-font-semibold jf-rounded jf-px-0.5">
+        {text.slice(index, index + query.length)}
+      </span>
+      {text.slice(index + query.length)}
+    </>
+  );
+};
 
 const priorityColors: Record<string, string> = {
   Highest: "#FF5630",
@@ -34,7 +57,15 @@ const getBorderColor = (issueType: string): string => {
   }
 };
 
-export const Card: React.FC<CardProps> = ({ card, onCardClick }) => {
+export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCurrentMatch }) => {
+  const isMatched = searchQuery && (
+    card.jiraKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    card.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    card.assignee?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    card.priority.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    card.issuetype.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
       e.dataTransfer.setData("text/plain", card.filePath);
@@ -56,7 +87,14 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick }) => {
       draggable
       onDragStart={handleDragStart}
       onClick={handleClick}
-      className="jf-bg-white jf-p-3 jf-rounded-r-lg jf-rounded-l-sm jf-shadow-sm jf-border jf-border-gray-200 hover:jf-shadow-md hover:jf-border-gray-300 jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative"
+      data-card-path={card.filePath}
+      className={`jf-bg-white jf-p-3 jf-rounded-r-lg jf-rounded-l-sm jf-shadow-sm jf-border hover:jf-shadow-md hover:jf-border-gray-300 jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative ${
+        isCurrentMatch
+          ? "jf-border-blue-600 jf-ring-4 jf-ring-blue-300 jf-z-10"
+          : isMatched
+          ? "jf-border-blue-400 jf-ring-2 jf-ring-blue-200"
+          : "jf-border-gray-200"
+      }`}
       style={{ borderLeftWidth: "4px", borderLeftColor, borderLeftStyle: "solid" }}
     >
       {/* Header: Key + Type icon + Priority dot */}
@@ -65,7 +103,7 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick }) => {
           {typeIcons[card.issuetype] || "\u{1F4CB}"}
         </span>
         <span className="jf-font-mono jf-text-[10px] jf-font-semibold jf-text-blue-600 jf-bg-blue-50 jf-px-1.5 jf-py-0.5 jf-rounded">
-          {card.jiraKey}
+          {highlightText(card.jiraKey, searchQuery)}
         </span>
         {card.source === "LOCAL" && (
           <span className="jf-text-[9px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-gray-100 jf-text-gray-500 jf-font-medium">
@@ -81,7 +119,7 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick }) => {
 
       {/* Summary */}
       <div className="jf-text-sm jf-font-medium jf-text-gray-800 jf-leading-snug jf-mb-3 line-clamp-2">
-        {card.summary}
+        {highlightText(card.summary, searchQuery)}
       </div>
 
       {/* Footer */}
@@ -110,7 +148,7 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick }) => {
           <span
             className="jf-w-5 jf-h-5 jf-rounded-full jf-flex jf-items-center jf-justify-center jf-text-white jf-text-[9px] jf-font-bold"
             style={{ backgroundColor: stringToColor(card.assignee) }}
-            title={card.assignee}
+            title={highlightText(card.assignee, searchQuery)?.toString() || card.assignee}
           >
             {getInitials(card.assignee)}
           </span>
