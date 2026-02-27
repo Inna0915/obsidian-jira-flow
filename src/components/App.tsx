@@ -201,36 +201,62 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
   const handleCardMove = useCallback(
     async (cardPath: string, targetColumn: string, _targetSwimlane: SwimlaneType) => {
-      const file = plugin.app.vault.getAbstractFileByPath(cardPath);
-      if (!file || !(file instanceof TFile)) return;
-
-      const fm = plugin.fileManager.getTaskFrontmatter(file);
-      if (!fm) return;
-
-      const originalColumn = fm.mapped_column;
-
-      if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn, fm.source)) {
-        new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);
-        return;
-      }
-
-      await plugin.fileManager.updateStatus(file, targetColumn);
-
-      if (fm.source === "JIRA" && plugin.settings.jiraHost) {
-        const result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
-        if (!result.success) {
-          await plugin.fileManager.updateStatus(file, originalColumn);
-          new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
+      console.log(`[Jira Flow] handleCardMove: ${cardPath} → ${targetColumn}`);
+      try {
+        const file = plugin.app.vault.getAbstractFileByPath(cardPath);
+        if (!file || !(file instanceof TFile)) {
+          console.warn("[Jira Flow] handleCardMove: file not found", cardPath);
           return;
         }
-        // Update local file with the actual Jira status after transition
-        if (result.actualColumn && result.actualColumn !== targetColumn) {
-          await plugin.fileManager.updateStatus(file, result.actualColumn);
-        }
-      }
 
-      if (targetColumn === "DONE" || targetColumn === "CLOSED") {
-        await plugin.workLogger.logWork(file);
+        const fm = plugin.fileManager.getTaskFrontmatter(file);
+        if (!fm) {
+          console.warn("[Jira Flow] handleCardMove: no frontmatter for", cardPath);
+          return;
+        }
+
+        const originalColumn = fm.mapped_column;
+        console.log(`[Jira Flow] handleCardMove: ${fm.jira_key} from "${originalColumn}" to "${targetColumn}", source=${fm.source}`);
+
+        if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn, fm.source)) {
+          new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);
+          return;
+        }
+
+        await plugin.fileManager.updateStatus(file, targetColumn);
+
+        if (fm.source === "JIRA" && plugin.settings.jiraHost) {
+          const result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
+          if (!result.success) {
+            await plugin.fileManager.updateStatus(file, originalColumn);
+            new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
+            return;
+          }
+          if (result.actualColumn && result.actualColumn !== targetColumn) {
+            await plugin.fileManager.updateStatus(file, result.actualColumn);
+          }
+        }
+
+        console.log(`[Jira Flow] handleCardMove: checking work log trigger, type="${fm.issuetype}", targetColumn="${targetColumn}", source="${fm.source}"`);
+        // Determine if this move constitutes "work done" for logging purposes:
+        // - Story/Task: moved to EXECUTED (development done)
+        // - Bug: moved to TESTING & REVIEW (fix submitted for verification)
+        // - LOCAL tasks: moved to DONE or CLOSED
+        // - Also log for DONE/CLOSED/RESOLVED for any type as a catch-all
+        const isBug = fm.issuetype.toLowerCase() === "bug";
+        const shouldLog =
+          (fm.source === "LOCAL" && (targetColumn === "DONE" || targetColumn === "CLOSED")) ||
+          (!isBug && targetColumn === "EXECUTED") ||
+          (isBug && targetColumn === "TESTING & REVIEW") ||
+          targetColumn === "DONE" || targetColumn === "CLOSED" || targetColumn === "RESOLVED";
+
+        if (shouldLog) {
+          console.log(`[Jira Flow] handleCardMove: calling logWork for ${fm.jira_key}`);
+          await plugin.workLogger.logWork(file, { jiraKey: fm.jira_key, summary: fm.summary });
+        }
+      } catch (e) {
+        console.error("[Jira Flow] handleCardMove error:", e);
+        new Notice(`Jira Flow：拖拽操作出错: ${e instanceof Error ? e.message : String(e)}`);
       }
       // Board refreshes automatically via metadataCache "changed" event
     },

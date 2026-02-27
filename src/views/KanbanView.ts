@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, Scope, WorkspaceLeaf } from "obsidian";
 import { createRoot, type Root } from "react-dom/client";
 import { createElement } from "react";
 import type JiraFlowPlugin from "../main";

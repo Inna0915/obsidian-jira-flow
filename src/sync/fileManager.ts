@@ -269,6 +269,32 @@ export class FileManager {
     return null;
   }
 
+  /**
+   * Find a task file by its jira_key. Supports both old (key.md) and new (key-summary.md) naming formats.
+   * Public API for use by UI components (e.g. report hover preview).
+   */
+  findTaskFileByKey(key: string): TFile | null {
+    // Try old format: key.md
+    const oldPath = this.getTaskFilePath(key);
+    const oldFile = this.vault.getAbstractFileByPath(oldPath);
+    if (oldFile instanceof TFile) {
+      return oldFile;
+    }
+
+    // Scan all task files and match by jira_key frontmatter
+    const allFiles = this.getAllTaskFiles();
+    for (const file of allFiles) {
+      // Quick check: filename should start with the key
+      if (!file.basename.startsWith(key)) continue;
+      const fm = this.getTaskFrontmatter(file);
+      if (fm && fm.jira_key === key) {
+        return file;
+      }
+    }
+
+    return null;
+  }
+
   private frontmatterToYaml(fm: TaskFrontmatter): string {
     const lines: string[] = [];
     lines.push(`jira_key: "${fm.jira_key}"`);

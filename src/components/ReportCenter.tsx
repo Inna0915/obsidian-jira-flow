@@ -741,7 +741,7 @@ const typeIconMap: Record<string, string> = {
 const TaskRow: React.FC<{ task: TaskItem; plugin: JiraFlowPlugin }> = ({ task, plugin }) => {
   const onHoverTask = (e: React.MouseEvent, taskKey: string) => {
     if (plugin?.app) {
-      const targetFile = plugin.app.metadataCache.getFirstLinkpathDest(taskKey, '');
+      const targetFile = plugin.fileManager.findTaskFileByKey(taskKey);
       const linkText = targetFile ? targetFile.path : taskKey;
 
       plugin.app.workspace.trigger('hover-link', {
@@ -757,7 +757,7 @@ const TaskRow: React.FC<{ task: TaskItem; plugin: JiraFlowPlugin }> = ({ task, p
 
   const onClickTask = async (taskKey: string) => {
     if (plugin?.app) {
-      const targetFile = plugin.app.metadataCache.getFirstLinkpathDest(taskKey, '');
+      const targetFile = plugin.fileManager.findTaskFileByKey(taskKey);
       if (targetFile instanceof TFile) {
         await plugin.app.workspace.getLeaf('tab').openFile(targetFile);
       }
