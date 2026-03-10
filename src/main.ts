@@ -17,6 +17,7 @@ export default class JiraFlowPlugin extends Plugin {
   workLogger!: WorkLogger;
   reportGenerator!: ReportGenerator;
   private syncIntervalId: number | null = null;
+  private syncInProgress = false;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -196,29 +197,25 @@ export default class JiraFlowPlugin extends Plugin {
       return;
     }
 
-    const toast = new StatusToast(document, "Jira Sync");
-
-    const stepConnect = toast.addStep("Connecting to Jira...");
-    try {
-      await this.jiraApi.testConnection();
-      toast.updateStep(stepConnect, "success", this.settings.jiraHost);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.updateStep(stepConnect, "error", msg);
-      toast.finish(false);
+    if (this.syncInProgress) {
+      new Notice("Jira Flow：同步已在进行中，请稍候。");
       return;
     }
+
+    this.syncInProgress = true;
+
+    const toast = new StatusToast(document, "Jira Sync");
 
     const stepFetch = toast.addStep("Fetching issues...");
     let issues: import("./types").JiraIssue[];
     try {
-      // Always use JQL to fetch all issues (not limited by project key)
       issues = await this.jiraApi.fetchIssues();
       toast.updateStep(stepFetch, "success", `${issues.length} issues found`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.updateStep(stepFetch, "error", msg);
       toast.finish(false);
+      this.syncInProgress = false;
       return;
     }
 
@@ -226,6 +223,7 @@ export default class JiraFlowPlugin extends Plugin {
     try {
       const result = await this.fileManager.syncIssues(issues);
       const detail = `Created: ${result.created}, Updated: ${result.updated}` +
+        (result.archived > 0 ? `, Archived: ${result.archived}` : "") +
         (result.errors.length > 0 ? `, Errors: ${result.errors.length}` : "");
       toast.updateStep(stepSync, result.errors.length > 0 ? "error" : "success", detail);
       toast.finish(result.errors.length === 0);
@@ -233,6 +231,8 @@ export default class JiraFlowPlugin extends Plugin {
       const msg = e instanceof Error ? e.message : String(e);
       toast.updateStep(stepSync, "error", msg);
       toast.finish(false);
+    } finally {
+      this.syncInProgress = false;
     }
   }
 

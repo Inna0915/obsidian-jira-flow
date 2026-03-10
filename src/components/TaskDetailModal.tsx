@@ -233,7 +233,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
       {/* Backdrop */}
       <div className="jf-fixed jf-inset-0 jf-z-[9999] jf-bg-black/40 jf-backdrop-blur-sm" onClick={onClose} />
       {/* Side Panel */}
-      <div className="jf-fixed jf-top-0 jf-right-0 jf-bottom-0 jf-z-[10000] jf-w-[480px] jf-max-w-[90vw] jf-bg-white jf-shadow-2xl jf-flex jf-flex-col"
+      <div className="jf-fixed jf-top-0 jf-right-0 jf-bottom-0 jf-z-[10000] jf-w-[960px] jf-max-w-[90vw] jf-bg-white jf-shadow-2xl jf-flex jf-flex-col"
         style={{ animation: "jf-slide-in 0.2s ease-out" }}>
         
         {/* Header */}

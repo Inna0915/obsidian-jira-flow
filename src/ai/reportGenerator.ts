@@ -4,6 +4,15 @@ import { AIService } from "./aiService";
 import { WorkLogService } from "../sync/workLogService";
 import type { ReportPeriod } from "../types";
 
+const REPORT_PREFIX_MAP: Record<ReportPeriod, string> = {
+  weekly: "Weekly-Report",
+  monthly: "Monthly-Report",
+  quarterly: "Quarterly-Report",
+  yearly: "Yearly-Report",
+};
+
+type ReportRange = { start: Date; end: Date };
+
 export class ReportGenerator {
   private plugin: JiraFlowPlugin;
   private aiService: AIService;
@@ -32,7 +41,7 @@ export class ReportGenerator {
     }
 
     const { start, end } = options?.start && options?.end
-      ? { start: options.start, end: options.end }
+      ? this.normalizeRange(period, { start: options.start, end: options.end })
       : this.getPeriodRange(period);
 
     const periodLabel = this.getPeriodLabel(start, end);
@@ -56,7 +65,7 @@ export class ReportGenerator {
     ]);
 
     // Save report with the period's end date (not current date)
-    const file = await this.saveReport(period, response.content, end);
+    const file = await this.saveReport(period, response.content, { start, end });
     return { content: response.content, file };
   }
 
@@ -78,34 +87,52 @@ export class ReportGenerator {
     return { logs, stats };
   }
 
-  private getPeriodRange(period: ReportPeriod): { start: Date; end: Date } {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const end = new Date(today);
+  getPeriodRange(period: ReportPeriod, anchorDate: Date = new Date()): ReportRange {
+    return this.normalizeRange(period, { start: anchorDate, end: anchorDate });
+  }
 
-    switch (period) {
-      case "weekly": {
-        const start = new Date(today);
-        start.setDate(start.getDate() - 6);
-        return { start, end };
-      }
-      case "monthly": {
-        const start = new Date(today);
-        start.setDate(start.getDate() - 29);
-        return { start, end };
-      }
-      case "quarterly": {
-        const start = new Date(today);
-        start.setDate(start.getDate() - 89);
-        return { start, end };
-      }
-      case "yearly": {
-        const start = new Date(today);
-        start.setFullYear(start.getFullYear() - 1);
-        start.setDate(start.getDate() + 1);
-        return { start, end };
+  getReportFile(period: ReportPeriod, range: ReportRange): TFile | null {
+    const normalized = this.normalizeRange(period, range);
+    const expectedKey = this.getReportKey(period, normalized);
+    const canonicalPath = this.getReportPath(period, normalized);
+    const canonicalFile = this.plugin.app.vault.getAbstractFileByPath(canonicalPath);
+    if (canonicalFile instanceof TFile) {
+      return canonicalFile;
+    }
+
+    const prefix = REPORT_PREFIX_MAP[period];
+    const folderPath = normalizePath(this.plugin.settings.reportsFolder);
+    const files = this.plugin.app.vault
+      .getFiles()
+      .filter((file) => file.path.startsWith(folderPath) && file.name.startsWith(prefix));
+
+    for (const file of files) {
+      const fileKey = this.getReportKeyFromFileName(period, file.name);
+      if (fileKey === expectedKey) {
+        return file;
       }
     }
+
+    return null;
+  }
+
+  listReportKeys(period: ReportPeriod): Set<string> {
+    const prefix = REPORT_PREFIX_MAP[period];
+    const folderPath = normalizePath(this.plugin.settings.reportsFolder);
+    const keys = new Set<string>();
+
+    for (const file of this.plugin.app.vault.getFiles()) {
+      if (!file.path.startsWith(folderPath) || !file.name.startsWith(prefix)) {
+        continue;
+      }
+
+      const key = this.getReportKeyFromFileName(period, file.name);
+      if (key) {
+        keys.add(key);
+      }
+    }
+
+    return keys;
   }
 
   private getSystemPrompt(period: ReportPeriod): string {
@@ -181,7 +208,7 @@ export class ReportGenerator {
     return parts.join("\n");
   }
 
-  private async saveReport(period: ReportPeriod, content: string, reportDate?: Date): Promise<TFile> {
+  private async saveReport(period: ReportPeriod, content: string, range: ReportRange): Promise<TFile> {
     const vault = this.plugin.app.vault;
     const folder = this.plugin.settings.reportsFolder;
 
@@ -190,15 +217,8 @@ export class ReportGenerator {
       await vault.createFolder(folderPath);
     }
 
-    // Use the report period's end date for the filename, not the current date
-    const dateStr = this.formatDate(reportDate || new Date());
-    const prefixMap: Record<ReportPeriod, string> = {
-      weekly: "Weekly-Report",
-      monthly: "Monthly-Report",
-      quarterly: "Quarterly-Report",
-      yearly: "Yearly-Report",
-    };
-    const filePath = normalizePath(`${folder}/${prefixMap[period]}-${dateStr}.md`);
+    const normalized = this.normalizeRange(period, range);
+    const filePath = this.getReportPath(period, normalized);
 
     const existing = vault.getAbstractFileByPath(filePath);
     if (existing instanceof TFile) {
@@ -206,7 +226,127 @@ export class ReportGenerator {
       return existing;
     }
 
+    const legacyFile = this.getReportFile(period, normalized);
+    if (legacyFile instanceof TFile) {
+      if (legacyFile.path !== filePath) {
+        await vault.rename(legacyFile, filePath);
+      }
+
+      const renamed = vault.getAbstractFileByPath(filePath);
+      if (renamed instanceof TFile) {
+        await vault.modify(renamed, content);
+        return renamed;
+      }
+    }
+
     return await vault.create(filePath, content);
+  }
+
+  private normalizeRange(period: ReportPeriod, range: ReportRange): ReportRange {
+    const anchor = new Date(range.start);
+    anchor.setHours(0, 0, 0, 0);
+
+    switch (period) {
+      case "weekly": {
+        const start = new Date(anchor);
+        const day = (start.getDay() + 6) % 7;
+        start.setDate(start.getDate() - day);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+        return { start, end };
+      }
+      case "monthly": {
+        const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+        const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 23, 59, 59, 999);
+        return { start, end };
+      }
+      case "quarterly": {
+        const quarterStartMonth = Math.floor(anchor.getMonth() / 3) * 3;
+        const start = new Date(anchor.getFullYear(), quarterStartMonth, 1);
+        const end = new Date(anchor.getFullYear(), quarterStartMonth + 3, 0, 23, 59, 59, 999);
+        return { start, end };
+      }
+      case "yearly": {
+        const start = new Date(anchor.getFullYear(), 0, 1);
+        const end = new Date(anchor.getFullYear(), 11, 31, 23, 59, 59, 999);
+        return { start, end };
+      }
+    }
+  }
+
+  private getReportPath(period: ReportPeriod, range: ReportRange): string {
+    const key = this.getReportKey(period, range);
+    return normalizePath(`${this.plugin.settings.reportsFolder}/${REPORT_PREFIX_MAP[period]}-${key}.md`);
+  }
+
+  private getReportKey(period: ReportPeriod, range: ReportRange): string {
+    const start = range.start;
+
+    switch (period) {
+      case "weekly": {
+        const info = this.getIsoWeekInfo(start);
+        return `${info.year}-W${String(info.week).padStart(2, "0")}`;
+      }
+      case "monthly":
+        return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+      case "quarterly":
+        return `${start.getFullYear()}-Q${Math.floor(start.getMonth() / 3) + 1}`;
+      case "yearly":
+        return `${start.getFullYear()}`;
+    }
+  }
+
+  private getReportKeyFromFileName(period: ReportPeriod, fileName: string): string | null {
+    switch (period) {
+      case "weekly": {
+        const weekMatch = fileName.match(/^Weekly-Report-(\d{4})-W(\d{2})\.md$/);
+        if (weekMatch) {
+          return `${weekMatch[1]}-W${weekMatch[2]}`;
+        }
+        break;
+      }
+      case "monthly": {
+        const monthMatch = fileName.match(/^Monthly-Report-(\d{4})-(\d{2})\.md$/);
+        if (monthMatch) {
+          return `${monthMatch[1]}-${monthMatch[2]}`;
+        }
+        break;
+      }
+      case "quarterly": {
+        const quarterMatch = fileName.match(/^Quarterly-Report-(\d{4})-Q([1-4])\.md$/);
+        if (quarterMatch) {
+          return `${quarterMatch[1]}-Q${quarterMatch[2]}`;
+        }
+        break;
+      }
+      case "yearly": {
+        const yearMatch = fileName.match(/^Yearly-Report-(\d{4})\.md$/);
+        if (yearMatch) {
+          return yearMatch[1];
+        }
+        break;
+      }
+    }
+
+    const legacyDateMatch = fileName.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (!legacyDateMatch) {
+      return null;
+    }
+
+    const legacyDate = new Date(Number(legacyDateMatch[1]), Number(legacyDateMatch[2]) - 1, Number(legacyDateMatch[3]));
+    return this.getReportKey(period, this.getPeriodRange(period, legacyDate));
+  }
+
+  private getIsoWeekInfo(date: Date): { year: number; week: number } {
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    target.setDate(target.getDate() + 3 - ((target.getDay() + 6) % 7));
+
+    const isoYear = target.getFullYear();
+    const week1 = new Date(isoYear, 0, 4);
+    const week = 1 + Math.round(((target.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
+    return { year: isoYear, week };
   }
 
   private formatDate(date: Date): string {

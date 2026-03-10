@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { Notice, TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import {
@@ -30,6 +30,7 @@ export interface SwimlaneData {
 export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [allCards, setAllCards] = useState<KanbanCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [collapsedSwimlanes, setCollapsedSwimlanes] = useState<Set<SwimlaneType>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("sprint");
   const [detailCard, setDetailCard] = useState<KanbanCard | null>(null);
@@ -38,6 +39,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const refreshTimerRef = useRef<number | null>(null);
 
   // Calculate matched cards for navigation
   const matchedCards = searchQuery
@@ -140,9 +142,22 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       });
     }
 
-    setAllCards(cards);
-    setLoading(false);
+    startTransition(() => {
+      setAllCards(cards);
+      setLoading(false);
+    });
   }, [plugin]);
+
+  const scheduleLoadCards = useCallback((delay = 120) => {
+    if (refreshTimerRef.current !== null) {
+      window.clearTimeout(refreshTimerRef.current);
+    }
+
+    refreshTimerRef.current = window.setTimeout(() => {
+      refreshTimerRef.current = null;
+      loadCards();
+    }, delay);
+  }, [loadCards]);
 
   // Filter cards by view mode
   const filteredCards = allCards.filter((card) => {
@@ -186,18 +201,21 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   })();
 
   useEffect(() => {
-    loadCards();
+    scheduleLoadCards(0);
     // Use metadataCache "changed" event instead of vault "modify" —
     // vault modify fires before the cache updates, causing stale reads.
-    const ref = plugin.app.metadataCache.on("changed", () => loadCards());
-    const ref2 = plugin.app.vault.on("create", () => loadCards());
-    const ref3 = plugin.app.vault.on("delete", () => loadCards());
+    const ref = plugin.app.metadataCache.on("changed", () => scheduleLoadCards());
+    const ref2 = plugin.app.vault.on("create", () => scheduleLoadCards());
+    const ref3 = plugin.app.vault.on("delete", () => scheduleLoadCards());
     return () => {
+      if (refreshTimerRef.current !== null) {
+        window.clearTimeout(refreshTimerRef.current);
+      }
       plugin.app.metadataCache.offref(ref);
       plugin.app.vault.offref(ref2);
       plugin.app.vault.offref(ref3);
     };
-  }, [loadCards, plugin]);
+  }, [plugin, scheduleLoadCards]);
 
   const handleCardMove = useCallback(
     async (cardPath: string, targetColumn: string, _targetSwimlane: SwimlaneType) => {
@@ -264,10 +282,14 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   );
 
   const handleSync = useCallback(async () => {
-    setLoading(true);
-    await plugin.syncJira();
-    loadCards();
-  }, [plugin, loadCards]);
+    setIsSyncing(true);
+    try {
+      await plugin.syncJira();
+    } finally {
+      setIsSyncing(false);
+      scheduleLoadCards(0);
+    }
+  }, [plugin, scheduleLoadCards]);
 
   const handleOpenFile = useCallback(
     (filePath: string) => {
@@ -370,6 +392,12 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       <div className="jf-flex jf-items-center jf-justify-between jf-px-4 jf-py-3 jf-border-b jf-border-gray-200 jf-bg-white">
         <div className="jf-flex jf-items-center jf-gap-3">
           <h2 className="jf-text-xl jf-font-bold jf-m-0 jf-text-gray-800">Jira Flow</h2>
+          {isSyncing && (
+            <div className="jf-flex jf-items-center jf-gap-2 jf-px-2 jf-py-1 jf-rounded-md jf-bg-blue-50 jf-text-blue-700 jf-text-xs jf-font-medium">
+              <span className="jf-inline-block jf-w-2 jf-h-2 jf-rounded-full jf-bg-blue-500 jf-animate-pulse" />
+              正在同步
+            </div>
+          )}
           {/* View Mode Tabs - Segmented Control */}
           <div className="jf-flex jf-bg-gray-100 jf-p-1 jf-rounded-lg jf-border jf-border-gray-200">
             {viewModes.map((vm) => (
@@ -470,12 +498,13 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           {/* Sync Jira Button - Primary Style */}
           <button
             onClick={handleSync}
+            disabled={isSyncing}
             className="jf-flex jf-items-center jf-gap-2 jf-bg-blue-600 hover:jf-bg-blue-700 jf-text-white jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
           >
             <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            同步 Jira
+            {isSyncing ? "同步中..." : "同步 Jira"}
           </button>
         </div>
       </div>

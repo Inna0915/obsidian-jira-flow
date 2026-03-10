@@ -160,6 +160,22 @@ function getWeekNumber(d: Date): number {
   return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7);
 }
 
+function getIsoWeekInfo(d: Date): { year: number; week: number } {
+  const date = new Date(d);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  return { year: date.getFullYear(), week: getWeekNumber(date) };
+}
+
+function getWeekRangeForDate(d: Date): { start: Date; end: Date } {
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start, end };
+}
+
 function getWeekRange(year: number, week: number): { start: Date; end: Date } {
   const jan4 = new Date(year, 0, 4);
   const dayOfWeek = jan4.getDay() || 7;
@@ -174,8 +190,18 @@ function getMonthRange(year: number, month: number): { start: Date; end: Date } 
   return { start: new Date(year, month, 1), end: new Date(year, month + 1, 0) };
 }
 
+function getQuarterRange(year: number, month: number): { start: Date; end: Date } {
+  const quarterStartMonth = Math.floor(month / 3) * 3;
+  return { start: new Date(year, quarterStartMonth, 1), end: new Date(year, quarterStartMonth + 3, 0) };
+}
+
 function getYearRange(year: number): { start: Date; end: Date } {
   return { start: new Date(year, 0, 1), end: new Date(year, 11, 31) };
+}
+
+function getWeekKey(date: Date): string {
+  const info = getIsoWeekInfo(date);
+  return `${info.year}-W${String(info.week).padStart(2, "0")}`;
 }
 
 function formatDate(d: Date): string {
@@ -222,7 +248,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
   const [generating, setGenerating] = useState(false);
   const [showReportModal, setShowReportModal] = useState<ReportPeriod | null>(null);
   const [savedReportContent, setSavedReportContent] = useState("");
-  const [weekReportMap, setWeekReportMap] = useState<Set<number>>(new Set());
+  const [weekReportMap, setWeekReportMap] = useState<Set<string>>(new Set());
 
   const todayLunar = useMemo(() => solarToLunar(today.getFullYear(), today.getMonth() + 1, today.getDate()), [today]);
 
@@ -241,6 +267,26 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
         return getYearRange(selectedDate.getFullYear());
     }
   }, [viewMode, selectedDate]);
+
+  const getRangeForReportPeriod = useCallback((period: ReportPeriod, baseDate: Date) => {
+    switch (period) {
+      case "weekly":
+        return getWeekRangeForDate(baseDate);
+      case "monthly":
+        return getMonthRange(baseDate.getFullYear(), baseDate.getMonth());
+      case "quarterly":
+        return getQuarterRange(baseDate.getFullYear(), baseDate.getMonth());
+      case "yearly":
+        return getYearRange(baseDate.getFullYear());
+    }
+  }, []);
+
+  const modalRange = useMemo(() => {
+    if (!showReportModal) {
+      return null;
+    }
+    return getRangeForReportPeriod(showReportModal, selectedDate);
+  }, [getRangeForReportPeriod, selectedDate, showReportModal]);
 
   // Load tasks for the current view range
   useEffect(() => {
@@ -303,17 +349,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
 
   // Check which weeks have reports
   useEffect(() => {
-    const folder = plugin.settings.reportsFolder;
-    const files = plugin.app.vault.getFiles().filter((f) => f.path.startsWith(folder) && f.name.startsWith("Weekly-Report"));
-    const weeks = new Set<number>();
-    for (const f of files) {
-      const match = f.name.match(/(\d{4})-(\d{2})-(\d{2})/);
-      if (match) {
-        const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-        weeks.add(getWeekNumber(d));
-      }
-    }
-    setWeekReportMap(weeks);
+    setWeekReportMap(plugin.reportGenerator.listReportKeys("weekly"));
   }, [plugin]);
 
   // Generate a template with correct dates for the selected period
@@ -340,63 +376,39 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
   useEffect(() => {
     if (!showReportModal) { setSavedReportContent(""); setReportContent(""); return; }
     (async () => {
-      const folder = plugin.settings.reportsFolder;
-      const prefix = showReportModal === "weekly" ? "Weekly-Report" : showReportModal === "monthly" ? "Monthly-Report" : showReportModal === "quarterly" ? "Quarterly-Report" : "Yearly-Report";
-      const files = plugin.app.vault.getFiles().filter((f) => f.path.startsWith(folder) && f.name.startsWith(prefix));
-      
-      // Find a report that matches the current viewRange dates
-      // Report filenames typically include the end date of the period
-      let matchingFile = null;
-      const rangeEndStr = formatDate(viewRange.end);
-      const rangeStartStr = formatDate(viewRange.start);
-      
-      for (const f of files) {
-        // Try to extract date from filename (e.g., "Weekly-Report-2026-02-16.md")
-        const dateMatch = f.name.match(/(\d{4})-(\d{2})-(\d{2})/);
-        if (dateMatch) {
-          const fileDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`;
-          // Check if this report's date falls within or matches our view range
-          if (fileDate === rangeEndStr || fileDate === rangeStartStr) {
-            matchingFile = f;
-            break;
-          }
-        }
-      }
-      
-      // If no specific match found, use the most recent one as fallback
-      if (!matchingFile && files.length > 0) {
-        files.sort((a, b) => b.stat.mtime - a.stat.mtime);
-        matchingFile = files[0];
-      }
-      
+      const targetRange = getRangeForReportPeriod(showReportModal, selectedDate);
+      const matchingFile = plugin.reportGenerator.getReportFile(showReportModal, targetRange);
+
       if (matchingFile) {
         const content = await plugin.app.vault.read(matchingFile);
         setSavedReportContent(content);
         setReportContent(content);
       } else {
         // Generate a template with the correct dates instead of empty content
-        const template = generateReportTemplate(showReportModal, viewRange.start, viewRange.end);
+        const template = generateReportTemplate(showReportModal, targetRange.start, targetRange.end);
         setSavedReportContent("");
         setReportContent(template);
       }
     })();
-  }, [showReportModal, plugin, viewRange, generateReportTemplate]);
+  }, [showReportModal, plugin, selectedDate, getRangeForReportPeriod, generateReportTemplate]);
 
   const handleGenerate = useCallback(async (period: ReportPeriod) => {
     setGenerating(true);
     try {
+      const targetRange = getRangeForReportPeriod(period, selectedDate);
       const result = await plugin.reportGenerator.generateReport(period, {
-        start: viewRange.start,
-        end: viewRange.end,
+        start: targetRange.start,
+        end: targetRange.end,
       });
       setReportContent(result.content);
       setSavedReportContent(result.content);
+      setWeekReportMap(plugin.reportGenerator.listReportKeys("weekly"));
     } catch (e) {
       setReportContent(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setGenerating(false);
     }
-  }, [plugin, viewRange]);
+  }, [getRangeForReportPeriod, plugin, selectedDate]);
 
   const handleRefresh = useCallback(() => {
     setSelectedDate(new Date(selectedDate));
@@ -435,7 +447,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
       case "day":
         return `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
       case "week":
-        return `${selectedDate.getFullYear()}年第${getWeekNumber(selectedDate)}周`;
+        return `${getIsoWeekInfo(selectedDate).year}年第${getIsoWeekInfo(selectedDate).week}周`;
       case "month":
         return `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月`;
       case "year":
@@ -453,11 +465,11 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
     setViewMode("day");
   }, []);
 
-  const handleWeekClick = useCallback((weekNum: number) => {
-    const range = getWeekRange(calYear, weekNum);
+  const handleWeekClick = useCallback((date: Date) => {
+    const range = getWeekRangeForDate(date);
     setSelectedDate(range.start);
     setViewMode("week");
-  }, [calYear]);
+  }, []);
 
   const handlePrevMonth = useCallback(() => {
     if (calMonth === 0) { setCalYear(calYear - 1); setCalMonth(11); }
@@ -508,12 +520,12 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
           {calendarGrid.map((row, ri) => {
             const weekNum = row[0].weekNum;
             const isSelectedWeek = viewMode === "week" && getWeekNumber(selectedDate) === weekNum;
-            const hasReport = weekReportMap.has(weekNum);
+            const hasReport = weekReportMap.has(getWeekKey(row[0].date));
             return (
               <React.Fragment key={ri}>
                 {/* Week number */}
                 <div
-                  onClick={() => handleWeekClick(weekNum)}
+                  onClick={() => handleWeekClick(row[0].date)}
                   style={{
                     ...calCellStyle, cursor: "pointer", fontSize: "10px", fontWeight: 600,
                     color: isSelectedWeek ? "#0052CC" : "var(--text-muted)",
@@ -700,7 +712,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
           onGenerate={() => handleGenerate(showReportModal)}
           onClose={() => setShowReportModal(null)}
           viewTitle={viewTitle}
-          dateRange={viewRange}
+          dateRange={modalRange ?? viewRange}
         />
       )}
     </div>

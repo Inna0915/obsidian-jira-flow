@@ -6,6 +6,7 @@ import { parseJiraSprintName, parseJiraSprintState } from "../utils/jiraParser";
 
 export class FileManager {
   private plugin: JiraFlowPlugin;
+  private readonly frontmatterRegex = /^---\n[\s\S]*?\n---\n?/;
 
   constructor(plugin: JiraFlowPlugin) {
     this.plugin = plugin;
@@ -30,39 +31,44 @@ export class FileManager {
   }
 
   async syncIssues(issues: JiraIssue[]): Promise<SyncResult> {
-    console.log(`[Jira Flow Debug] ===== Starting sync of ${issues.length} issues =====`);
+    console.log(`[Jira Flow] Starting sync of ${issues.length} issues`);
     await this.ensureFolders();
-    const result: SyncResult = { created: 0, updated: 0, errors: [] };
+    const result: SyncResult = { created: 0, updated: 0, archived: 0, errors: [] };
+    const seenIssueKeys = new Set<string>();
+    const taskIndex = this.buildTaskFileIndex();
 
     for (const issue of issues) {
-      console.log(`[Jira Flow Debug] ===== Processing issue: ${issue.key} =====`);
-      console.log(`[Jira Flow Debug] ${issue.key} - Full issue data:`, JSON.stringify(issue, null, 2));
       try {
+        seenIssueKeys.add(issue.key);
         const frontmatter = this.issueToFrontmatter(issue);
-        // Use rendered HTML description if available, fallback to raw text
-        const rawDescription = issue.renderedFields?.description 
-          || issue.fields.description 
-          || "";
-        const description = await this.processDescription(
-          rawDescription,
-          issue.key
-        );
-        
-        // Try to find existing file with new naming format first, then old format
         const summary = issue.fields.summary;
-        const existing = this.findExistingTaskFile(issue.key, summary);
+        const existing = taskIndex.get(issue.key) ?? this.findExistingTaskFile(issue.key, summary);
+
+        if (existing) {
+          taskIndex.set(issue.key, existing);
+          const existingFrontmatter = this.getTaskFrontmatter(existing);
+          if (existingFrontmatter && this.canSkipSync(existingFrontmatter, frontmatter)) {
+            continue;
+          }
+        }
+
+        // Use rendered HTML description if available, fallback to raw text
+        const rawDescription = issue.renderedFields?.description
+          || issue.fields.description
+          || "";
+        const description = await this.processDescription(rawDescription, issue.key);
 
         if (existing) {
           await this.updateTaskFile(existing, frontmatter, description);
           result.updated++;
         } else {
-          await this.createTaskFile(
-            issue.key,
-            summary,
-            frontmatter,
-            description
-          );
+          const created = await this.createTaskFile(issue.key, summary, frontmatter, description);
+          taskIndex.set(issue.key, created);
           result.created++;
+        }
+
+        if ((result.created + result.updated) % 10 === 0) {
+          await this.yieldToMainThread();
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -71,20 +77,13 @@ export class FileManager {
       }
     }
 
+    result.archived = await this.archiveMissingJiraIssues(seenIssueKeys);
+
     return result;
   }
 
   private issueToFrontmatter(issue: JiraIssue): TaskFrontmatter {
     const f = issue.fields;
-
-    // Debug: log all custom fields for the first few issues to help identify story points field
-    const customFields: Record<string, unknown> = {};
-    for (const key of Object.keys(f)) {
-      if (key.startsWith("customfield_")) {
-        customFields[key] = f[key as keyof typeof f];
-      }
-    }
-    console.log(`[Jira Flow] ${issue.key} custom fields:`, JSON.stringify(customFields, null, 2));
 
     const status = f.status.name;
     const mappedColumn = mapStatusToColumn(status);
@@ -108,9 +107,6 @@ export class FileManager {
     // Use parser to handle Jira Server/Data Center's messy sprint format
     const sprintName = parseJiraSprintName(rawSprintData);
     const sprintState = parseJiraSprintState(rawSprintData);
-    
-    console.log(`[Jira Flow Debug] ${issue.key} - Sprint field: ${sprintFieldName}, Raw:`, JSON.stringify(rawSprintData, null, 2));
-    console.log(`[Jira Flow Debug] ${issue.key} - Parsed sprint name: "${sprintName}", state: "${sprintState}"`);
 
     const tags = [
       `jira/status/${status.toLowerCase().replace(/\s+/g, "-")}`,
@@ -161,46 +157,18 @@ export class FileManager {
     description?: string
   ): Promise<void> {
     try {
-      // STEP 1: Update Frontmatter safely using Obsidian API
-      await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
-        fm.jira_key = frontmatter.jira_key;
-        fm.source = frontmatter.source;
-        fm.status = frontmatter.status;
-        fm.mapped_column = frontmatter.mapped_column;
-        fm.issuetype = frontmatter.issuetype;
-        fm.priority = frontmatter.priority;
-        fm.story_points = frontmatter.story_points;
-        fm.due_date = frontmatter.due_date;
-        fm.assignee = frontmatter.assignee;
-        fm.sprint = frontmatter.sprint;
-        fm.sprint_state = frontmatter.sprint_state;
-        fm.tags = frontmatter.tags;
-        fm.summary = frontmatter.summary;
-        fm.updated = frontmatter.updated;
-        // Remove old description if it was in frontmatter
-        delete (fm as { description?: unknown }).description;
-      });
+      const content = await this.vault.read(file);
+      const currentBody = this.extractBody(content);
+      const nextDescription = description ?? currentBody;
+      const nextFrontmatter: TaskFrontmatter = {
+        ...frontmatter,
+        archived: false,
+        archived_date: "",
+      };
+      const newContent = this.composeTaskContent(nextFrontmatter, nextDescription);
 
-      // CRITICAL FIX: Wait 300ms for Windows and Obsidian to release the file lock
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // STEP 2: Only after frontmatter is updated, update the body
-      if (description !== undefined) {
-        // Read the latest state with updated frontmatter
-        const content = await this.vault.read(file);
-        
-        // Extract the frontmatter block safely
-        const frontmatterRegex = /^---\n[\s\S]*?\n---\n/;
-        const match = content.match(frontmatterRegex);
-        const frontmatterString = match ? match[0] : '';
-        
-        // Reconstruct file: Frontmatter + Description
-        // Completely replace body to avoid fragile regex matching
-        const newContent = `${frontmatterString}${description}`;
-        
-        if (newContent !== content) {
-          await this.vault.modify(file, newContent);
-        }
+      if (newContent !== content) {
+        await this.modifyFileWithRetry(file, newContent);
       }
     } catch (error) {
       console.error(`[Jira Flow] EBUSY or Write Error on ${file.name}:`, error);
@@ -340,7 +308,7 @@ export class FileManager {
     });
 
     // EXISTING: Now process all <img> tags (both native and the ones we just converted)
-    const imgRegex = /<img[^>]+src="([^"]+)"([^>]*)>/gi;
+    const imgRegex = /<img[^>]+(?:src|data-image-src|data-src)=["']([^"']+)["']([^>]*)>/gi;
     const imgMatches = Array.from(processedHtml.matchAll(imgRegex));
     
     for (const match of imgMatches) {
@@ -431,5 +399,84 @@ export class FileManager {
       fm.archived = true;
       fm.archived_date = new Date().toISOString();
     });
+  }
+
+  private buildTaskFileIndex(): Map<string, TFile> {
+    const index = new Map<string, TFile>();
+
+    for (const file of this.getAllTaskFiles()) {
+      const frontmatter = this.getTaskFrontmatter(file);
+      if (frontmatter?.jira_key) {
+        index.set(frontmatter.jira_key, file);
+      }
+    }
+
+    return index;
+  }
+
+  private canSkipSync(existing: TaskFrontmatter, incoming: TaskFrontmatter): boolean {
+    return !existing.archived && existing.updated === incoming.updated;
+  }
+
+  private composeTaskContent(frontmatter: TaskFrontmatter, description: string): string {
+    const normalizedFrontmatter: TaskFrontmatter = {
+      ...frontmatter,
+      archived: frontmatter.archived || false,
+      archived_date: frontmatter.archived ? (frontmatter.archived_date || "") : "",
+    };
+    const yaml = this.frontmatterToYaml(normalizedFrontmatter);
+    return `---\n${yaml}---\n${description}`;
+  }
+
+  private extractBody(content: string): string {
+    return content.replace(this.frontmatterRegex, "");
+  }
+
+  private async modifyFileWithRetry(file: TFile, content: string): Promise<void> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await this.vault.modify(file, content);
+        return;
+      } catch (error) {
+        lastError = error;
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 40 * (attempt + 1)));
+      }
+    }
+
+    throw lastError;
+  }
+
+  private async archiveMissingJiraIssues(seenIssueKeys: Set<string>): Promise<number> {
+    let archivedCount = 0;
+    const now = new Date().toISOString();
+
+    for (const file of this.getAllTaskFiles()) {
+      const fm = this.getTaskFrontmatter(file);
+      if (!fm || fm.source !== "JIRA" || fm.archived || !fm.jira_key) {
+        continue;
+      }
+
+      if (seenIssueKeys.has(fm.jira_key)) {
+        continue;
+      }
+
+      await this.plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        frontmatter.archived = true;
+        frontmatter.archived_date = now;
+      });
+      archivedCount++;
+
+      if (archivedCount % 10 === 0) {
+        await this.yieldToMainThread();
+      }
+    }
+
+    return archivedCount;
+  }
+
+  private async yieldToMainThread(): Promise<void> {
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
   }
 }

@@ -454,5 +454,6 @@ export interface KanbanBoard {
 export interface SyncResult {
   created: number;
   updated: number;
+  archived: number;
   errors: string[];
 }
