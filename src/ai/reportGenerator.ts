@@ -47,9 +47,10 @@ export class ReportGenerator {
     const periodLabel = this.getPeriodLabel(start, end);
 
     // Gather data
-    const logs = await this.workLogService.collectLogs(start, end);
-    const taskSummaries = this.collectTaskSummaries();
-    const stats = await this.workLogService.getStats(start, end);
+    const personalTaskKeys = this.collectPersonalTaskKeys();
+    const logs = this.filterLogs(await this.workLogService.collectLogs(start, end), personalTaskKeys);
+    const taskSummaries = this.collectTaskSummaries(personalTaskKeys);
+    const stats = this.buildStatsFromLogs(logs, start, end);
 
     if (logs.length === 0 && taskSummaries.length === 0) {
       throw new Error(`No work logs or tasks found for ${periodLabel}.`);
@@ -82,8 +83,9 @@ export class ReportGenerator {
     logs: import("../sync/workLogService").DailyWorkLog[];
     stats: { totalDays: number; activeDays: number; totalEntries: number; completedEntries: number; taskKeys: Set<string> };
   }> {
-    const logs = await this.workLogService.collectLogs(start, end);
-    const stats = await this.workLogService.getStats(start, end);
+    const personalTaskKeys = this.collectPersonalTaskKeys();
+    const logs = this.filterLogs(await this.workLogService.collectLogs(start, end), personalTaskKeys);
+    const stats = this.buildStatsFromLogs(logs, start, end);
     return { logs, stats };
   }
 
@@ -144,13 +146,14 @@ export class ReportGenerator {
     return `${this.formatDate(start)} ~ ${this.formatDate(end)}`;
   }
 
-  private collectTaskSummaries(): string[] {
+  private collectTaskSummaries(personalTaskKeys: Set<string>): string[] {
     const files = this.plugin.fileManager.getAllTaskFiles();
     const summaries: string[] = [];
 
     for (const file of files) {
       const fm = this.plugin.fileManager.getTaskFrontmatter(file);
       if (!fm) continue;
+      if (personalTaskKeys.has(fm.jira_key) || this.isPersonalIssueType(fm.issuetype)) continue;
       // Only include local tasks and active sprint tasks
       const isLocal = fm.source === "LOCAL";
       const hasActiveSprint = fm.sprint_state?.toUpperCase() === "ACTIVE";
@@ -161,6 +164,67 @@ export class ReportGenerator {
     }
 
     return summaries;
+  }
+
+  private collectPersonalTaskKeys(): Set<string> {
+    const personalTaskKeys = new Set<string>();
+
+    for (const file of this.plugin.fileManager.getAllTaskFiles()) {
+      const fm = this.plugin.fileManager.getTaskFrontmatter(file);
+      if (!fm) continue;
+
+      if (this.isPersonalIssueType(fm.issuetype)) {
+        personalTaskKeys.add(fm.jira_key);
+      }
+    }
+
+    return personalTaskKeys;
+  }
+
+  private filterLogs(
+    logs: import("../sync/workLogService").DailyWorkLog[],
+    personalTaskKeys: Set<string>
+  ): import("../sync/workLogService").DailyWorkLog[] {
+    return logs
+      .map((log) => ({
+        ...log,
+        entries: log.entries.filter((entry) => !entry.taskKey || !personalTaskKeys.has(entry.taskKey)),
+      }))
+      .filter((log) => log.entries.length > 0);
+  }
+
+  private buildStatsFromLogs(
+    logs: import("../sync/workLogService").DailyWorkLog[],
+    start: Date,
+    end: Date
+  ): { totalDays: number; activeDays: number; totalEntries: number; completedEntries: number; taskKeys: Set<string> } {
+    const taskKeys = new Set<string>();
+    let totalEntries = 0;
+    let completedEntries = 0;
+
+    for (const log of logs) {
+      for (const entry of log.entries) {
+        totalEntries++;
+        if (entry.completed) completedEntries++;
+        if (entry.taskKey) taskKeys.add(entry.taskKey);
+      }
+    }
+
+    const diffTime = end.getTime() - start.getTime();
+    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    return {
+      totalDays,
+      activeDays: logs.length,
+      totalEntries,
+      completedEntries,
+      taskKeys,
+    };
+  }
+
+  private isPersonalIssueType(issueType: string): boolean {
+    const normalized = (issueType || "").trim().toLowerCase();
+    return normalized === "personal" || normalized === "个人任务" || normalized === "personal task";
   }
 
   private buildPromptContent(

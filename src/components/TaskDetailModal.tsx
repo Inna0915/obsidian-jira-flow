@@ -22,6 +22,7 @@ const typeColors: Record<string, string> = {
   Bug: "#FF5630",
   Story: "#36B37E",
   Task: "#4C9AFF",
+  Personal: "#F59E0B",
   "Sub-task": "#6554C0",
   Epic: "#FF991F",
 };
@@ -30,9 +31,14 @@ const typeIcons: Record<string, string> = {
   Bug: "\u{1F41B}",
   Story: "\u{1F4D7}",
   Task: "\u2705",
+  Personal: "\u{1F464}",
   "Sub-task": "\u{1F4CE}",
   Epic: "\u26A1",
 };
+
+const LOCAL_TASK_TYPES = ["Personal", "Task", "Bug", "Story", "Sub-task", "Epic"];
+const fieldClassName = "jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all";
+const fieldStyle: React.CSSProperties = { minHeight: "44px", lineHeight: 1.5, boxSizing: "border-box" };
 
 const columnColors: Record<string, string> = {
   FUNNEL: "#6B778C",
@@ -544,7 +550,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
   useEscapeKey(plugin.app, onClose, true);
 
   const [summary, setSummary] = useState("");
-  const [issuetype, setIssuetype] = useState("Task");
+  const [issuetype, setIssuetype] = useState("Personal");
   const [priority, setPriority] = useState("Medium");
   const [mappedColumn, setMappedColumn] = useState("TO DO");
   const [storyPoints, setStoryPoints] = useState(0);
@@ -571,7 +577,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
       <div className="jf-fixed jf-inset-0 jf-bg-black/40 jf-backdrop-blur-sm jf-z-50 jf-flex jf-items-center jf-justify-center" onClick={onClose} />
       
       {/* Modal */}
-      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-lg jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
+      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-2xl jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
         
         {/* Header */}
         <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
@@ -584,7 +590,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
         </div>
 
         {/* Body */}
-        <div className="jf-p-6 jf-space-y-4">
+        <div className="jf-p-6 jf-space-y-4" style={{ maxHeight: "min(70vh, 720px)", overflowY: "auto" }}>
           {/* Summary - Full width */}
           <div>
             <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
@@ -594,19 +600,21 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
               autoFocus 
               placeholder="需要做什么？"
-              className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              className={fieldClassName}
+              style={fieldStyle}
             />
           </div>
 
           {/* Row 2: Type & Priority */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">类型</label>
               <select 
                 value={issuetype} 
                 onChange={(e) => setIssuetype(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
-                {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
+                className={fieldClassName}
+                style={fieldStyle}>
+                {LOCAL_TASK_TYPES.map((t) => <option key={t} value={t}>{t === "Personal" ? "个人任务" : t}</option>)}
               </select>
             </div>
             <div>
@@ -614,20 +622,22 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
               <select 
                 value={priority} 
                 onChange={(e) => setPriority(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                className={fieldClassName}
+                style={fieldStyle}>
                 {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           </div>
 
           {/* Row 3: Column & Story Points */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">状态</label>
               <select 
                 value={mappedColumn} 
                 onChange={(e) => setMappedColumn(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                className={fieldClassName}
+                style={fieldStyle}>
                 {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
               </select>
             </div>
@@ -638,20 +648,22 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
                 min={0} 
                 value={storyPoints}
                 onChange={(e) => setStoryPoints(Number(e.target.value))} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+                className={fieldClassName}
+                style={fieldStyle}
               />
             </div>
           </div>
 
           {/* Row 4: Due Date & Assignee */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">截止日期</label>
               <input 
                 type="date" 
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+                className={fieldClassName}
+                style={fieldStyle}
               />
             </div>
             <div>
@@ -660,7 +672,8 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
                 value={assignee} 
                 onChange={(e) => setAssignee(e.target.value)}
                 placeholder="用户名"
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+                className={fieldClassName}
+                style={fieldStyle}
               />
             </div>
           </div>
@@ -737,12 +750,14 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
       <div className="jf-fixed jf-inset-0 jf-bg-black/40 jf-backdrop-blur-sm jf-z-50 jf-flex jf-items-center jf-justify-center" onClick={onClose} />
       
       {/* Modal */}
-      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-lg jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
+      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-2xl jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
         
         {/* Header */}
         <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
-          <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">编辑本地任务</h3>
-          <span className="jf-text-sm jf-font-mono jf-text-blue-600 jf-bg-blue-50 jf-px-2 jf-py-1 jf-rounded">{task.key}</span>
+          <div className="jf-flex jf-items-center jf-gap-3">
+            <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">编辑本地任务</h3>
+            <span className="jf-text-sm jf-font-mono jf-text-blue-600 jf-bg-blue-50 jf-px-2 jf-py-1 jf-rounded">{task.key}</span>
+          </div>
           <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-transition-colors">
             <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -751,7 +766,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
         </div>
 
         {/* Body */}
-        <div className="jf-p-6 jf-space-y-4">
+        <div className="jf-p-6 jf-space-y-4" style={{ maxHeight: "min(70vh, 720px)", overflowY: "auto" }}>
           {/* Summary - Full width */}
           <div>
             <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
@@ -761,19 +776,21 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
               autoFocus 
               placeholder="需要做什么？"
-              className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+              className={fieldClassName}
+              style={fieldStyle}
             />
           </div>
 
           {/* Row 2: Type & Priority */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">类型</label>
               <select 
                 value={issuetype} 
                 onChange={(e) => setIssuetype(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
-                {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
+                className={fieldClassName}
+                style={fieldStyle}>
+                {LOCAL_TASK_TYPES.map((t) => <option key={t} value={t}>{t === "Personal" ? "个人任务" : t}</option>)}
               </select>
             </div>
             <div>
@@ -781,20 +798,22 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
               <select 
                 value={priority} 
                 onChange={(e) => setPriority(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                className={fieldClassName}
+                style={fieldStyle}>
                 {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           </div>
 
           {/* Row 3: Column & Story Points */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">状态</label>
               <select 
                 value={mappedColumn} 
                 onChange={(e) => setMappedColumn(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all">
+                className={fieldClassName}
+                style={fieldStyle}>
                 {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
               </select>
             </div>
@@ -805,20 +824,22 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
                 min={0} 
                 value={storyPoints}
                 onChange={(e) => setStoryPoints(Number(e.target.value))} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+                className={fieldClassName}
+                style={fieldStyle}
               />
             </div>
           </div>
 
           {/* Row 4: Due Date & Assignee */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4">
+          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">截止日期</label>
               <input 
                 type="date" 
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)} 
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+                className={fieldClassName}
+                style={fieldStyle}
               />
             </div>
             <div>
@@ -827,7 +848,8 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
                 value={assignee} 
                 onChange={(e) => setAssignee(e.target.value)}
                 placeholder="用户名"
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all" 
+                className={fieldClassName}
+                style={fieldStyle}
               />
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { requestUrl, arrayBufferToBase64 } from 'obsidian';
 import type JiraFlowPlugin from '../main';
+import { useEscapeKey } from '../hooks/useEscapeKey';
 
 interface JiraAuthImageProps {
   src: string;
@@ -24,6 +25,8 @@ export const JiraAuthImage: React.FC<JiraAuthImageProps> = ({
   const [imgData, setImgData] = useState<string | null>(null);
   const [isError, setIsError] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  useEscapeKey(plugin.app, () => setIsLightboxOpen(false), isLightboxOpen);
 
   useEffect(() => {
     const fetchImage = async () => {

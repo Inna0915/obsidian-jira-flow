@@ -322,7 +322,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         assignee: data.assignee,
         sprint: "",
         sprint_state: "",
-        tags: ["jira/source/local"],
+        tags: ["jira/source/local", data.issuetype === "Personal" ? "jira/type/personal" : "jira/type/work"],
         summary: data.summary,
         created: now,
         updated: now,

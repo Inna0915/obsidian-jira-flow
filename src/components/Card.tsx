@@ -41,6 +41,7 @@ const typeIcons: Record<string, string> = {
   Bug: "\u{1F41B}",
   Story: "\u{1F4D7}",
   Task: "\u2705",
+  Personal: "\u{1F464}",
   "Sub-task": "\u{1F4CE}",
   Epic: "\u26A1",
 };
@@ -52,6 +53,7 @@ const getBorderColor = (issueType: string): string => {
     case "bug": return "#EF4444";      // red-500
     case "story": return "#22C55E";    // green-500
     case "task": return "#60A5FA";     // blue-400
+    case "personal": return "#F59E0B"; // amber-500
     case "epic": return "#A855F7";     // purple-500
     default: return "#D1D5DB";         // gray-300
   }

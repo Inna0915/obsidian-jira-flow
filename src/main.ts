@@ -267,19 +267,19 @@ export default class JiraFlowPlugin extends Plugin {
       source: "LOCAL" as const,
       status: "TO DO",
       mapped_column: "TO DO",
-      issuetype: "Task",
+      issuetype: "Personal",
       priority: "Medium",
       story_points: 0,
       due_date: "",
       assignee: "",
       sprint: "",
       sprint_state: "",
-      tags: ["jira/source/local"],
-      summary: "New Local Task",
+      tags: ["jira/source/local", "jira/type/personal"],
+      summary: "New Personal Task",
       created: new Date().toISOString(),
       updated: new Date().toISOString(),
     };
-    await this.fileManager.createTaskFile(key, "New Local Task", frontmatter, "");
+    await this.fileManager.createTaskFile(key, "New Personal Task", frontmatter, "");
     new Notice("Jira Flow: Local task created.");
   }
 
