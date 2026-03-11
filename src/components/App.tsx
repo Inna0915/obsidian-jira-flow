@@ -9,7 +9,8 @@ import {
 } from "../types";
 import type { KanbanCard, SwimlaneType } from "../types";
 import { Board } from "./Board";
-import { TaskDetailPanel, CreateTaskModal } from "./TaskDetailModal";
+import { IssueListView } from "./IssueListView";
+import { TaskDetailPanel, CreateJiraIssueModal, type CreateJiraIssueData, CreateTaskModal } from "./TaskDetailModal";
 import type { CreateTaskData } from "./TaskDetailModal";
 import { ReportCenter } from "./ReportCenter";
 
@@ -19,6 +20,7 @@ interface AppProps {
 }
 
 export type ViewMode = "sprint" | "all" | "local";
+type LayoutMode = "kanban" | "list";
 
 export interface SwimlaneData {
   id: SwimlaneType;
@@ -33,13 +35,29 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [collapsedSwimlanes, setCollapsedSwimlanes] = useState<Set<SwimlaneType>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>("sprint");
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("kanban");
   const [detailCard, setDetailCard] = useState<KanbanCard | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateJiraModal, setShowCreateJiraModal] = useState(false);
   const [showReportCenter, setShowReportCenter] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const refreshTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
+        event.preventDefault();
+        event.stopPropagation();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    };
+
+    document.addEventListener("keydown", handleGlobalKeyDown, true);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown, true);
+  }, []);
 
   // Calculate matched cards for navigation
   const matchedCards = searchQuery
@@ -47,6 +65,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         card.jiraKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
         card.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
         card.assignee?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.reporter?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         card.priority.toLowerCase().includes(searchQuery.toLowerCase()) ||
         card.issuetype.toLowerCase().includes(searchQuery.toLowerCase())
       )
@@ -134,7 +153,11 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         storyPoints: fm.story_points,
         dueDate: fm.due_date,
         assignee: fm.assignee,
+        reporter: fm.reporter,
+        reporter_only: fm.reporter_only,
         summary: fm.summary,
+        created: fm.created,
+        updated: fm.updated,
         tags: fm.tags,
         swimlane,
         sprint: fm.sprint,
@@ -164,10 +187,20 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     if (viewMode === "local") return card.source === "LOCAL";
     if (viewMode === "sprint") {
       // Sprint view: only show ACTIVE sprint tasks
-      return card.sprint_state === "ACTIVE";
+      return card.sprint_state === "ACTIVE" && !card.reporter_only;
     }
     return true; // "all" (Backlog) - show all issues without restriction
   });
+
+  const displayCards = layoutMode === "kanban"
+    ? filteredCards.filter((card) => !card.reporter_only)
+    : [...filteredCards].sort((left, right) => {
+        const rightTime = right.created ? new Date(right.created).getTime() : 0;
+        const leftTime = left.created ? new Date(left.created).getTime() : 0;
+        return rightTime - leftTime;
+      });
+
+  const kanbanCards = filteredCards.filter((card) => !card.reporter_only);
 
   // Build swimlane data from filtered cards
   const swimlanes: SwimlaneData[] = (() => {
@@ -180,7 +213,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       swimlaneMap.set(sl.id, colMap);
     }
 
-    for (const card of filteredCards) {
+    for (const card of kanbanCards) {
       const colMap = swimlaneMap.get(card.swimlane);
       if (colMap) {
         const colCards = colMap.get(card.mappedColumn);
@@ -320,6 +353,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         story_points: data.storyPoints,
         due_date: data.dueDate,
         assignee: data.assignee,
+        reporter: "",
+        reporter_only: false,
         sprint: "",
         sprint_state: "",
         tags: ["jira/source/local", data.issuetype === "Personal" ? "jira/type/personal" : "jira/type/work"],
@@ -332,6 +367,21 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       loadCards();
     },
     [plugin, loadCards]
+  );
+
+  const handleCreateJiraIssue = useCallback(
+    async (data: CreateJiraIssueData) => {
+      setIsSyncing(true);
+      try {
+        const created = await plugin.jiraApi.createIssue(data);
+        new Notice(`Jira Flow：已创建 Jira 任务 ${created.key}，正在同步。`);
+        await plugin.syncJira();
+        scheduleLoadCards(0);
+      } finally {
+        setIsSyncing(false);
+      }
+    },
+    [plugin, scheduleLoadCards]
   );
 
   const handleArchive = useCallback(
@@ -386,31 +436,53 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     { id: "local", label: "本地任务" },
   ];
 
+  const boardTitle = viewMode === "sprint" ? "当前迭代" : viewMode === "all" ? "待办列表" : "本地任务";
+
+  const layoutModes: { id: LayoutMode; label: string }[] = [
+    { id: "kanban", label: "看板" },
+    { id: "list", label: "列表" },
+  ];
+
   return (
-    <div className="jf-flex jf-flex-col jf-h-full jf-bg-transparent">
+    <div className="jf-flex jf-flex-col jf-h-full jf-bg-[#F7F8FA]">
       {/* Header */}
-      <div className="jf-flex jf-items-center jf-justify-between jf-px-4 jf-py-3 jf-border-b jf-border-gray-200 jf-bg-white">
+      <div className="jf-flex jf-items-center jf-justify-between jf-px-4 jf-py-3 jf-border-b jf-border-[#DFE1E6] jf-bg-[#FAFBFC]">
         <div className="jf-flex jf-items-center jf-gap-3">
-          <h2 className="jf-text-xl jf-font-bold jf-m-0 jf-text-gray-800">Jira Flow</h2>
+          <h2 className="jf-text-xl jf-font-semibold jf-m-0 jf-text-[#172B4D]">Jira Flow</h2>
           {isSyncing && (
-            <div className="jf-flex jf-items-center jf-gap-2 jf-px-2 jf-py-1 jf-rounded-md jf-bg-blue-50 jf-text-blue-700 jf-text-xs jf-font-medium">
-              <span className="jf-inline-block jf-w-2 jf-h-2 jf-rounded-full jf-bg-blue-500 jf-animate-pulse" />
+            <div className="jf-flex jf-items-center jf-gap-2 jf-px-2 jf-py-1 jf-rounded-md jf-bg-[#DEEBFF] jf-text-[#0747A6] jf-text-xs jf-font-medium">
+              <span className="jf-inline-block jf-w-2 jf-h-2 jf-rounded-full jf-bg-[#0052CC] jf-animate-pulse" />
               正在同步
             </div>
           )}
           {/* View Mode Tabs - Segmented Control */}
-          <div className="jf-flex jf-bg-gray-100 jf-p-1 jf-rounded-lg jf-border jf-border-gray-200">
+          <div className="jf-flex jf-bg-white jf-p-1 jf-rounded-lg jf-border jf-border-[#DFE1E6] jf-shadow-[0_1px_1px_rgba(9,30,66,0.08)]">
             {viewModes.map((vm) => (
               <button
                 key={vm.id}
                 onClick={() => setViewMode(vm.id)}
                 className={`jf-px-3 jf-py-1 jf-text-xs jf-rounded-md jf-transition-all ${
                   viewMode === vm.id
-                    ? "jf-bg-white jf-text-blue-600 jf-shadow-sm jf-border jf-border-gray-200 jf-font-semibold"
-                    : "jf-text-gray-500 hover:jf-text-gray-700 hover:jf-bg-gray-200/50 jf-font-medium"
+                    ? "jf-bg-[#0052CC] jf-text-white jf-shadow-sm jf-font-semibold"
+                    : "jf-text-[#42526E] hover:jf-text-[#172B4D] hover:jf-bg-[#F4F5F7] jf-font-medium"
                 }`}
               >
                 {vm.label}
+              </button>
+            ))}
+          </div>
+          <div className="jf-flex jf-bg-white jf-p-1 jf-rounded-lg jf-border jf-border-[#DFE1E6] jf-shadow-[0_1px_1px_rgba(9,30,66,0.08)]">
+            {layoutModes.map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setLayoutMode(mode.id)}
+                className={`jf-px-3 jf-py-1 jf-text-xs jf-rounded-md jf-transition-all ${
+                  layoutMode === mode.id
+                    ? "jf-bg-[#E9F2FF] jf-text-[#0747A6] jf-font-semibold"
+                    : "jf-text-[#42526E] hover:jf-text-[#172B4D] hover:jf-bg-[#F4F5F7] jf-font-medium"
+                }`}
+              >
+                {mode.label}
               </button>
             ))}
           </div>
@@ -425,7 +497,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="jf-w-56 jf-px-3 jf-py-1.5 jf-text-sm jf-border jf-border-gray-300 jf-rounded-md jf-bg-white focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500 focus:jf-border-transparent jf-transition-all jf-placeholder-gray-400"
+                className="jf-w-56 jf-px-3 jf-py-1.5 jf-text-sm jf-border jf-border-[#C1C7D0] jf-rounded-md jf-bg-white focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500 focus:jf-border-transparent jf-transition-all jf-placeholder-gray-400"
               />
               {/* Match count and navigation */}
               {searchQuery && matchedCards.length > 0 && (
@@ -471,7 +543,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           {/* Reports Button - Ghost Style */}
           <button
             onClick={() => setShowReportCenter(true)}
-            className="jf-flex jf-items-center jf-gap-2 jf-px-3 jf-py-1.5 jf-text-gray-600 hover:jf-bg-gray-100 jf-border jf-border-transparent hover:jf-border-gray-200 jf-rounded-md jf-text-sm jf-transition-all"
+            className="jf-flex jf-items-center jf-gap-2 jf-px-3 jf-py-1.5 jf-text-[#42526E] hover:jf-bg-white jf-border jf-border-transparent hover:jf-border-[#DFE1E6] jf-rounded-md jf-text-sm jf-transition-all"
           >
             <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -480,15 +552,21 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           </button>
           {/* New Task Button - Secondary Style */}
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="jf-bg-white jf-text-gray-700 jf-border jf-border-gray-300 hover:jf-bg-gray-50 jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
+            onClick={() => setShowCreateJiraModal(true)}
+            className="jf-bg-[#0052CC] jf-text-white jf-border jf-border-[#0052CC] hover:jf-bg-[#0747A6] jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
           >
-            + 新建任务
+            + 新建 Jira
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="jf-bg-white jf-text-[#42526E] jf-border jf-border-[#C1C7D0] hover:jf-bg-[#F4F5F7] jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
+          >
+            + 新建本地
           </button>
           {/* Archive View Button */}
           <button
             onClick={() => plugin.activateArchiveView()}
-            className="jf-flex jf-items-center jf-gap-2 jf-bg-white jf-text-gray-700 jf-border jf-border-gray-300 hover:jf-bg-gray-50 jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
+            className="jf-flex jf-items-center jf-gap-2 jf-bg-white jf-text-[#42526E] jf-border jf-border-[#C1C7D0] hover:jf-bg-[#F4F5F7] jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
           >
             <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -499,7 +577,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            className="jf-flex jf-items-center jf-gap-2 jf-bg-blue-600 hover:jf-bg-blue-700 jf-text-white jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
+            className="jf-flex jf-items-center jf-gap-2 jf-bg-[#0052CC] hover:jf-bg-[#0747A6] jf-text-white jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
           >
             <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -509,18 +587,29 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         </div>
       </div>
 
-      {/* Board */}
-      <Board
-        swimlanes={swimlanes}
-        collapsedSwimlanes={collapsedSwimlanes}
-        onToggleSwimlane={toggleSwimlane}
-        onCardMove={handleCardMove}
-        onCardClick={handleCardClick}
-        onOpenFile={handleOpenFile}
-        searchQuery={searchQuery}
-        matchedCards={matchedCards}
-        searchMatchIndex={searchMatchIndex}
-      />
+      {layoutMode === "kanban" ? (
+        <Board
+          swimlanes={swimlanes}
+          collapsedSwimlanes={collapsedSwimlanes}
+          onToggleSwimlane={toggleSwimlane}
+          onCardMove={handleCardMove}
+          onCardClick={handleCardClick}
+          onOpenFile={handleOpenFile}
+          searchQuery={searchQuery}
+          matchedCards={matchedCards}
+          searchMatchIndex={searchMatchIndex}
+        />
+      ) : (
+        <IssueListView
+          cards={displayCards}
+          jiraHost={plugin.settings.jiraBrowseHost?.trim() || "https://jira.ykeey.cn"}
+          title={boardTitle}
+          onCardClick={handleCardClick}
+          searchQuery={searchQuery}
+          matchedCards={matchedCards}
+          searchMatchIndex={searchMatchIndex}
+        />
+      )}
 
       {/* Detail Side Panel */}
       {detailCard && (
@@ -542,6 +631,14 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           plugin={plugin}
           onClose={() => setShowCreateModal(false)}
           onSave={handleCreateTask}
+        />
+      )}
+
+      {showCreateJiraModal && (
+        <CreateJiraIssueModal
+          plugin={plugin}
+          onClose={() => setShowCreateJiraModal(false)}
+          onSave={handleCreateJiraIssue}
         />
       )}
     </div>

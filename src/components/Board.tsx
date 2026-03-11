@@ -56,16 +56,16 @@ export const Board: React.FC<BoardProps> = ({
   }, [swimlanes]);
 
   return (
-    <div className="jf-flex-1 jf-overflow-auto jf-bg-white/50">
+    <div className="jf-flex-1 jf-overflow-auto jf-bg-[#F7F8FA]">
       {/* Single Sticky Header - Rendered once at the top */}
-      <div className="jf-flex jf-sticky jf-top-0 jf-z-10 jf-bg-gray-50/95 jf-backdrop-blur jf-border-b jf-border-gray-200 jf-shadow-sm">
+      <div className="jf-flex jf-sticky jf-top-0 jf-z-10 jf-bg-[#FAFBFC]/95 jf-backdrop-blur jf-border-b jf-border-[#DFE1E6]">
         {/* Left Spacer matching swimlane label width */}
         <div 
           className="jf-flex-shrink-0 jf-border-r jf-border-gray-200"
           style={{ width: "140px", minWidth: "140px" }}
         >
           <div className="jf-px-3 jf-py-3">
-            <span className="jf-text-xs jf-font-bold jf-text-gray-500 jf-uppercase jf-tracking-wider">
+            <span className="jf-text-[11px] jf-font-semibold jf-text-[#6B778C] jf-uppercase jf-tracking-wider">
               Swimlane
             </span>
           </div>
@@ -78,15 +78,15 @@ export const Board: React.FC<BoardProps> = ({
           return (
             <div
               key={col.id}
-              className="jf-flex-shrink-0 jf-px-3 jf-py-3 jf-border-r jf-border-gray-200"
+              className="jf-flex-shrink-0 jf-px-3 jf-py-3 jf-border-r jf-border-[#DFE1E6]"
               style={{ width: "180px", minWidth: "180px" }}
             >
               <div className="jf-text-center">
-                <span className="jf-text-xs jf-font-bold jf-text-gray-600 jf-uppercase jf-tracking-wider">
+                <span className="jf-text-[11px] jf-font-semibold jf-text-[#42526E] jf-uppercase jf-tracking-wider">
                   {col.label}
                 </span>
                 {count > 0 && (
-                  <span className="jf-ml-2 jf-bg-gray-200 jf-text-gray-600 jf-text-[10px] jf-px-2 jf-py-0.5 jf-rounded-full jf-font-medium">
+                  <span className="jf-ml-2 jf-bg-[#EBECF0] jf-text-[#42526E] jf-text-[10px] jf-px-2 jf-py-0.5 jf-rounded-full jf-font-medium">
                     {count}
                   </span>
                 )}

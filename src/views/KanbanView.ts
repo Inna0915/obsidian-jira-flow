@@ -29,25 +29,22 @@ export class KanbanView extends ItemView {
   }
 
   // Handle Ctrl+F to focus search input
-  // Use a different approach - listen on container element to avoid conflict with Obsidian's native Ctrl+F
-  private handleKeyDown = (event: KeyboardEvent): boolean => {
-    // Check for Ctrl+F or Cmd+F (Mac) - but only when not already in search input
-    if ((event.ctrlKey || event.metaKey) && event.key === "f") {
-      const activeElement = document.activeElement;
-      // If already in search input, let it be (allow default behavior)
-      if (activeElement?.id === this.searchInputId) {
-        return true;
-      }
-      // Otherwise, focus the search input
-      event.preventDefault();
-      const searchInput = document.getElementById(this.searchInputId) as HTMLInputElement;
-      if (searchInput) {
-        searchInput.focus();
-        searchInput.select();
-      }
+  private focusSearchInput = (event: KeyboardEvent): boolean => {
+    const activeElement = document.activeElement as HTMLElement | null;
+    if (activeElement?.id === this.searchInputId) {
       return false;
     }
-    return true;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const searchInput = document.getElementById(this.searchInputId) as HTMLInputElement | null;
+    if (searchInput) {
+      searchInput.focus();
+      searchInput.select();
+    }
+
+    return false;
   };
 
   async onOpen(): Promise<void> {
@@ -63,7 +60,7 @@ export class KanbanView extends ItemView {
 
     // Register Ctrl+F shortcut using Obsidian's Scope API
     const scope = new Scope(this.app.scope);
-    scope.register([], "Mod+f", this.handleKeyDown);
+    scope.register(["Mod"], "f", this.focusSearchInput);
     this.app.keymap.pushScope(scope);
 
     // Store scope for cleanup

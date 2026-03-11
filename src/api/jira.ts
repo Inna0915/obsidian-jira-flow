@@ -3,6 +3,69 @@ import type JiraFlowPlugin from "../main";
 import { mapStatusToColumn } from "../types";
 import type { JiraBoard, JiraIssue, JiraSearchResponse, JiraSprint } from "../types";
 
+interface JiraCreateMetaResponse {
+  projects: Array<{
+    key: string;
+    name: string;
+    issuetypes: Array<{
+      id: string;
+      name: string;
+      fields?: {
+        priority?: {
+          allowedValues?: Array<{ id: string; name: string }>;
+        };
+      };
+    }>;
+  }>;
+}
+
+interface JiraQuickCreateResponse {
+  fields?: Array<{
+    id: string;
+    label?: string;
+    required?: boolean;
+    editHtml?: string;
+  }>;
+}
+
+interface JiraQuickCreateSuggestionItem {
+  label: string;
+  value: string;
+  selected?: boolean;
+}
+
+interface JiraQuickCreateSuggestionGroup {
+  label: string;
+  items: JiraQuickCreateSuggestionItem[];
+}
+
+interface JiraCurrentUser {
+  accountId?: string;
+  displayName?: string;
+  emailAddress?: string;
+  name?: string;
+  key?: string;
+}
+
+export interface JiraCreateIssueMeta {
+  projectKey: string;
+  projectName: string;
+  issueTypes: Array<{ id: string; name: string }>;
+  priorities: Array<{ id: string; name: string }>;
+}
+
+export interface JiraCreateIssueInput {
+  projectKey: string;
+  issueTypeId: string;
+  summary: string;
+  description?: string;
+  assignee?: string;
+  priorityId?: string;
+  storyPoints?: number;
+  plannedStartDate?: string;
+  plannedEndDate?: string;
+}
+
 export class JiraApi {
   private plugin: JiraFlowPlugin;
 
@@ -21,27 +84,54 @@ export class JiraApi {
 
   private get fieldsParam(): string {
     const s = this.plugin.settings;
-    const fields = `summary,description,status,issuetype,priority,assignee,created,updated,duedate,labels,issuelinks,${s.storyPointsField},${s.dueDateField},${s.sprintField}`;
+    const fields = `summary,description,status,issuetype,priority,assignee,reporter,created,updated,duedate,labels,issuelinks,${s.storyPointsField},${s.dueDateField},${s.sprintField}`;
     return fields;
+  }
+
+  private buildSyncJql(): string {
+    const baseJql = (this.plugin.settings.jql || "").trim().replace(/\s+order\s+by[\s\S]*$/i, "").trim();
+    const reporterJql = "reporter = currentUser() AND resolution = Unresolved";
+    if (!baseJql) {
+      return `${reporterJql} ORDER BY created DESC`;
+    }
+
+    if (/reporter\s*=\s*currentUser\(\)/i.test(baseJql)) {
+      return baseJql;
+    }
+
+    return `(${baseJql}) OR (${reporterJql}) ORDER BY created DESC`;
   }
 
   private async request<T>(endpoint: string, method = "GET", body?: unknown): Promise<T> {
     const url = `${this.baseUrl}/rest/api/2/${endpoint}`;
+    return this.requestAbsoluteUrl<T>(url, method, body, {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    });
+  }
+
+  private async requestAbsoluteUrl<T>(
+    url: string,
+    method = "GET",
+    body?: unknown,
+    extraHeaders?: Record<string, string>
+  ): Promise<T> {
     const params: RequestUrlParam = {
       url,
       method,
       headers: {
         Authorization: this.getAuthHeader(),
-        "Content-Type": "application/json",
-        Accept: "application/json",
         "X-Atlassian-Token": "no-check",
         "User-Agent": "Obsidian-Jira-Flow",
+        ...extraHeaders,
       },
       throw: false,
     };
-    if (body) {
-      params.body = JSON.stringify(body);
+
+    if (body !== undefined) {
+      params.body = typeof body === "string" ? body : JSON.stringify(body);
     }
+
     const response = await requestUrl(params);
     if (response.status >= 400) {
       let detail = "";
@@ -63,6 +153,130 @@ export class JiraApi {
     } catch {
       return undefined as T;
     }
+  }
+
+  private decodeHtmlEntities(value: string): string {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = value;
+    return textarea.value;
+  }
+
+  private extractDataAttribute(html: string, elementId: string, attributeName: string): string | null {
+    const pattern = new RegExp(`<[^>]*id=["']${elementId}["'][^>]*${attributeName}=["']([^"']*)["']`, "i");
+    const match = html.match(pattern);
+    return match ? this.decodeHtmlEntities(match[1]) : null;
+  }
+
+  private extractScriptJson(html: string, scriptId: string): string | null {
+    const pattern = new RegExp(`<script[^>]*id=["']${scriptId}["'][^>]*>([\\s\\S]*?)<\\/script>`, "i");
+    const match = html.match(pattern);
+    return match ? this.decodeHtmlEntities(match[1].trim()) : null;
+  }
+
+  private parseSuggestions(html: string, elementId: string): JiraQuickCreateSuggestionGroup[] {
+    const raw = this.extractDataAttribute(html, elementId, "data-suggestions");
+    if (!raw) return [];
+
+    try {
+      return JSON.parse(raw) as JiraQuickCreateSuggestionGroup[];
+    } catch (error) {
+      console.error(`[Jira Flow] Failed to parse suggestions for ${elementId}`, error);
+      return [];
+    }
+  }
+
+  private parseProjectLabel(label: string): { name: string; key: string } {
+    const match = label.match(/^(.*)\(([^()]+)\)\s*$/);
+    if (!match) {
+      return { name: label.trim(), key: label.trim() };
+    }
+
+    return {
+      name: match[1].trim(),
+      key: match[2].trim(),
+    };
+  }
+
+  private parsePriorityOptions(html: string): Array<{ id: string; name: string }> {
+    const options = Array.from(html.matchAll(/<option[^>]*value=["']([^"']+)["'][^>]*>([\s\S]*?)<\/option>/gi));
+    return options
+      .map((match) => ({
+        id: this.decodeHtmlEntities(match[1]).trim(),
+        name: this.decodeHtmlEntities(match[2]).replace(/\s+/g, " ").trim(),
+      }))
+      .filter((item) => item.id && item.name);
+  }
+
+  private async fetchCreateIssueMetaFromQuickCreate(projectKey: string): Promise<JiraCreateIssueMeta> {
+    const url = `${this.baseUrl}/secure/QuickCreateIssue!default.jspa?decorator=none`;
+    const response = await this.requestAbsoluteUrl<JiraQuickCreateResponse>(url, "GET", undefined, {
+      Accept: "application/json, text/plain, */*",
+    });
+
+    const fields = response?.fields || [];
+    const projectField = fields.find((field) => field.id === "project")?.editHtml || "";
+    const issueTypeField = fields.find((field) => field.id === "issuetype")?.editHtml || "";
+    const priorityField = fields.find((field) => field.id === "priority")?.editHtml || "";
+
+    const projectGroups = this.parseSuggestions(projectField, "project-options");
+    const projects = projectGroups.flatMap((group) => group.items).map((item) => {
+      const parsed = this.parseProjectLabel(item.label);
+      return {
+        id: item.value,
+        key: parsed.key,
+        name: parsed.name,
+        selected: !!item.selected,
+      };
+    });
+
+    const project =
+      projects.find((item) => item.key === projectKey) ||
+      projects.find((item) => item.selected) ||
+      projects[0];
+
+    if (!project) {
+      throw new Error("QuickCreateIssue 未返回可用项目。请确认 Jira 权限和项目配置。");
+    }
+
+    const issueTypeGroups = this.parseSuggestions(issueTypeField, "issuetype-options");
+    const projectTypeMapRaw = this.extractScriptJson(issueTypeField, "issuetype-projects");
+    const issueTypeDefaultsRaw = this.extractScriptJson(issueTypeField, "issuetype-defaults");
+
+    let projectTypeMap: Record<string, string> = {};
+    let issueTypeDefaults: Record<string, string> = {};
+
+    try {
+      projectTypeMap = projectTypeMapRaw ? JSON.parse(projectTypeMapRaw) as Record<string, string> : {};
+      issueTypeDefaults = issueTypeDefaultsRaw ? JSON.parse(issueTypeDefaultsRaw) as Record<string, string> : {};
+    } catch (error) {
+      console.error("[Jira Flow] Failed to parse QuickCreate issue type metadata", error);
+    }
+
+    const issueTypeGroupId = projectTypeMap[project.id];
+    const issueTypes = issueTypeGroups
+      .filter((group) => !issueTypeGroupId || group.label === issueTypeGroupId)
+      .flatMap((group) => group.items)
+      .map((item) => ({ id: item.value, name: item.label }));
+
+    const priorities = this.parsePriorityOptions(priorityField);
+    if (issueTypes.length === 0) {
+      throw new Error(`QuickCreateIssue 未返回项目 ${project.key} 的问题类型。`);
+    }
+
+    const defaultIssueTypeId = issueTypeGroupId ? issueTypeDefaults[issueTypeGroupId] : undefined;
+    const orderedIssueTypes = defaultIssueTypeId
+      ? [
+          ...issueTypes.filter((item) => item.id === defaultIssueTypeId),
+          ...issueTypes.filter((item) => item.id !== defaultIssueTypeId),
+        ]
+      : issueTypes;
+
+    return {
+      projectKey: project.key,
+      projectName: project.name,
+      issueTypes: orderedIssueTypes,
+      priorities,
+    };
   }
 
   private async agileRequest<T>(endpoint: string): Promise<T> {
@@ -95,6 +309,96 @@ export class JiraApi {
 
   async testConnection(): Promise<void> {
     await this.request("myself");
+  }
+
+  async getCurrentUser(): Promise<JiraCurrentUser | null> {
+    try {
+      return await this.request<JiraCurrentUser>("myself");
+    } catch (error) {
+      console.error("[Jira Flow] Failed to fetch current user", error);
+      return null;
+    }
+  }
+
+  async fetchCreateIssueMeta(projectKey: string): Promise<JiraCreateIssueMeta> {
+    try {
+      const data = await this.request<JiraCreateMetaResponse>(
+        `issue/createmeta?projectKeys=${encodeURIComponent(projectKey)}&expand=projects.issuetypes.fields`
+      );
+
+      const project = data.projects?.[0];
+      if (!project) {
+        throw new Error(`No Jira project metadata found for ${projectKey}.`);
+      }
+
+      const issueTypes = project.issuetypes.map((issuetype) => ({
+        id: issuetype.id,
+        name: issuetype.name,
+      }));
+
+      const priorityMap = new Map<string, { id: string; name: string }>();
+      for (const issuetype of project.issuetypes) {
+        for (const priority of issuetype.fields?.priority?.allowedValues || []) {
+          if (!priorityMap.has(priority.id)) {
+            priorityMap.set(priority.id, { id: priority.id, name: priority.name });
+          }
+        }
+      }
+
+      let priorities = Array.from(priorityMap.values());
+      if (priorities.length === 0) {
+        priorities = await this.request<Array<{ id: string; name: string }>>("priority");
+      }
+
+      return {
+        projectKey: project.key,
+        projectName: project.name,
+        issueTypes,
+        priorities,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("status 404")) {
+        throw error;
+      }
+
+      console.warn("[Jira Flow] createmeta unavailable, falling back to QuickCreateIssue metadata");
+      return this.fetchCreateIssueMetaFromQuickCreate(projectKey);
+    }
+  }
+
+  async createIssue(input: JiraCreateIssueInput): Promise<{ key: string; id: string }> {
+    const fields: Record<string, unknown> = {
+      project: { key: input.projectKey },
+      issuetype: { id: input.issueTypeId },
+      summary: input.summary,
+    };
+
+    if (input.description?.trim()) {
+      fields.description = input.description.trim();
+    }
+
+    if (input.assignee?.trim()) {
+      fields.assignee = { name: input.assignee.trim() };
+    }
+
+    if (input.priorityId) {
+      fields.priority = { id: input.priorityId };
+    }
+
+    if (this.plugin.settings.storyPointsField && typeof input.storyPoints === "number") {
+      fields[this.plugin.settings.storyPointsField] = input.storyPoints;
+    }
+
+    if (this.plugin.settings.plannedStartDateField && input.plannedStartDate) {
+      fields[this.plugin.settings.plannedStartDateField] = input.plannedStartDate;
+    }
+
+    if (this.plugin.settings.dueDateField && input.plannedEndDate) {
+      fields[this.plugin.settings.dueDateField] = input.plannedEndDate;
+    }
+
+    return await this.request<{ key: string; id: string }>("issue", "POST", { fields });
   }
 
   // ===== 4-Step Agile Sync =====
@@ -219,9 +523,9 @@ export class JiraApi {
     const allIssues: JiraIssue[] = [];
     let startAt = 0;
     const maxResults = 100;
+    const jql = this.buildSyncJql();
 
     while (true) {
-      const jql = this.plugin.settings.jql;
       const data = await this.request<JiraSearchResponse>(
         `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}&expand=renderedFields`
       );

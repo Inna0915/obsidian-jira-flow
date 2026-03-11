@@ -3,6 +3,7 @@ import { TFile } from "obsidian";
 import { KANBAN_COLUMNS, SWIMLANES } from "../types";
 import type { KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
+import type { JiraCreateIssueMeta, JiraCreateIssueInput } from "../api/jira";
 import type { ViewMode } from "./App";
 import { useEscapeKey } from "../hooks/useEscapeKey";
 import { JiraHtmlRenderer } from "./JiraHtmlRenderer";
@@ -711,6 +712,8 @@ export interface EditTaskData {
   assignee: string;
 }
 
+export interface CreateJiraIssueData extends JiraCreateIssueInput {}
+
 interface EditTaskModalProps {
   plugin: JiraFlowPlugin;
   task: EditTaskData;
@@ -867,6 +870,213 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
             disabled={!summary.trim()} 
             className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-shadow-sm jf-rounded-lg jf-transition-all disabled:jf-opacity-50 disabled:jf-cursor-not-allowed">
             保存修改
+          </button>
+        </div>
+      </div>
+    </>
+  );
+};
+
+interface CreateJiraIssueModalProps {
+  plugin: JiraFlowPlugin;
+  onClose: () => void;
+  onSave: (data: CreateJiraIssueData) => Promise<void> | void;
+}
+
+export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plugin, onClose, onSave }) => {
+  useEscapeKey(plugin.app, onClose, true);
+
+  const [meta, setMeta] = useState<JiraCreateIssueMeta | null>(null);
+  const [loadingMeta, setLoadingMeta] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [issueTypeId, setIssueTypeId] = useState("");
+  const [summary, setSummary] = useState("");
+  const [description, setDescription] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [myAssignee, setMyAssignee] = useState("");
+  const [priorityId, setPriorityId] = useState("");
+  const [storyPoints, setStoryPoints] = useState("");
+  const [plannedStartDate, setPlannedStartDate] = useState("");
+  const [plannedEndDate, setPlannedEndDate] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadMeta = async () => {
+      if (!plugin.settings.projectKey) {
+        setError("请先在设置中填写项目 Key。");
+        setLoadingMeta(false);
+        return;
+      }
+
+      try {
+        const [createMeta, currentUser] = await Promise.all([
+          plugin.jiraApi.fetchCreateIssueMeta(plugin.settings.projectKey),
+          plugin.jiraApi.getCurrentUser(),
+        ]);
+
+        if (!mounted) return;
+
+        setMeta(createMeta);
+        setIssueTypeId(createMeta.issueTypes.find((item) => item.name.toLowerCase() === "story")?.id || createMeta.issueTypes[0]?.id || "");
+        setPriorityId(createMeta.priorities.find((item) => item.name.toLowerCase() === "low")?.id || createMeta.priorities[0]?.id || "");
+        const currentAssignee = currentUser?.name || currentUser?.displayName || currentUser?.emailAddress || "";
+        setMyAssignee(currentAssignee);
+      } catch (loadError) {
+        if (!mounted) return;
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      } finally {
+        if (mounted) {
+          setLoadingMeta(false);
+        }
+      }
+    };
+
+    loadMeta();
+    return () => {
+      mounted = false;
+    };
+  }, [plugin]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!meta || !summary.trim() || !issueTypeId) return;
+
+    setSaving(true);
+    setError("");
+
+    try {
+      await onSave({
+        projectKey: meta.projectKey,
+        issueTypeId,
+        summary: summary.trim(),
+        description: description.trim(),
+        assignee: assignee.trim(),
+        priorityId,
+        storyPoints: storyPoints.trim() === "" ? undefined : Number(storyPoints),
+        plannedStartDate: plannedStartDate || undefined,
+        plannedEndDate: plannedEndDate || undefined,
+      });
+      onClose();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : String(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }, [assignee, description, issueTypeId, meta, onClose, onSave, plannedEndDate, plannedStartDate, priorityId, storyPoints, summary]);
+
+  return (
+    <>
+      <div className="jf-fixed jf-inset-0 jf-bg-black/40 jf-backdrop-blur-sm jf-z-50" onClick={onClose} />
+
+      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-[10001] jf-w-full jf-max-w-2xl jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
+        <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
+          <div className="jf-flex jf-items-center jf-gap-3">
+            <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">新建 Jira 任务</h3>
+            {meta && <span className="jf-text-sm jf-font-mono jf-text-blue-600 jf-bg-blue-50 jf-px-2 jf-py-1 jf-rounded">{meta.projectKey}</span>}
+          </div>
+          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-transition-colors">
+            <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="jf-p-6 jf-space-y-4" style={{ maxHeight: "min(78vh, 820px)", overflowY: "auto" }}>
+          {loadingMeta ? (
+            <div className="jf-text-sm jf-text-gray-500">正在读取 Jira 创建元数据...</div>
+          ) : error ? (
+            <div className="jf-text-sm jf-text-red-600 jf-bg-red-50 jf-border jf-border-red-200 jf-rounded-lg jf-p-3">{error}</div>
+          ) : meta ? (
+            <>
+              <div className="jf-grid jf-gap-4" style={{ gridTemplateColumns: "180px minmax(0, 1fr)" }}>
+                <div>
+                  <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">项目</label>
+                  <div className={fieldClassName} style={{ ...fieldStyle, display: "flex", alignItems: "center" }}>
+                    {meta.projectName} ({meta.projectKey})
+                  </div>
+                </div>
+                <div>
+                  <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">问题类型</label>
+                  <select value={issueTypeId} onChange={(e) => setIssueTypeId(e.target.value)} className={fieldClassName} style={fieldStyle}>
+                    {meta.issueTypes.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">概要</label>
+                <input value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="请输入 Jira 任务标题" className={fieldClassName} style={fieldStyle} autoFocus />
+              </div>
+
+              <div className="jf-grid jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                <div>
+                  <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">经办人</label>
+                  <div className="jf-flex jf-gap-2">
+                    <input value={assignee} onChange={(e) => setAssignee(e.target.value)} placeholder="留空则自动分配" className={fieldClassName} style={fieldStyle} />
+                    <button
+                      type="button"
+                      onClick={() => setAssignee(myAssignee)}
+                      disabled={!myAssignee}
+                      className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-blue-700 jf-bg-blue-50 jf-border jf-border-blue-200 jf-rounded-lg hover:jf-bg-blue-100 disabled:jf-opacity-50 disabled:jf-cursor-not-allowed"
+                    >
+                      分配给我
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">故事点</label>
+                  <input value={storyPoints} onChange={(e) => setStoryPoints(e.target.value)} placeholder={plugin.settings.storyPointsField || "未配置故事点字段"} className={fieldClassName} style={fieldStyle} />
+                </div>
+              </div>
+
+              <div>
+                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">描述</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="请输入任务描述"
+                  className={fieldClassName}
+                  style={{ ...fieldStyle, minHeight: "180px", resize: "vertical" }}
+                />
+              </div>
+
+              <div className="jf-grid jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                <div>
+                  <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">优先级</label>
+                  <select value={priorityId} onChange={(e) => setPriorityId(e.target.value)} className={fieldClassName} style={fieldStyle}>
+                    {meta.priorities.map((item) => (
+                      <option key={item.id} value={item.id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Planned Start Date</label>
+                  <input type="date" value={plannedStartDate} onChange={(e) => setPlannedStartDate(e.target.value)} className={fieldClassName} style={fieldStyle} />
+                  {!plugin.settings.plannedStartDateField && <div className="jf-text-[10px] jf-text-amber-600 jf-mt-1">设置中未配置计划开始日期字段，创建时不会提交该值。</div>}
+                </div>
+                <div>
+                  <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">Planned End Date</label>
+                  <input type="date" value={plannedEndDate} onChange={(e) => setPlannedEndDate(e.target.value)} className={fieldClassName} style={fieldStyle} />
+                  {!plugin.settings.dueDateField && <div className="jf-text-[10px] jf-text-amber-600 jf-mt-1">设置中未配置计划结束日期字段，创建时不会提交该值。</div>}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        <div className="jf-px-6 jf-py-4 jf-bg-gray-50 jf-flex jf-justify-end jf-gap-3">
+          <button onClick={onClose} className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg jf-transition-colors">
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={loadingMeta || saving || !meta || !summary.trim() || !issueTypeId}
+            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-shadow-sm jf-rounded-lg jf-transition-all disabled:jf-opacity-50 disabled:jf-cursor-not-allowed"
+          >
+            {saving ? "创建中..." : "新建并同步"}
           </button>
         </div>
       </div>

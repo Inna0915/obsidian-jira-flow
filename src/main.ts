@@ -113,6 +113,9 @@ export default class JiraFlowPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const saved = await this.loadData();
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    if (!this.settings.jiraBrowseHost) {
+      this.settings.jiraBrowseHost = DEFAULT_SETTINGS.jiraBrowseHost;
+    }
     // Deep merge ai settings so existing users get defaults
     this.settings.ai = Object.assign({}, DEFAULT_SETTINGS.ai, saved?.ai);
     if (!this.settings.ai.models || this.settings.ai.models.length === 0) {
@@ -272,6 +275,8 @@ export default class JiraFlowPlugin extends Plugin {
       story_points: 0,
       due_date: "",
       assignee: "",
+      reporter: "",
+      reporter_only: false,
       sprint: "",
       sprint_state: "",
       tags: ["jira/source/local", "jira/type/personal"],

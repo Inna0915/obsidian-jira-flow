@@ -74,6 +74,19 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Jira 浏览域名")
+      .setDesc("用于复制任务链接时替换成对外可访问的浏览域名")
+      .addText((text) =>
+        text
+          .setPlaceholder("https://jira.ykeey.cn")
+          .setValue(this.plugin.settings.jiraBrowseHost)
+          .onChange(async (value) => {
+            this.plugin.settings.jiraBrowseHost = value.trim().replace(/\/+$/, "");
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("用户名")
       .setDesc("你的 Jira 用户名（例如：邮箱地址）")
       .addText((text) =>
@@ -135,6 +148,19 @@ export class JiraFlowSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.storyPointsField)
           .onChange(async (value) => {
             this.plugin.settings.storyPointsField = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("计划开始日期字段")
+      .setDesc("Jira Planned Start Date 的自定义字段 ID（例如：customfield_10328）")
+      .addText((text) =>
+        text
+          .setPlaceholder("customfield_10328")
+          .setValue(this.plugin.settings.plannedStartDateField)
+          .onChange(async (value) => {
+            this.plugin.settings.plannedStartDateField = value.trim();
             await this.plugin.saveSettings();
           })
       );

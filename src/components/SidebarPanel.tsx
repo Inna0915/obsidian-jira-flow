@@ -9,11 +9,32 @@ interface SidebarTask {
   summary: string;
   dueDate: string;
   status: string;
+  mappedColumn: string;
   priority: string;
   issuetype: string;
   filePath: string;
   sprint_state: string;
+  created: string;
 }
+
+const priorityOrder: Record<string, number> = {
+  Highest: 0,
+  High: 1,
+  Medium: 2,
+  Low: 3,
+  Lowest: 4,
+};
+
+const compareByPriorityAndCreated = (left: SidebarTask, right: SidebarTask) => {
+  const priorityDelta = (priorityOrder[left.priority] ?? 999) - (priorityOrder[right.priority] ?? 999);
+  if (priorityDelta !== 0) {
+    return priorityDelta;
+  }
+
+  const rightCreated = right.created ? new Date(right.created).getTime() : 0;
+  const leftCreated = left.created ? new Date(left.created).getTime() : 0;
+  return rightCreated - leftCreated;
+};
 
 export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const [tasks, setTasks] = useState<SidebarTask[]>([]);
@@ -36,19 +57,18 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       
       // Skip archived tasks
       if (fm.archived) continue;
-      
-      // Skip tasks without due date
-      if (!fm.due_date) continue;
 
       loadedTasks.push({
         key: fm.jira_key,
         summary: fm.summary,
         dueDate: fm.due_date,
         status: fm.status,
+        mappedColumn: fm.mapped_column,
         priority: fm.priority,
         issuetype: fm.issuetype,
         filePath: file.path,
         sprint_state: fm.sprint_state || '',
+        created: fm.created || '',
       });
     }
 
@@ -192,6 +212,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const todayTasks = tasks.filter(t => {
     // STRICT SPRINT FILTER: Must be an ACTIVE sprint
     if (t.sprint_state.toUpperCase() !== 'ACTIVE') return false;
+    if (isFocusBug(t)) return false;
     if (!t.dueDate) return false;
     
     const due = new Date(t.dueDate);
@@ -203,6 +224,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const weekTasks = tasks.filter(t => {
     // STRICT SPRINT FILTER: Must be an ACTIVE sprint
     if (t.sprint_state.toUpperCase() !== 'ACTIVE') return false;
+    if (isFocusBug(t)) return false;
     if (!t.dueDate) return false;
     
     const due = new Date(t.dueDate);
@@ -215,6 +237,16 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     const doneStatuses = ['done', 'closed', 'resolved', '完成', '已解决'];
     return doneStatuses.some(s => status.toLowerCase().includes(s));
   }
+
+  function isFocusBug(task: SidebarTask): boolean {
+    return task.sprint_state.toUpperCase() === 'ACTIVE'
+      && task.issuetype.toLowerCase() === 'bug'
+      && ['TO DO', 'EXECUTION'].includes(task.mappedColumn.toUpperCase());
+  }
+
+  const focusBugs = tasks
+    .filter(isFocusBug)
+    .sort(compareByPriorityAndCreated);
 
   function formatDate(dateStr: string): string {
     const date = new Date(dateStr);
@@ -239,6 +271,17 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       'Lowest': 'jf-bg-gray-100 jf-text-gray-600',
     };
     return colors[priority] || 'jf-bg-gray-100 jf-text-gray-600';
+  }
+
+  function getPriorityAccent(priority: string): string {
+    const colors: Record<string, string> = {
+      'Highest': '#DE350B',
+      'High': '#FF5630',
+      'Medium': '#FFAB00',
+      'Low': '#36B37E',
+      'Lowest': '#97A0AF',
+    };
+    return colors[priority] || '#97A0AF';
   }
 
   const handleTaskClick = async (task: SidebarTask) => {
@@ -266,8 +309,10 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   // Render a compact task item
   const renderTask = (task: SidebarTask) => {
     const dateLabel = formatDate(task.dueDate);
-    const isOverdue = dateLabel === 'Overdue';
+    const isOverdue = dateLabel === '已逾期';
     const isActive = activeTask?.key === task.key;
+    const isBug = task.issuetype.toLowerCase() === 'bug';
+    const priorityAccent = getPriorityAccent(task.priority);
     
     return (
       <div 
@@ -275,14 +320,24 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
         onClick={() => handleTaskClick(task)}
         onMouseEnter={(e) => onHoverTask(e, task)}
         className={`jf-p-2 jf-mb-2 jf-bg-white jf-border ${isActive ? 'jf-border-blue-500 jf-ring-1 jf-ring-blue-500' : 'jf-border-gray-200'} jf-rounded-md jf-shadow-sm hover:jf-border-blue-300 jf-transition-all jf-cursor-pointer jf-group`}
+        style={{ borderLeftWidth: '4px', borderLeftColor: isBug ? priorityAccent : '#E5E7EB' }}
       >
         <div className="jf-flex jf-justify-between jf-items-start jf-mb-1">
-          <span className="jf-text-[10px] jf-font-mono jf-bg-blue-50 jf-text-blue-600 jf-px-1 jf-rounded">
-            {task.key}
-          </span>
+          <div className="jf-flex jf-items-center jf-gap-1.5 jf-min-w-0">
+            {isBug && (
+              <span className="jf-inline-flex jf-items-center jf-justify-center jf-w-4 jf-h-4 jf-rounded-[4px] jf-bg-red-100 jf-text-red-600 jf-shrink-0" title="Bug">
+                <svg className="jf-w-2.5 jf-h-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M14 6h-4V4h4v2zm4.29 1.29 1.41-1.41 1.41 1.41-1.41 1.41-1.41-1.41zM6.71 7.29 5.29 5.88 3.88 7.29l1.41 1.41 1.42-1.41zM3 12h3v-2H3v2zm18 0h-3v-2h3v2zm-1.29 6.71-1.41-1.41-1.41 1.41 1.41 1.41 1.41-1.41zM12 8a5 5 0 0 0-5 5v5h10v-5a5 5 0 0 0-5-5z" />
+                </svg>
+              </span>
+            )}
+            <span className="jf-text-[10px] jf-font-mono jf-bg-blue-50 jf-text-blue-600 jf-px-1 jf-rounded">
+              {task.key}
+            </span>
+          </div>
           <div className="jf-flex jf-items-center jf-gap-2">
             <span className={`jf-text-[10px] jf-px-1 jf-rounded ${isOverdue ? 'jf-bg-red-100 jf-text-red-600 jf-font-semibold' : 'jf-text-gray-400'}`}>
-              {dateLabel}
+              {task.dueDate ? dateLabel : '无日期'}
             </span>
             {/* PLAY BUTTON */}
             <button 
@@ -301,13 +356,29 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
           <span className={`jf-text-[9px] jf-px-1 jf-py-0.5 jf-rounded ${getPriorityColor(task.priority)}`}>
             {task.priority}
           </span>
-          <span className="jf-text-[9px] jf-px-1 jf-py-0.5 jf-rounded jf-bg-gray-100 jf-text-gray-500">
+          <span className={`jf-text-[9px] jf-px-1 jf-py-0.5 jf-rounded ${isBug ? 'jf-bg-red-50 jf-text-red-600 jf-font-semibold' : 'jf-bg-gray-100 jf-text-gray-500'}`}>
             {task.issuetype}
+          </span>
+          <span className="jf-text-[9px] jf-px-1 jf-py-0.5 jf-rounded jf-bg-slate-100 jf-text-slate-600">
+            {task.mappedColumn}
           </span>
         </div>
       </div>
     );
   };
+
+  const focusBugGroups = [
+    {
+      key: 'TO DO',
+      label: 'TO DO 待办',
+      items: focusBugs.filter((task) => task.mappedColumn.toUpperCase() === 'TO DO'),
+    },
+    {
+      key: 'EXECUTION',
+      label: 'EXECUTION 执行中',
+      items: focusBugs.filter((task) => task.mappedColumn.toUpperCase() === 'EXECUTION'),
+    },
+  ];
 
   if (loading) {
     return (
@@ -425,6 +496,32 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
             todayTasks.map(renderTask)
           ) : (
             <div className="jf-text-xs jf-text-gray-400 jf-italic jf-py-2">今日暂无任务 🎉</div>
+          )}
+        </div>
+      </div>
+
+      <div className="jf-mb-6">
+        <h3 className="jf-text-xs jf-font-bold jf-text-gray-500 jf-uppercase jf-mb-2 jf-border-b jf-border-gray-200 jf-pb-1 jf-flex jf-justify-between">
+          <span>当前迭代 Bug</span>
+          <span className="jf-bg-orange-100 jf-text-orange-600 jf-px-1.5 jf-rounded-full">{focusBugs.length}</span>
+        </h3>
+        <div className="jf-flex jf-flex-col">
+          {focusBugs.length > 0 ? (
+            focusBugGroups.map((group) => (
+              <div key={group.key} className="jf-mb-3 last:jf-mb-0">
+                <div className="jf-flex jf-items-center jf-justify-between jf-mb-2 jf-px-1">
+                  <span className="jf-text-[11px] jf-font-semibold jf-text-slate-600">{group.label}</span>
+                  <span className="jf-text-[10px] jf-font-semibold jf-bg-slate-100 jf-text-slate-600 jf-px-1.5 jf-rounded-full">{group.items.length}</span>
+                </div>
+                {group.items.length > 0 ? (
+                  group.items.map(renderTask)
+                ) : (
+                  <div className="jf-text-[11px] jf-text-gray-300 jf-italic jf-px-1 jf-py-1">暂无任务</div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="jf-text-xs jf-text-gray-400 jf-italic jf-py-2">当前迭代暂无需关注的 Bug</div>
           )}
         </div>
       </div>

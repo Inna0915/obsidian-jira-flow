@@ -30,6 +30,7 @@ export interface AISettings {
 
 export interface JiraFlowSettings {
   jiraHost: string;
+  jiraBrowseHost: string;
   jiraUsername: string;
   jiraPassword: string;
   projectKey: string;
@@ -44,6 +45,7 @@ export interface JiraFlowSettings {
   autoSyncOnStartup: boolean;
   syncIntervalMinutes: number;
   storyPointsField: string;
+  plannedStartDateField: string;
   dueDateField: string;
   sprintField: string;
   ai: AISettings;
@@ -151,9 +153,9 @@ const EXACT_STATUS_MAP: Record<string, string> = {
   "build done": "EXECUTED",
   "build done 构建完成": "EXECUTED",
   "构建完成": "EXECUTED",
-  "in review": "TESTING & REVIEW",
-  "in review 审核中": "TESTING & REVIEW",
-  "审核中": "TESTING & REVIEW",
+  "in review": "VALIDATING",
+  "in review 审核中": "VALIDATING",
+  "审核中": "VALIDATING",
   "testing": "TESTING & REVIEW",
   "testing 测试中": "TESTING & REVIEW",
   "测试中": "TESTING & REVIEW",
@@ -187,8 +189,8 @@ const FUZZY_KEYWORDS: Array<[string, string]> = [
   ["构建中", "EXECUTION"], ["处理中", "EXECUTION"], ["开始任务", "EXECUTION"],
   ["building", "EXECUTION"], ["in progress", "EXECUTION"],
   ["构建完成", "EXECUTED"], ["build done", "EXECUTED"],
-  ["审核中", "TESTING & REVIEW"], ["测试中", "TESTING & REVIEW"], ["集成测试", "TESTING & REVIEW"],
-  ["in review", "TESTING & REVIEW"], ["testing", "TESTING & REVIEW"], ["integrating", "TESTING & REVIEW"],
+  ["审核中", "VALIDATING"], ["测试中", "TESTING & REVIEW"], ["集成测试", "TESTING & REVIEW"],
+  ["in review", "VALIDATING"], ["testing", "TESTING & REVIEW"], ["integrating", "TESTING & REVIEW"],
   ["测试完成", "TEST DONE"], ["test done", "TEST DONE"],
   ["验证", "VALIDATING"], ["validating", "VALIDATING"],
   ["已解决", "RESOLVED"], ["resolved", "RESOLVED"],
@@ -262,6 +264,7 @@ export function classifySwimlane(dueDate: string, mappedColumn: string): Swimlan
 // ===== Default Settings =====
 export const DEFAULT_SETTINGS: JiraFlowSettings = {
   jiraHost: "",
+  jiraBrowseHost: "https://jira.ykeey.cn",
   jiraUsername: "",
   jiraPassword: "",
   projectKey: "PDSTDTTA",
@@ -276,6 +279,7 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
   autoSyncOnStartup: false,
   syncIntervalMinutes: 30,
   storyPointsField: "customfield_10111",
+  plannedStartDateField: "",
   dueDateField: "customfield_10329",
   sprintField: "customfield_10109",
   ai: {
@@ -335,9 +339,11 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
 
 // ===== Jira API Types =====
 export interface JiraUser {
-  accountId: string;
-  displayName: string;
-  emailAddress: string;
+  accountId?: string;
+  displayName?: string;
+  emailAddress?: string;
+  name?: string;
+  key?: string;
 }
 
 export interface JiraStatus {
@@ -377,6 +383,7 @@ export interface JiraIssueFields {
   issuetype: JiraIssuetype;
   priority: JiraPriority;
   assignee: JiraUser | null;
+  reporter?: JiraUser | null;
   created: string;
   updated: string;
   duedate: string | null;
@@ -411,6 +418,8 @@ export interface TaskFrontmatter {
   story_points: number;
   due_date: string;
   assignee: string;
+  reporter: string;
+  reporter_only?: boolean;
   sprint: string;
   sprint_state: string;
   tags: string[];
@@ -433,7 +442,11 @@ export interface KanbanCard {
   storyPoints: number;
   dueDate: string;
   assignee: string;
+  reporter?: string;
+  reporter_only?: boolean;
   summary: string;
+  created?: string;
+  updated?: string;
   tags: string[];
   swimlane: SwimlaneType;
   sprint: string;
@@ -443,6 +456,7 @@ export interface KanbanCard {
 
 export interface KanbanColumn {
   name: string;
+  jiraBrowseHost: "https://jira.ykeey.cn",
   cards: KanbanCard[];
 }
 

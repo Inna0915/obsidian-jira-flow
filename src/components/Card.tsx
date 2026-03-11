@@ -38,12 +38,13 @@ const priorityColors: Record<string, string> = {
 };
 
 const typeIcons: Record<string, string> = {
-  Bug: "\u{1F41B}",
-  Story: "\u{1F4D7}",
-  Task: "\u2705",
-  Personal: "\u{1F464}",
-  "Sub-task": "\u{1F4CE}",
-  Epic: "\u26A1",
+  Bug: "B",
+  Story: "S",
+  Task: "T",
+  Feature: "F",
+  Personal: "P",
+  "Sub-task": "ST",
+  Epic: "E",
 };
 
 // Get left border color (hex) for inline style to avoid Tailwind purge issues
@@ -53,9 +54,23 @@ const getBorderColor = (issueType: string): string => {
     case "bug": return "#EF4444";      // red-500
     case "story": return "#22C55E";    // green-500
     case "task": return "#60A5FA";     // blue-400
+    case "feature": return "#3B82F6";  // blue-500
     case "personal": return "#F59E0B"; // amber-500
     case "epic": return "#A855F7";     // purple-500
     default: return "#D1D5DB";         // gray-300
+  }
+};
+
+const getTypeBackground = (issueType: string): string => {
+  const type = (issueType || "").toLowerCase();
+  switch (type) {
+    case "bug": return "#FFEBE6";
+    case "story": return "#E3FCEF";
+    case "task": return "#DEEBFF";
+    case "feature": return "#DEEBFF";
+    case "personal": return "#FFF0B3";
+    case "epic": return "#EAE6FF";
+    default: return "#F4F5F7";
   }
 };
 
@@ -83,6 +98,7 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCu
   const priorityColor = priorityColors[card.priority] || "#6B778C";
   const isOverdue = card.swimlane === "overdue";
   const borderLeftColor = getBorderColor(card.issuetype);
+  const typeBackground = getTypeBackground(card.issuetype);
 
   return (
     <div
@@ -90,25 +106,29 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCu
       onDragStart={handleDragStart}
       onClick={handleClick}
       data-card-path={card.filePath}
-      className={`jf-bg-white jf-p-3 jf-rounded-r-lg jf-rounded-l-sm jf-shadow-sm jf-border hover:jf-shadow-md hover:jf-border-gray-300 jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative ${
+      className={`jf-bg-white jf-p-3 jf-rounded-md jf-shadow-[0_1px_2px_rgba(9,30,66,0.08)] jf-border hover:jf-shadow-[0_4px_8px_rgba(9,30,66,0.16)] hover:jf-border-[#C1C7D0] jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative ${
         isCurrentMatch
           ? "jf-border-blue-600 jf-ring-4 jf-ring-blue-300 jf-z-10"
           : isMatched
           ? "jf-border-blue-400 jf-ring-2 jf-ring-blue-200"
-          : "jf-border-gray-200"
+          : "jf-border-[#DFE1E6]"
       }`}
       style={{ borderLeftWidth: "4px", borderLeftColor, borderLeftStyle: "solid" }}
     >
       {/* Header: Key + Type icon + Priority dot */}
       <div className="jf-flex jf-items-center jf-gap-1.5 jf-mb-2">
-        <span className="jf-text-xs" title={card.issuetype}>
-          {typeIcons[card.issuetype] || "\u{1F4CB}"}
+        <span
+          className="jf-inline-flex jf-h-5 jf-min-w-[20px] jf-items-center jf-justify-center jf-rounded-[4px] jf-px-1 jf-text-[10px] jf-font-bold"
+          title={card.issuetype}
+          style={{ backgroundColor: typeBackground, color: borderLeftColor }}
+        >
+          {typeIcons[card.issuetype] || "?"}
         </span>
-        <span className="jf-font-mono jf-text-[10px] jf-font-semibold jf-text-blue-600 jf-bg-blue-50 jf-px-1.5 jf-py-0.5 jf-rounded">
+        <span className="jf-font-mono jf-text-[10px] jf-font-semibold jf-text-[#0052CC] jf-bg-[#DEEBFF] jf-px-1.5 jf-py-0.5 jf-rounded">
           {highlightText(card.jiraKey, searchQuery)}
         </span>
         {card.source === "LOCAL" && (
-          <span className="jf-text-[9px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-gray-100 jf-text-gray-500 jf-font-medium">
+          <span className="jf-text-[9px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-[#F4F5F7] jf-text-[#6B778C] jf-font-medium">
             LOCAL
           </span>
         )}
@@ -120,16 +140,16 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCu
       </div>
 
       {/* Summary */}
-      <div className="jf-text-sm jf-font-medium jf-text-gray-800 jf-leading-snug jf-mb-3 line-clamp-2">
+      <div className="jf-text-sm jf-font-medium jf-text-[#172B4D] jf-leading-snug jf-mb-3 line-clamp-2">
         {highlightText(card.summary, searchQuery)}
       </div>
 
       {/* Footer */}
-      <div className="jf-flex jf-items-center jf-justify-between jf-text-xs jf-text-gray-400">
+      <div className="jf-flex jf-items-center jf-justify-between jf-text-xs jf-text-[#6B778C]">
         <div className="jf-flex jf-items-center jf-gap-2">
           {/* Story Points */}
           {card.storyPoints > 0 && (
-            <span className="jf-bg-gray-100 jf-px-1.5 jf-py-0.5 jf-rounded jf-text-gray-500 jf-font-medium jf-text-[10px]">
+            <span className="jf-bg-[#F4F5F7] jf-px-1.5 jf-py-0.5 jf-rounded jf-text-[#42526E] jf-font-medium jf-text-[10px]">
               {card.storyPoints}
             </span>
           )}

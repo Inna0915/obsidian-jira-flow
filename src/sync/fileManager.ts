@@ -113,6 +113,19 @@ export class FileManager {
       `jira/type/${type.replace(/\s+/g, "-")}`,
       `jira/source/jira`,
     ];
+    const reporterName = f.reporter?.displayName || f.reporter?.name || f.reporter?.emailAddress || "";
+    const reporterIdentity = [f.reporter?.name, f.reporter?.emailAddress, reporterName]
+      .filter((item): item is string => !!item)
+      .map((item) => item.toLowerCase());
+    const assigneeName = f.assignee?.displayName || f.assignee?.name || f.assignee?.emailAddress || "";
+    const assigneeIdentity = [f.assignee?.name, f.assignee?.emailAddress, assigneeName]
+      .filter((item): item is string => !!item)
+      .map((item) => item.toLowerCase());
+    const currentUserIdentity = this.plugin.settings.jiraUsername.toLowerCase();
+    const reporterOnly = reporterIdentity.includes(currentUserIdentity) && !assigneeIdentity.includes(currentUserIdentity);
+    if (reporterOnly) {
+      tags.push("jira/reporter/current-user");
+    }
     if (f.labels) {
       tags.push(...f.labels.map((l: string) => `jira/label/${l.toLowerCase()}`));
     }
@@ -126,9 +139,11 @@ export class FileManager {
       priority: f.priority.name,
       story_points: storyPoints,
       due_date: dueDate,
-      assignee: f.assignee?.displayName || "",
-      sprint: sprintName,
-      sprint_state: sprintState,
+      assignee: assigneeName,
+      reporter: reporterName,
+      reporter_only: reporterOnly,
+      sprint: sprintName || "",
+      sprint_state: sprintState || "",
       tags,
       summary: f.summary,
       created: f.created,
@@ -274,6 +289,10 @@ export class FileManager {
     lines.push(`story_points: ${fm.story_points}`);
     lines.push(`due_date: "${fm.due_date}"`);
     lines.push(`assignee: "${fm.assignee}"`);
+    lines.push(`reporter: "${(fm.reporter || "").replace(/"/g, '\\"')}"`);
+    if (fm.reporter_only) {
+      lines.push(`reporter_only: true`);
+    }
     lines.push(`sprint: "${fm.sprint}"`);
     lines.push(`sprint_state: "${fm.sprint_state}"`);
     lines.push(`summary: "${fm.summary.replace(/"/g, '\\"')}"`);
@@ -371,6 +390,8 @@ export class FileManager {
       story_points: fm.story_points || 0,
       due_date: fm.due_date || "",
       assignee: fm.assignee || "",
+      reporter: fm.reporter || "",
+      reporter_only: fm.reporter_only === true,
       sprint: fm.sprint || "",
       sprint_state: fm.sprint_state || "",
       tags: fm.tags || [],
