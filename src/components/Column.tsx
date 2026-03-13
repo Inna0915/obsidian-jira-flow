@@ -7,8 +7,8 @@ interface ColumnProps {
   swimlaneId: SwimlaneType;
   cards: KanbanCard[];
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
-  onCardClick: (card: KanbanCard) => void;
-  onCardSelect: (card: KanbanCard, additive: boolean) => void;
+  onCardOpen: (card: KanbanCard) => void;
+  onCardSelect: (card: KanbanCard, options: { additive: boolean; range: boolean }) => void;
   onCardDragStart: (card: KanbanCard) => void;
   onCardDragEnd: () => void;
   onOpenFile: (filePath: string) => void;
@@ -29,7 +29,7 @@ export const Column: React.FC<ColumnProps> = ({
   swimlaneId,
   cards,
   onCardMove,
-  onCardClick,
+  onCardOpen,
   onCardSelect,
   onCardDragStart,
   onCardDragEnd,
@@ -86,7 +86,7 @@ export const Column: React.FC<ColumnProps> = ({
           <Card
             key={card.filePath}
             card={card}
-            onCardClick={onCardClick}
+            onCardOpen={onCardOpen}
             onCardSelect={onCardSelect}
             onCardDragStart={onCardDragStart}
             onCardDragEnd={onCardDragEnd}

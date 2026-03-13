@@ -9,8 +9,8 @@ interface BoardProps {
   collapsedSwimlanes: Set<SwimlaneType>;
   onToggleSwimlane: (id: SwimlaneType) => void;
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
-  onCardClick: (card: KanbanCard) => void;
-  onCardSelect: (card: KanbanCard, additive: boolean) => void;
+  onCardOpen: (card: KanbanCard) => void;
+  onCardSelect: (card: KanbanCard, options: { additive: boolean; range: boolean }) => void;
   onCardDragStart: (card: KanbanCard) => void;
   onCardDragEnd: () => void;
   onOpenFile: (filePath: string) => void;
@@ -24,6 +24,7 @@ interface BoardProps {
     activePaths: Set<string>;
   };
   onDragStateChange: (state: { isDragging: boolean; allowedColumns: Set<string>; activePaths: Set<string> }) => void;
+  onClearSelection: () => void;
 }
 
 // Column top border colors
@@ -47,7 +48,7 @@ export const Board: React.FC<BoardProps> = ({
   collapsedSwimlanes,
   onToggleSwimlane,
   onCardMove,
-  onCardClick,
+  onCardOpen,
   onCardSelect,
   onCardDragStart,
   onCardDragEnd,
@@ -58,6 +59,7 @@ export const Board: React.FC<BoardProps> = ({
   selectedPaths,
   dragState,
   onDragStateChange,
+  onClearSelection,
 }) => {
   // Calculate total cards per column across all swimlanes
   const columnCounts = React.useMemo(() => {
@@ -71,13 +73,21 @@ export const Board: React.FC<BoardProps> = ({
     return counts;
   }, [swimlanes]);
 
+  const handleBoardMouseDown = React.useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-card-path]")) return;
+    if (target.closest("[data-preserve-selection='true']")) return;
+    onClearSelection();
+  }, [onClearSelection]);
+
   return (
-    <div className="jf-flex-1 jf-overflow-auto jf-bg-[#F7F8FA]">
+    <div className="jf-flex-1 jf-overflow-auto jf-bg-[#F7F8FA]" onMouseDown={handleBoardMouseDown}>
       {/* Single Sticky Header - Rendered once at the top */}
-      <div className="jf-flex jf-sticky jf-top-0 jf-z-10 jf-bg-[#FAFBFC]/95 jf-backdrop-blur jf-border-b jf-border-[#DFE1E6]">
+      <div className="jf-flex jf-sticky jf-top-0 jf-z-10 jf-bg-[#FAFBFC]/95 jf-backdrop-blur jf-border-b jf-border-[#DFE1E6]" data-preserve-selection="true">
         {/* Left Spacer matching swimlane label width */}
         <div 
           className="jf-flex-shrink-0 jf-border-r jf-border-gray-200"
+          data-preserve-selection="true"
           style={{ width: "140px", minWidth: "140px" }}
         >
           <div className="jf-px-3 jf-py-3">
@@ -95,6 +105,7 @@ export const Board: React.FC<BoardProps> = ({
             <div
               key={col.id}
               className="jf-flex-shrink-0 jf-px-3 jf-py-3 jf-border-r jf-border-[#DFE1E6]"
+              data-preserve-selection="true"
               style={{ width: "180px", minWidth: "180px" }}
             >
               <div className="jf-text-center">
@@ -131,7 +142,7 @@ export const Board: React.FC<BoardProps> = ({
             totalCards={totalCards}
             onToggle={() => onToggleSwimlane(sl.id)}
             onCardMove={onCardMove}
-            onCardClick={onCardClick}
+            onCardOpen={onCardOpen}
             onCardSelect={onCardSelect}
             onCardDragStart={onCardDragStart}
             onCardDragEnd={onCardDragEnd}

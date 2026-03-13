@@ -124,8 +124,15 @@ export const IssueListView: React.FC<IssueListViewProps> = ({
     }
   };
 
+  const handleBlankAreaMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-list-row='true']")) return;
+    if (target.closest("button") || target.closest("input")) return;
+    setSelectedPaths(new Set());
+  };
+
   return (
-    <div className="jf-flex-1 jf-overflow-auto jf-bg-[#F7F8FA] jf-relative">
+    <div className="jf-flex-1 jf-overflow-auto jf-bg-[#F7F8FA] jf-relative" onMouseDown={handleBlankAreaMouseDown}>
       <div className="jf-min-w-[1080px] jf-px-4 jf-py-4">
         <div className="jf-flex jf-items-center jf-gap-2 jf-mb-3 jf-px-1">
           <h3 className="jf-text-[18px] jf-font-semibold jf-text-[#172B4D] jf-m-0">{title}</h3>
@@ -156,7 +163,11 @@ export const IssueListView: React.FC<IssueListViewProps> = ({
                 <div
                   key={card.filePath}
                   data-card-path={card.filePath}
+                  data-list-row="true"
                   className={`jf-grid jf-grid-cols-[48px_56px_minmax(360px,1.8fr)_160px_140px_120px_92px] jf-items-center jf-px-3 jf-py-3 jf-border-b jf-border-[#EBECF0] jf-cursor-pointer hover:jf-bg-[#F4F5F7] jf-transition-colors ${
+                    selectedPaths.has(card.filePath)
+                      ? "jf-selection-emphasis jf-selection-band jf-bg-[#F0F7FF] jf-ring-2 jf-ring-inset jf-ring-[#4C9AFF]"
+                      :
                     isCurrentMatch
                       ? "jf-bg-blue-50 jf-ring-2 jf-ring-inset jf-ring-blue-300"
                       : isMatched

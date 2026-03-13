@@ -1,10 +1,15 @@
 import React, { useCallback, useRef } from "react";
 import { getAllowedTransitions, type KanbanCard } from "../types";
 
+interface CardSelectionOptions {
+  additive: boolean;
+  range: boolean;
+}
+
 interface CardProps {
   card: KanbanCard;
-  onCardClick: (card: KanbanCard) => void;
-  onCardSelect?: (card: KanbanCard, additive: boolean) => void;
+  onCardOpen: (card: KanbanCard) => void;
+  onCardSelect?: (card: KanbanCard, options: CardSelectionOptions) => void;
   onCardDragStart?: (card: KanbanCard) => void;
   onCardDragEnd?: () => void;
   searchQuery: string;
@@ -79,7 +84,7 @@ const getTypeBackground = (issueType: string): string => {
   }
 };
 
-export const Card: React.FC<CardProps> = ({ card, onCardClick, onCardSelect, onCardDragStart, onCardDragEnd, searchQuery, isCurrentMatch, isSelected, selectedCount = 0 }) => {
+export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCardDragStart, onCardDragEnd, searchQuery, isCurrentMatch, isSelected, selectedCount = 0 }) => {
   const dragTriggeredRef = useRef(false);
   const isMatched = searchQuery && (
     card.jiraKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -116,18 +121,19 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, onCardSelect, onC
       return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && onCardSelect) {
-      onCardSelect(card, true);
+    onCardSelect?.(card, {
+      additive: event.ctrlKey || event.metaKey,
+      range: event.shiftKey,
+    });
+  }, [card, onCardSelect]);
+
+  const handleDoubleClick = useCallback(() => {
+    if (dragTriggeredRef.current) {
       return;
     }
 
-    onCardClick(card);
-  }, [card, onCardClick, onCardSelect]);
-
-  const handleSelectionToggle = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    onCardSelect?.(card, true);
-  }, [card, onCardSelect]);
+    onCardOpen(card);
+  }, [card, onCardOpen]);
 
   const priorityColor = priorityColors[card.priority] || "#6B778C";
   const isOverdue = card.swimlane === "overdue";
@@ -141,10 +147,11 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, onCardSelect, onC
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       data-card-path={card.filePath}
       className={`jf-bg-white jf-p-3 jf-rounded-md jf-shadow-[0_1px_2px_rgba(9,30,66,0.08)] jf-border hover:jf-shadow-[0_4px_8px_rgba(9,30,66,0.16)] hover:jf-border-[#C1C7D0] jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative ${
         isSelected
-          ? "jf-border-[#0052CC] jf-ring-2 jf-ring-[#4C9AFF]"
+          ? "jf-selection-emphasis jf-selection-band jf-border-[#0052CC] jf-ring-2 jf-ring-[#4C9AFF] jf-bg-[#F0F7FF] jf-shadow-[0_10px_22px_rgba(9,30,66,0.14)]"
           :
         isCurrentMatch
           ? "jf-border-blue-600 jf-ring-4 jf-ring-blue-300 jf-z-10"
@@ -152,22 +159,13 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, onCardSelect, onC
           ? "jf-border-blue-400 jf-ring-2 jf-ring-blue-200"
           : "jf-border-[#DFE1E6]"
       }`}
-      style={{ borderLeftWidth: "4px", borderLeftColor, borderLeftStyle: "solid" }}
+      style={{ borderLeftWidth: "4px", borderLeftColor, borderLeftStyle: "solid", transform: isSelected ? "translateY(-1px)" : undefined }}
     >
-      <button
-        type="button"
-        onClick={handleSelectionToggle}
-        className={`jf-absolute jf-top-2 jf-right-2 jf-inline-flex jf-items-center jf-justify-center jf-w-5 jf-h-5 jf-rounded-full jf-border jf-transition-all ${
-          isSelected
-            ? "jf-bg-[#0052CC] jf-border-[#0052CC] jf-text-white"
-            : "jf-bg-white jf-border-[#C1C7D0] jf-text-[#6B778C] hover:jf-border-[#4C9AFF]"
-        }`}
-        title={isSelected ? "取消选择" : "加入批量选择"}
-      >
-        <span className="jf-text-[10px] jf-font-bold">
-          {isSelected ? (selectedCount > 1 ? selectedCount : "✓") : "+"}
-        </span>
-      </button>
+      {isSelected && (
+        <div className="jf-absolute jf-top-2 jf-right-2 jf-inline-flex jf-items-center jf-justify-center jf-w-5 jf-h-5 jf-rounded-full jf-bg-[#0052CC] jf-text-white jf-text-[10px] jf-font-bold jf-shadow-[0_4px_12px_rgba(0,82,204,0.35)]">
+          {selectedCount > 1 ? selectedCount : "✓"}
+        </div>
+      )}
       {/* Header: Key + Type icon + Priority dot */}
       <div className="jf-flex jf-items-center jf-gap-1.5 jf-mb-2">
         <span

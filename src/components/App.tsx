@@ -1,4 +1,4 @@
-import React, { startTransition, useCallback, useEffect, useRef, useState } from "react";
+import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Notice, TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import {
@@ -39,6 +39,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("kanban");
   const [detailCard, setDetailCard] = useState<KanbanCard | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [selectionAnchorPath, setSelectionAnchorPath] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{ isDragging: boolean; allowedColumns: Set<string>; activePaths: Set<string> }>({
     isDragging: false,
     allowedColumns: new Set(),
@@ -342,26 +343,60 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     [plugin]
   );
 
-  const handleCardClick = useCallback((card: KanbanCard) => {
-    setSelectedPaths(new Set([card.filePath]));
+  const visibleBoardCardPaths = useMemo(() => {
+    const ordered: string[] = [];
+    swimlanes.forEach((swimlane) => {
+      if (collapsedSwimlanes.has(swimlane.id)) {
+        return;
+      }
+
+      KANBAN_COLUMNS.forEach((column) => {
+        const cards = swimlane.columns.get(column.id) || [];
+        cards.forEach((card) => ordered.push(card.filePath));
+      });
+    });
+    return ordered;
+  }, [collapsedSwimlanes, swimlanes]);
+
+  const handleCardOpen = useCallback((card: KanbanCard) => {
     setDetailCard(card);
   }, []);
 
-  const handleCardSelect = useCallback((card: KanbanCard, additive: boolean) => {
+  const handleCardSelect = useCallback((card: KanbanCard, options: { additive: boolean; range: boolean }) => {
     setSelectedPaths((previous) => {
-      if (!additive) {
-        return new Set([card.filePath]);
+      const { additive, range } = options;
+
+      if (range) {
+        const anchorPath = selectionAnchorPath ?? card.filePath;
+        const anchorIndex = visibleBoardCardPaths.indexOf(anchorPath);
+        const currentIndex = visibleBoardCardPaths.indexOf(card.filePath);
+
+        if (anchorIndex !== -1 && currentIndex !== -1) {
+          const start = Math.min(anchorIndex, currentIndex);
+          const end = Math.max(anchorIndex, currentIndex);
+          const rangePaths = visibleBoardCardPaths.slice(start, end + 1);
+          const next = additive ? new Set(previous) : new Set<string>();
+          rangePaths.forEach((path) => next.add(path));
+          return next;
+        }
       }
 
-      const next = new Set(previous);
-      if (next.has(card.filePath)) {
-        next.delete(card.filePath);
-      } else {
-        next.add(card.filePath);
+      if (additive) {
+        const next = new Set(previous);
+        if (next.has(card.filePath)) {
+          next.delete(card.filePath);
+        } else {
+          next.add(card.filePath);
+        }
+        return next;
       }
-      return next;
+
+      return new Set([card.filePath]);
     });
-  }, []);
+
+    setSelectionAnchorPath(card.filePath);
+    setDetailCard((current) => (current?.filePath === card.filePath ? current : null));
+  }, [selectionAnchorPath, visibleBoardCardPaths]);
 
   const buildAllowedColumnsForCards = useCallback((cards: KanbanCard[]) => {
     if (cards.length === 0) return new Set<string>();
@@ -391,6 +426,11 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       allowedColumns: new Set(),
       activePaths: new Set(),
     });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPaths(new Set());
+    setSelectionAnchorPath(null);
   }, []);
 
   useEffect(() => {
@@ -653,7 +693,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           collapsedSwimlanes={collapsedSwimlanes}
           onToggleSwimlane={toggleSwimlane}
           onCardMove={handleCardMove}
-          onCardClick={handleCardClick}
+          onCardOpen={handleCardOpen}
           onCardSelect={handleCardSelect}
           onCardDragStart={handleCardDragStart}
           onCardDragEnd={handleCardDragEnd}
@@ -664,13 +704,14 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           selectedPaths={selectedPaths}
           dragState={dragState}
           onDragStateChange={setDragState}
+          onClearSelection={handleClearSelection}
         />
       ) : (
         <IssueListView
           cards={displayCards}
           jiraHost={plugin.settings.jiraBrowseHost?.trim() || "https://jira.ykeey.cn"}
           title={boardTitle}
-          onCardClick={handleCardClick}
+          onCardClick={handleCardOpen}
           searchQuery={searchQuery}
           matchedCards={matchedCards}
           searchMatchIndex={searchMatchIndex}

@@ -10,8 +10,8 @@ interface SwimlaneProps {
   totalCards: number;
   onToggle: () => void;
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
-  onCardClick: (card: KanbanCard) => void;
-  onCardSelect: (card: KanbanCard, additive: boolean) => void;
+  onCardOpen: (card: KanbanCard) => void;
+  onCardSelect: (card: KanbanCard, options: { additive: boolean; range: boolean }) => void;
   onCardDragStart: (card: KanbanCard) => void;
   onCardDragEnd: () => void;
   onOpenFile: (filePath: string) => void;
@@ -40,7 +40,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
   totalCards,
   onToggle,
   onCardMove,
-  onCardClick,
+  onCardOpen,
   onCardSelect,
   onCardDragStart,
   onCardDragEnd,
@@ -61,6 +61,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
         {/* Swimlane Label - Fixed width matching header spacer */}
         <div
           className="jf-flex-shrink-0 jf-flex jf-items-start jf-cursor-pointer jf-bg-white hover:jf-bg-gray-50 jf-transition-colors jf-border-r jf-border-gray-200"
+          data-preserve-selection="true"
           style={{
             width: "140px",
             minWidth: "140px",
@@ -100,7 +101,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
               swimlaneId={swimlane.id}
               cards={cards}
               onCardMove={onCardMove}
-              onCardClick={onCardClick}
+              onCardOpen={onCardOpen}
               onCardSelect={onCardSelect}
               onCardDragStart={onCardDragStart}
               onCardDragEnd={onCardDragEnd}
@@ -117,7 +118,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
 
         {/* Collapsed placeholder */}
         {collapsed && (
-          <div className="jf-flex-1 jf-flex jf-items-center jf-px-4 jf-py-3 jf-bg-gray-50/50">
+          <div className="jf-flex-1 jf-flex jf-items-center jf-px-4 jf-py-3 jf-bg-gray-50/50 jf-cursor-pointer" onMouseDown={onToggle} data-preserve-selection="true">
             <span className="jf-text-xs jf-text-gray-400">
               {totalCards} tasks hidden
             </span>
