@@ -11,10 +11,20 @@ interface SwimlaneProps {
   onToggle: () => void;
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardClick: (card: KanbanCard) => void;
+  onCardSelect: (card: KanbanCard, additive: boolean) => void;
+  onCardDragStart: (card: KanbanCard) => void;
+  onCardDragEnd: () => void;
   onOpenFile: (filePath: string) => void;
   searchQuery: string;
   matchedCards: KanbanCard[];
   searchMatchIndex: number;
+  selectedPaths: Set<string>;
+  dragState: {
+    isDragging: boolean;
+    allowedColumns: Set<string>;
+    activePaths: Set<string>;
+  };
+  onDragStateChange: (state: { isDragging: boolean; allowedColumns: Set<string>; activePaths: Set<string> }) => void;
 }
 
 // Swimlane indicator colors (left border)
@@ -31,10 +41,16 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
   onToggle,
   onCardMove,
   onCardClick,
+  onCardSelect,
+  onCardDragStart,
+  onCardDragEnd,
   onOpenFile,
   searchQuery,
   matchedCards,
   searchMatchIndex,
+  selectedPaths,
+  dragState,
+  onDragStateChange,
 }) => {
   const accentColor = swimlaneAccentColors[swimlane.id];
 
@@ -85,10 +101,16 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
               cards={cards}
               onCardMove={onCardMove}
               onCardClick={onCardClick}
+              onCardSelect={onCardSelect}
+              onCardDragStart={onCardDragStart}
+              onCardDragEnd={onCardDragEnd}
               onOpenFile={onOpenFile}
               searchQuery={searchQuery}
               matchedCards={matchedCards}
               searchMatchIndex={searchMatchIndex}
+              selectedPaths={selectedPaths}
+              dragState={dragState}
+              onDragStateChange={onDragStateChange}
             />
           );
         })}

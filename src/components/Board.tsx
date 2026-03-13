@@ -10,10 +10,20 @@ interface BoardProps {
   onToggleSwimlane: (id: SwimlaneType) => void;
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardClick: (card: KanbanCard) => void;
+  onCardSelect: (card: KanbanCard, additive: boolean) => void;
+  onCardDragStart: (card: KanbanCard) => void;
+  onCardDragEnd: () => void;
   onOpenFile: (filePath: string) => void;
   searchQuery: string;
   matchedCards: KanbanCard[];
   searchMatchIndex: number;
+  selectedPaths: Set<string>;
+  dragState: {
+    isDragging: boolean;
+    allowedColumns: Set<string>;
+    activePaths: Set<string>;
+  };
+  onDragStateChange: (state: { isDragging: boolean; allowedColumns: Set<string>; activePaths: Set<string> }) => void;
 }
 
 // Column top border colors
@@ -38,10 +48,16 @@ export const Board: React.FC<BoardProps> = ({
   onToggleSwimlane,
   onCardMove,
   onCardClick,
+  onCardSelect,
+  onCardDragStart,
+  onCardDragEnd,
   onOpenFile,
   searchQuery,
   matchedCards,
   searchMatchIndex,
+  selectedPaths,
+  dragState,
+  onDragStateChange,
 }) => {
   // Calculate total cards per column across all swimlanes
   const columnCounts = React.useMemo(() => {
@@ -116,10 +132,16 @@ export const Board: React.FC<BoardProps> = ({
             onToggle={() => onToggleSwimlane(sl.id)}
             onCardMove={onCardMove}
             onCardClick={onCardClick}
+            onCardSelect={onCardSelect}
+            onCardDragStart={onCardDragStart}
+            onCardDragEnd={onCardDragEnd}
             onOpenFile={onOpenFile}
             searchQuery={searchQuery}
             matchedCards={matchedCards}
             searchMatchIndex={searchMatchIndex}
+            selectedPaths={selectedPaths}
+            dragState={dragState}
+            onDragStateChange={onDragStateChange}
           />
         );
       })}

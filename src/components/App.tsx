@@ -5,6 +5,7 @@ import {
   KANBAN_COLUMNS,
   SWIMLANES,
   classifySwimlane,
+  getAllowedTransitions,
   isTransitionAllowed,
 } from "../types";
 import type { KanbanCard, SwimlaneType } from "../types";
@@ -37,6 +38,12 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [viewMode, setViewMode] = useState<ViewMode>("sprint");
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("kanban");
   const [detailCard, setDetailCard] = useState<KanbanCard | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [dragState, setDragState] = useState<{ isDragging: boolean; allowedColumns: Set<string>; activePaths: Set<string> }>({
+    isDragging: false,
+    allowedColumns: new Set(),
+    activePaths: new Set(),
+  });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateJiraModal, setShowCreateJiraModal] = useState(false);
   const [showReportCenter, setShowReportCenter] = useState(false);
@@ -336,8 +343,61 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   );
 
   const handleCardClick = useCallback((card: KanbanCard) => {
+    setSelectedPaths(new Set([card.filePath]));
     setDetailCard(card);
   }, []);
+
+  const handleCardSelect = useCallback((card: KanbanCard, additive: boolean) => {
+    setSelectedPaths((previous) => {
+      if (!additive) {
+        return new Set([card.filePath]);
+      }
+
+      const next = new Set(previous);
+      if (next.has(card.filePath)) {
+        next.delete(card.filePath);
+      } else {
+        next.add(card.filePath);
+      }
+      return next;
+    });
+  }, []);
+
+  const buildAllowedColumnsForCards = useCallback((cards: KanbanCard[]) => {
+    if (cards.length === 0) return new Set<string>();
+    const intersections = cards.map((card) => new Set(getAllowedTransitions(card.issuetype, card.mappedColumn, card.source)));
+    const [first, ...rest] = intersections;
+    const allowed = new Set(Array.from(first).filter((columnId) => rest.every((set) => set.has(columnId))));
+    return allowed;
+  }, []);
+
+  const handleCardDragStart = useCallback((card: KanbanCard) => {
+    setSelectedPaths((previous) => {
+      const activePaths = previous.has(card.filePath) ? new Set(previous) : new Set([card.filePath]);
+      const activeCards = kanbanCards.filter((item) => activePaths.has(item.filePath));
+      const allowedColumns = buildAllowedColumnsForCards(activeCards);
+      setDragState({
+        isDragging: true,
+        allowedColumns,
+        activePaths,
+      });
+      return activePaths;
+    });
+  }, [buildAllowedColumnsForCards, kanbanCards]);
+
+  const handleCardDragEnd = useCallback(() => {
+    setDragState({
+      isDragging: false,
+      allowedColumns: new Set(),
+      activePaths: new Set(),
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selectedPaths.size === 0 && dragState.activePaths.size === 0) {
+      setDragState((previous) => previous.isDragging ? { isDragging: false, allowedColumns: new Set(), activePaths: new Set() } : previous);
+    }
+  }, [selectedPaths, dragState.activePaths.size]);
 
   const handleCreateTask = useCallback(
     async (data: CreateTaskData) => {
@@ -594,10 +654,16 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           onToggleSwimlane={toggleSwimlane}
           onCardMove={handleCardMove}
           onCardClick={handleCardClick}
+          onCardSelect={handleCardSelect}
+          onCardDragStart={handleCardDragStart}
+          onCardDragEnd={handleCardDragEnd}
           onOpenFile={handleOpenFile}
           searchQuery={searchQuery}
           matchedCards={matchedCards}
           searchMatchIndex={searchMatchIndex}
+          selectedPaths={selectedPaths}
+          dragState={dragState}
+          onDragStateChange={setDragState}
         />
       ) : (
         <IssueListView

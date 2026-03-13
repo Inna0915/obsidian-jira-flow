@@ -209,43 +209,61 @@ export function mapStatusToColumn(jiraStatus: string): string {
 
 // ===== Workflow Validation =====
 const STORY_WORKFLOW: Record<string, string[]> = {
-  "FUNNEL":           ["DEFINING"],
-  "DEFINING":         ["READY", "FUNNEL"],
-  "READY":            ["TO DO", "DEFINING"],
-  "TO DO":            ["EXECUTION", "READY"],
-  "EXECUTION":        ["EXECUTED", "TO DO"],
-  "EXECUTED":         ["TESTING & REVIEW"],
-  "TESTING & REVIEW": ["TEST DONE"],
-  "TEST DONE":        ["VALIDATING"],
-  "VALIDATING":       ["RESOLVED"],
-  "RESOLVED":         ["DONE"],
-  "DONE":             ["CLOSED"],
-  "CLOSED":           [],
+  "FUNNEL": ["DEFINING", "CLOSED"],
+  "DEFINING": ["FUNNEL", "READY", "CLOSED"],
+  "READY": ["TO DO", "CLOSED"],
+  "TO DO": ["READY", "EXECUTION", "CLOSED"],
+  "EXECUTION": ["TO DO", "EXECUTED", "CLOSED"],
+  "EXECUTED": ["EXECUTION", "TESTING & REVIEW", "CLOSED"],
+  "TESTING & REVIEW": ["EXECUTED", "TEST DONE", "CLOSED"],
+  "TEST DONE": ["TESTING & REVIEW", "VALIDATING", "CLOSED"],
+  "VALIDATING": ["DONE", "RESOLVED", "CLOSED"],
+  "RESOLVED": ["DONE", "CLOSED"],
+  "DONE": ["CLOSED"],
+  "CLOSED": [],
 };
 
+const STORY_GLOBAL_TARGETS = new Set(["FUNNEL", "DEFINING", "READY", "CLOSED"]);
+
 const BUG_WORKFLOW: Record<string, string[]> = {
-  "FUNNEL":           ["DEFINING"],
-  "DEFINING":         ["READY", "FUNNEL"],
-  "READY":            ["TO DO", "DEFINING"],
-  "TO DO":            ["EXECUTION", "READY"],
-  "EXECUTION":        ["VALIDATING", "TO DO"],
-  "EXECUTED":         ["TESTING & REVIEW"],
-  "TESTING & REVIEW": ["TEST DONE"],
-  "TEST DONE":        ["DONE"],
-  "VALIDATING":       ["TEST DONE", "EXECUTION"],
-  "RESOLVED":         ["DONE"],
-  "DONE":             ["CLOSED"],
-  "CLOSED":           [],
+  "FUNNEL": ["DEFINING", "CLOSED"],
+  "DEFINING": ["FUNNEL", "TO DO", "CLOSED"],
+  "READY": ["TO DO", "CLOSED"],
+  "TO DO": ["EXECUTION", "FUNNEL", "CLOSED"],
+  "EXECUTION": ["TO DO", "VALIDATING", "DONE", "CLOSED"],
+  "EXECUTED": ["VALIDATING", "DONE", "CLOSED"],
+  "TESTING & REVIEW": ["VALIDATING", "DONE", "CLOSED"],
+  "TEST DONE": ["VALIDATING", "DONE", "CLOSED"],
+  "VALIDATING": ["EXECUTION", "DONE", "CLOSED"],
+  "RESOLVED": ["DONE", "CLOSED"],
+  "DONE": ["EXECUTION", "CLOSED"],
+  "CLOSED": ["EXECUTION"],
 };
+
+const BUG_GLOBAL_TARGETS = new Set(["FUNNEL", "TO DO", "CLOSED"]);
+
+export function getAllowedTransitions(issueType: string, fromColumn: string, source?: "JIRA" | "LOCAL"): string[] {
+  if (source === "LOCAL") {
+    return KANBAN_COLUMNS.map((column) => column.id).filter((columnId) => columnId !== fromColumn);
+  }
+
+  const normalizedType = issueType.toLowerCase();
+  const workflow = normalizedType === "bug" ? BUG_WORKFLOW : STORY_WORKFLOW;
+  const globalTargets = normalizedType === "bug" ? BUG_GLOBAL_TARGETS : STORY_GLOBAL_TARGETS;
+  const allowed = new Set(workflow[fromColumn] || []);
+
+  globalTargets.forEach((columnId) => {
+    if (columnId !== fromColumn) {
+      allowed.add(columnId);
+    }
+  });
+
+  return Array.from(allowed);
+}
 
 export function isTransitionAllowed(issueType: string, fromColumn: string, toColumn: string, source?: "JIRA" | "LOCAL"): boolean {
   if (fromColumn === toColumn) return false;
-  // LOCAL tasks can be freely dragged to any column
-  if (source === "LOCAL") return true;
-  const workflow = issueType.toLowerCase() === "bug" ? BUG_WORKFLOW : STORY_WORKFLOW;
-  const allowed = workflow[fromColumn];
-  if (!allowed) return true;
-  return allowed.includes(toColumn);
+  return getAllowedTransitions(issueType, fromColumn, source).includes(toColumn);
 }
 
 // ===== Swimlane Classification =====
@@ -456,7 +474,6 @@ export interface KanbanCard {
 
 export interface KanbanColumn {
   name: string;
-  jiraBrowseHost: "https://jira.ykeey.cn",
   cards: KanbanCard[];
 }
 

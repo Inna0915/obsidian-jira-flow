@@ -1,11 +1,16 @@
-import React, { useCallback } from "react";
-import type { KanbanCard } from "../types";
+import React, { useCallback, useRef } from "react";
+import { getAllowedTransitions, type KanbanCard } from "../types";
 
 interface CardProps {
   card: KanbanCard;
   onCardClick: (card: KanbanCard) => void;
+  onCardSelect?: (card: KanbanCard, additive: boolean) => void;
+  onCardDragStart?: (card: KanbanCard) => void;
+  onCardDragEnd?: () => void;
   searchQuery: string;
   isCurrentMatch?: boolean;
+  isSelected?: boolean;
+  selectedCount?: number;
 }
 
 // Helper function to highlight matching text
@@ -74,7 +79,8 @@ const getTypeBackground = (issueType: string): string => {
   }
 };
 
-export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCurrentMatch }) => {
+export const Card: React.FC<CardProps> = ({ card, onCardClick, onCardSelect, onCardDragStart, onCardDragEnd, searchQuery, isCurrentMatch, isSelected, selectedCount = 0 }) => {
+  const dragTriggeredRef = useRef(false);
   const isMatched = searchQuery && (
     card.jiraKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
     card.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -85,28 +91,61 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCu
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
+      dragTriggeredRef.current = true;
+      onCardDragStart?.(card);
       e.dataTransfer.setData("text/plain", card.filePath);
+      e.dataTransfer.setData("application/x-jira-flow-card", card.filePath);
       e.dataTransfer.effectAllowed = "move";
+
+      if (isSelected && selectedCount > 1) {
+        e.dataTransfer.setData("application/x-jira-flow-selection", "selected");
+      }
     },
-    [card.filePath]
+    [card, card.filePath, isSelected, onCardDragStart, selectedCount]
   );
 
-  const handleClick = useCallback(() => {
+  const handleDragEnd = useCallback(() => {
+    window.setTimeout(() => {
+      dragTriggeredRef.current = false;
+      onCardDragEnd?.();
+    }, 0);
+  }, [onCardDragEnd]);
+
+  const handleClick = useCallback((event: React.MouseEvent) => {
+    if (dragTriggeredRef.current) {
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && onCardSelect) {
+      onCardSelect(card, true);
+      return;
+    }
+
     onCardClick(card);
-  }, [card, onCardClick]);
+  }, [card, onCardClick, onCardSelect]);
+
+  const handleSelectionToggle = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onCardSelect?.(card, true);
+  }, [card, onCardSelect]);
 
   const priorityColor = priorityColors[card.priority] || "#6B778C";
   const isOverdue = card.swimlane === "overdue";
   const borderLeftColor = getBorderColor(card.issuetype);
   const typeBackground = getTypeBackground(card.issuetype);
+  const allowedTargets = getAllowedTransitions(card.issuetype, card.mappedColumn, card.source);
 
   return (
     <div
       draggable
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={handleClick}
       data-card-path={card.filePath}
       className={`jf-bg-white jf-p-3 jf-rounded-md jf-shadow-[0_1px_2px_rgba(9,30,66,0.08)] jf-border hover:jf-shadow-[0_4px_8px_rgba(9,30,66,0.16)] hover:jf-border-[#C1C7D0] jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative ${
+        isSelected
+          ? "jf-border-[#0052CC] jf-ring-2 jf-ring-[#4C9AFF]"
+          :
         isCurrentMatch
           ? "jf-border-blue-600 jf-ring-4 jf-ring-blue-300 jf-z-10"
           : isMatched
@@ -115,6 +154,20 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCu
       }`}
       style={{ borderLeftWidth: "4px", borderLeftColor, borderLeftStyle: "solid" }}
     >
+      <button
+        type="button"
+        onClick={handleSelectionToggle}
+        className={`jf-absolute jf-top-2 jf-right-2 jf-inline-flex jf-items-center jf-justify-center jf-w-5 jf-h-5 jf-rounded-full jf-border jf-transition-all ${
+          isSelected
+            ? "jf-bg-[#0052CC] jf-border-[#0052CC] jf-text-white"
+            : "jf-bg-white jf-border-[#C1C7D0] jf-text-[#6B778C] hover:jf-border-[#4C9AFF]"
+        }`}
+        title={isSelected ? "取消选择" : "加入批量选择"}
+      >
+        <span className="jf-text-[10px] jf-font-bold">
+          {isSelected ? (selectedCount > 1 ? selectedCount : "✓") : "+"}
+        </span>
+      </button>
       {/* Header: Key + Type icon + Priority dot */}
       <div className="jf-flex jf-items-center jf-gap-1.5 jf-mb-2">
         <span
@@ -173,6 +226,19 @@ export const Card: React.FC<CardProps> = ({ card, onCardClick, searchQuery, isCu
             title={highlightText(card.assignee, searchQuery)?.toString() || card.assignee}
           >
             {getInitials(card.assignee)}
+          </span>
+        )}
+      </div>
+
+      <div className="jf-mt-2 jf-flex jf-flex-wrap jf-gap-1">
+        {allowedTargets.slice(0, 3).map((columnId) => (
+          <span key={columnId} className="jf-text-[9px] jf-px-1.5 jf-py-0.5 jf-rounded-full jf-bg-[#F4F5F7] jf-text-[#6B778C]">
+            {columnId}
+          </span>
+        ))}
+        {allowedTargets.length > 3 && (
+          <span className="jf-text-[9px] jf-px-1.5 jf-py-0.5 jf-rounded-full jf-bg-[#F4F5F7] jf-text-[#6B778C]">
+            +{allowedTargets.length - 3}
           </span>
         )}
       </div>

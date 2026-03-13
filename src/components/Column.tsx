@@ -8,10 +8,20 @@ interface ColumnProps {
   cards: KanbanCard[];
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardClick: (card: KanbanCard) => void;
+  onCardSelect: (card: KanbanCard, additive: boolean) => void;
+  onCardDragStart: (card: KanbanCard) => void;
+  onCardDragEnd: () => void;
   onOpenFile: (filePath: string) => void;
   searchQuery: string;
   matchedCards: KanbanCard[];
   searchMatchIndex: number;
+  selectedPaths: Set<string>;
+  dragState: {
+    isDragging: boolean;
+    allowedColumns: Set<string>;
+    activePaths: Set<string>;
+  };
+  onDragStateChange: (state: { isDragging: boolean; allowedColumns: Set<string>; activePaths: Set<string> }) => void;
 }
 
 export const Column: React.FC<ColumnProps> = ({
@@ -20,29 +30,52 @@ export const Column: React.FC<ColumnProps> = ({
   cards,
   onCardMove,
   onCardClick,
+  onCardSelect,
+  onCardDragStart,
+  onCardDragEnd,
   searchQuery,
   matchedCards,
   searchMatchIndex,
+  selectedPaths,
+  dragState,
+  onDragStateChange,
 }) => {
+  const isAllowedDropTarget = dragState.allowedColumns.has(columnId);
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!dragState.isDragging || !isAllowedDropTarget) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-  }, []);
+  }, [dragState.isDragging, isAllowedDropTarget]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const cardPath = e.dataTransfer.getData("text/plain");
-      if (cardPath) {
-        onCardMove(cardPath, columnId, swimlaneId);
+      const selectedDrag = e.dataTransfer.getData("application/x-jira-flow-selection") === "selected";
+      if (selectedDrag && dragState.activePaths.size > 0) {
+        dragState.activePaths.forEach((cardPath) => {
+          onCardMove(cardPath, columnId, swimlaneId);
+        });
+      } else {
+        const cardPath = e.dataTransfer.getData("application/x-jira-flow-card") || e.dataTransfer.getData("text/plain");
+        if (cardPath) {
+          onCardMove(cardPath, columnId, swimlaneId);
+        }
       }
+      onDragStateChange({ isDragging: false, allowedColumns: new Set(), activePaths: new Set() });
     },
-    [columnId, swimlaneId, onCardMove]
+    [columnId, swimlaneId, onCardMove, dragState.activePaths, onDragStateChange]
   );
 
   return (
     <div
-      className="jf-flex-shrink-0 jf-border-r jf-border-gray-100 jf-bg-gray-50/10"
+      className={`jf-flex-shrink-0 jf-border-r jf-border-gray-100 jf-transition-all ${
+        dragState.isDragging
+          ? isAllowedDropTarget
+            ? 'jf-bg-[#E9F2FF] jf-outline jf-outline-2 jf-outline-dashed jf-outline-[#4C9AFF]'
+            : 'jf-bg-[#F7F8FA] jf-opacity-60'
+          : 'jf-bg-gray-50/10'
+      }`}
       style={{ width: "180px", minWidth: "180px" }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
@@ -54,8 +87,13 @@ export const Column: React.FC<ColumnProps> = ({
             key={card.filePath}
             card={card}
             onCardClick={onCardClick}
+            onCardSelect={onCardSelect}
+            onCardDragStart={onCardDragStart}
+            onCardDragEnd={onCardDragEnd}
             searchQuery={searchQuery}
             isCurrentMatch={matchedCards.length > 0 && matchedCards[searchMatchIndex]?.filePath === card.filePath}
+            isSelected={selectedPaths.has(card.filePath)}
+            selectedCount={selectedPaths.has(card.filePath) ? selectedPaths.size : 0}
           />
         ))}
       </div>
