@@ -1,11 +1,12 @@
 import React, { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Notice, TFile } from "obsidian";
+import { FileSystemAdapter, Notice, TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import {
   KANBAN_COLUMNS,
   SWIMLANES,
   classifySwimlane,
   getAllowedTransitions,
+  isCompletedWorkflowColumn,
   isTransitionAllowed,
 } from "../types";
 import type { KanbanCard, SwimlaneType } from "../types";
@@ -145,7 +146,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       if (!fm) continue;
 
       const mappedColumn = fm.mapped_column;
-      const swimlane = classifySwimlane(fm.due_date, mappedColumn);
+      const swimlane = classifySwimlane(fm.due_date, mappedColumn, fm.issuetype, fm.source);
 
       // Skip archived tasks on the board
       if (fm.archived) continue;
@@ -304,10 +305,10 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         // - Also log for DONE/CLOSED/RESOLVED for any type as a catch-all
         const isBug = fm.issuetype.toLowerCase() === "bug";
         const shouldLog =
-          (fm.source === "LOCAL" && (targetColumn === "DONE" || targetColumn === "CLOSED")) ||
+          (fm.source === "LOCAL" && isCompletedWorkflowColumn(fm.issuetype, targetColumn, fm.source)) ||
           (!isBug && targetColumn === "EXECUTED") ||
-          (isBug && targetColumn === "TESTING & REVIEW") ||
-          targetColumn === "DONE" || targetColumn === "CLOSED" || targetColumn === "RESOLVED";
+          (isBug && targetColumn === "VALIDATING") ||
+          isCompletedWorkflowColumn(fm.issuetype, targetColumn, fm.source);
 
         if (shouldLog) {
           console.log(`[Jira Flow] handleCardMove: calling logWork for ${fm.jira_key}`);
@@ -357,6 +358,11 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     });
     return ordered;
   }, [collapsedSwimlanes, swimlanes]);
+
+  const selectedKanbanCards = useMemo(
+    () => kanbanCards.filter((card) => selectedPaths.has(card.filePath)),
+    [kanbanCards, selectedPaths]
+  );
 
   const handleCardOpen = useCallback((card: KanbanCard) => {
     setDetailCard(card);
@@ -432,6 +438,28 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     setSelectedPaths(new Set());
     setSelectionAnchorPath(null);
   }, []);
+
+  const handleCopySelectedAbsolutePaths = useCallback(async () => {
+    const adapter = plugin.app.vault.adapter;
+    if (!(adapter instanceof FileSystemAdapter)) {
+      new Notice("Jira Flow：当前环境不支持复制本地绝对路径。");
+      return;
+    }
+
+    const basePath = adapter.getBasePath().replace(/[\\/]+$/, "");
+    const separator = basePath.includes("\\") ? "\\" : "/";
+    const absolutePaths = selectedKanbanCards.map((card) => {
+      const normalizedRelativePath = card.filePath.replace(/[\\/]+/g, separator);
+      return `${basePath}${separator}${normalizedRelativePath}`;
+    });
+
+    try {
+      await navigator.clipboard.writeText(absolutePaths.join("\n"));
+      new Notice(`Jira Flow：已复制 ${absolutePaths.length} 个文件的绝对路径。`);
+    } catch (error) {
+      new Notice(`Jira Flow：复制绝对路径失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [plugin, selectedKanbanCards]);
 
   useEffect(() => {
     if (selectedPaths.size === 0 && dragState.activePaths.size === 0) {
@@ -747,6 +775,25 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           onClose={() => setShowCreateJiraModal(false)}
           onSave={handleCreateJiraIssue}
         />
+      )}
+
+      {layoutMode === "kanban" && selectedKanbanCards.length > 0 && (
+        <div className="jf-sticky jf-bottom-6 jf-flex jf-justify-center jf-pointer-events-none">
+          <div className="jf-pointer-events-auto jf-inline-flex jf-items-center jf-gap-2 jf-rounded-full jf-bg-white jf-border jf-border-[#C1C7D0] jf-p-1.5 jf-shadow-[0_8px_24px_rgba(9,30,66,0.24)]">
+            <span className="jf-px-2 jf-text-xs jf-font-medium jf-text-[#42526E]">
+              已选 {selectedKanbanCards.length} 项
+            </span>
+            <button
+              onClick={handleCopySelectedAbsolutePaths}
+              className="jf-inline-flex jf-items-center jf-gap-2 jf-rounded-full jf-bg-[#0052CC] jf-px-4 jf-py-2 jf-text-sm jf-font-semibold jf-text-white hover:jf-bg-[#0747A6] jf-transition-colors"
+            >
+              <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16h8M8 12h8m-8-4h8M7 20h10a2 2 0 002-2V6a2 2 0 00-2-2h-3.172a2 2 0 01-1.414-.586l-.828-.828A2 2 0 0010.172 2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+              批量复制绝对路径
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

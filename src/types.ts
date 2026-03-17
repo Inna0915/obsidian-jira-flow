@@ -266,16 +266,32 @@ export function isTransitionAllowed(issueType: string, fromColumn: string, toCol
   return getAllowedTransitions(issueType, fromColumn, source).includes(toColumn);
 }
 
-// ===== Swimlane Classification =====
-const DONE_COLUMNS = new Set(["DONE", "CLOSED", "RESOLVED"]);
+const INCOMPLETE_WORKFLOW_COLUMNS = new Set(["FUNNEL", "DEFINING", "READY", "TO DO", "EXECUTION"]);
 
-export function classifySwimlane(dueDate: string, mappedColumn: string): SwimlaneType {
+export function isCompletedWorkflowColumn(issueType: string, mappedColumn: string, source?: "JIRA" | "LOCAL"): boolean {
+  if (!mappedColumn) return false;
+
+  if (source === "LOCAL") {
+    return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
+  }
+
+  const normalizedType = issueType.toLowerCase();
+  if (normalizedType === "bug" || normalizedType === "story") {
+    return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
+  }
+
+  return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
+}
+
+// ===== Swimlane Classification =====
+
+export function classifySwimlane(dueDate: string, mappedColumn: string, issueType = "", source?: "JIRA" | "LOCAL"): SwimlaneType {
   if (!dueDate) return "others";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(dueDate);
   due.setHours(0, 0, 0, 0);
-  if (due < today && !DONE_COLUMNS.has(mappedColumn)) return "overdue";
+  if (due < today && !isCompletedWorkflowColumn(issueType, mappedColumn, source)) return "overdue";
   return "onSchedule";
 }
 

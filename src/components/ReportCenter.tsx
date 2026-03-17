@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
-import type { ReportPeriod } from "../types";
+import { isCompletedWorkflowColumn, type ReportPeriod } from "../types";
 import type { DailyWorkLog } from "../sync/workLogService";
 import { WorkLogService } from "../sync/workLogService";
 import { useEscapeKey } from "../hooks/useEscapeKey";
@@ -311,7 +311,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
         status: fm.mapped_column,
         issuetype: fm.issuetype,
         dueDate: fm.due_date,
-        completed: ["DONE", "RESOLVED", "CLOSED", "EXECUTED"].includes(fm.mapped_column),
+        completed: isCompletedWorkflowColumn(fm.issuetype, fm.mapped_column, fm.source),
         source: fm.source,
       };
 

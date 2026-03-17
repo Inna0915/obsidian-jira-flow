@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { TFile, Notice } from 'obsidian';
 import type JiraFlowPlugin from '../main';
-import type { TaskFrontmatter } from '../types';
+import { isCompletedWorkflowColumn, type TaskFrontmatter } from '../types';
 
 
 interface SidebarTask {
@@ -218,7 +218,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     const due = new Date(t.dueDate);
     due.setHours(0, 0, 0, 0);
     // FIX: Check if the date is exactly today OR before today (overdue)
-    return due.getTime() <= now.getTime() && !isDone(t.status);
+    return due.getTime() <= now.getTime() && !isDone(t);
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   const weekTasks = tasks.filter(t => {
@@ -230,12 +230,11 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     const due = new Date(t.dueDate);
     due.setHours(0, 0, 0, 0);
     // FIX: Strictly AFTER today, and BEFORE OR ON the end of the week
-    return due.getTime() > now.getTime() && due <= endOfWeek && !isDone(t.status);
+    return due.getTime() > now.getTime() && due <= endOfWeek && !isDone(t);
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  function isDone(status: string): boolean {
-    const doneStatuses = ['done', 'closed', 'resolved', '完成', '已解决'];
-    return doneStatuses.some(s => status.toLowerCase().includes(s));
+  function isDone(task: SidebarTask): boolean {
+    return isCompletedWorkflowColumn(task.issuetype, task.mappedColumn, 'JIRA');
   }
 
   function isFocusBug(task: SidebarTask): boolean {
