@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { TFile } from "obsidian";
 import { KANBAN_COLUMNS, SWIMLANES } from "../types";
-import type { KanbanCard } from "../types";
+import type { JiraAttachment, KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
 import type { JiraCreateIssueMeta, JiraCreateIssueInput } from "../api/jira";
 import type { ViewMode } from "./App";
 import { useEscapeKey } from "../hooks/useEscapeKey";
 import { JiraHtmlRenderer } from "./JiraHtmlRenderer";
 import { IssuePreviewModal } from "./IssuePreviewModal";
+import { JiraAuthImage } from "./JiraAuthImage";
 
 // ===== Helpers =====
 
@@ -63,6 +64,34 @@ interface JiraLink {
   direction: "inward" | "outward";
 }
 
+const IMAGE_MIME_PREFIX = "image/";
+const IMAGE_FILE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
+
+function isImageAttachment(attachment: JiraAttachment): boolean {
+  if (attachment.mimeType?.toLowerCase().startsWith(IMAGE_MIME_PREFIX)) {
+    return true;
+  }
+
+  const filename = attachment.filename.toLowerCase();
+  return IMAGE_FILE_EXTENSIONS.some((extension) => filename.endsWith(extension));
+}
+
+function formatAttachmentSize(size?: number): string {
+  if (!size || size <= 0) {
+    return "";
+  }
+
+  if (size < 1024) {
+    return `${size} B`;
+  }
+
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 // ===== Task Detail Side Panel =====
 
 interface TaskDetailPanelProps {
@@ -96,6 +125,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [previewIssueKey, setPreviewIssueKey] = useState<string | null>(null);
+  const [imageAttachments, setImageAttachments] = useState<JiraAttachment[]>([]);
+  const [selectedAttachmentIndex, setSelectedAttachmentIndex] = useState(0);
 
   const isLocal = card.source === "LOCAL";
   const isJira = card.source === "JIRA";
@@ -106,6 +137,14 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
 
   // Track dirty state for Jira save
   const isDirty = storyPoints !== card.storyPoints || dueDate !== (card.dueDate?.slice(0, 10) || "");
+  const selectedAttachment = imageAttachments[selectedAttachmentIndex] || null;
+  const attachmentHint = useMemo(() => {
+    if (imageAttachments.length <= 1) {
+      return "";
+    }
+
+    return `第 ${selectedAttachmentIndex + 1} / ${imageAttachments.length} 张，可用左右方向键切换`;
+  }, [imageAttachments.length, selectedAttachmentIndex]);
 
   // Fetch full issue details for Jira tasks
   useEffect(() => {
@@ -123,6 +162,9 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
       const processedDesc = await plugin.fileManager.processDescription(rawDesc, issue.key);
       
       setDescription(processedDesc);
+      const nextImageAttachments = (issue.fields.attachment || []).filter(isImageAttachment);
+      setImageAttachments(nextImageAttachments);
+      setSelectedAttachmentIndex(0);
       
       // Links
       const issueLinks = (issue.fields as Record<string, unknown>).issuelinks as Array<{
@@ -140,6 +182,44 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
       }
     })();
   }, [card.jiraKey, isJira, plugin]);
+
+  useEffect(() => {
+    if (!isJira) {
+      setImageAttachments([]);
+      setSelectedAttachmentIndex(0);
+    }
+  }, [isJira]);
+
+  useEffect(() => {
+    if (imageAttachments.length === 0) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (previewIssueKey || showEditModal || showDeleteConfirm) {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT" || target?.isContentEditable) {
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setSelectedAttachmentIndex((current) => (current - 1 + imageAttachments.length) % imageAttachments.length);
+      }
+
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setSelectedAttachmentIndex((current) => (current + 1) % imageAttachments.length);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [imageAttachments.length, previewIssueKey, showDeleteConfirm, showEditModal]);
 
   // For local tasks, read description from file body
   useEffect(() => {
@@ -373,6 +453,86 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               </div>
             )}
           </div>
+
+          {isJira && imageAttachments.length > 0 && (
+            <div className="jf-mb-5">
+              <div className="jf-flex jf-items-center jf-justify-between jf-mb-2">
+                <label className="jf-text-xs jf-font-medium jf-text-gray-500 jf-uppercase">附件</label>
+                {attachmentHint && <span className="jf-text-[11px] jf-text-gray-400">{attachmentHint}</span>}
+              </div>
+              <div className="jf-rounded-xl jf-border jf-border-gray-200 jf-bg-gray-50 jf-p-3">
+                {selectedAttachment && (
+                  <div className="jf-mb-3 jf-rounded-xl jf-border jf-border-gray-200 jf-bg-white jf-p-3">
+                    <div className="jf-flex jf-items-center jf-justify-between jf-gap-3 jf-mb-3">
+                      <div className="jf-min-w-0">
+                        <div className="jf-text-sm jf-font-medium jf-text-gray-800 jf-truncate">{selectedAttachment.filename}</div>
+                        <div className="jf-text-[11px] jf-text-gray-400">
+                          {[selectedAttachment.mimeType || "图片", formatAttachmentSize(selectedAttachment.size)].filter(Boolean).join(" · ")}
+                        </div>
+                      </div>
+                      {imageAttachments.length > 1 && (
+                        <div className="jf-flex jf-items-center jf-gap-2 jf-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAttachmentIndex((current) => (current - 1 + imageAttachments.length) % imageAttachments.length)}
+                            className="jf-rounded-lg jf-border jf-border-gray-200 jf-bg-white jf-px-2.5 jf-py-1.5 jf-text-xs jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100"
+                          >
+                            上一张
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAttachmentIndex((current) => (current + 1) % imageAttachments.length)}
+                            className="jf-rounded-lg jf-border jf-border-gray-200 jf-bg-white jf-px-2.5 jf-py-1.5 jf-text-xs jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100"
+                          >
+                            下一张
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <JiraAuthImage
+                      src={selectedAttachment.content}
+                      alt={selectedAttachment.filename}
+                      plugin={plugin}
+                      containerClassName="jf-my-0"
+                      className="jf-w-full"
+                      hideZoomButton={imageAttachments.length > 1}
+                      maxHeight={360}
+                      preserveWhileLoading
+                    />
+                  </div>
+                )}
+                <div className="jf-flex jf-gap-2 jf-overflow-x-auto jf-pb-1">
+                  {imageAttachments.map((attachment, index) => {
+                    const isActive = index === selectedAttachmentIndex;
+                    return (
+                      <button
+                        key={attachment.id || `${attachment.filename}-${index}`}
+                        type="button"
+                        onClick={() => setSelectedAttachmentIndex(index)}
+                        className={`jf-group jf-shrink-0 jf-w-28 jf-rounded-xl jf-border jf-bg-white jf-p-1.5 jf-text-left jf-transition-all ${isActive ? "jf-border-blue-500 jf-shadow-sm" : "jf-border-gray-200 hover:jf-border-gray-300"}`}
+                      >
+                        <JiraAuthImage
+                          src={attachment.thumbnail || attachment.content}
+                          alt={attachment.filename}
+                          plugin={plugin}
+                          interactive={false}
+                          containerClassName="jf-my-0"
+                          frameClassName="jf-block jf-w-full jf-overflow-hidden jf-rounded-lg jf-bg-gray-100"
+                          placeholderClassName="jf-h-16 jf-w-full jf-animate-pulse jf-rounded-lg jf-bg-gray-200 jf-flex jf-items-center jf-justify-center jf-text-[10px] jf-text-gray-400"
+                          className="jf-block jf-h-16 jf-w-full"
+                          maxHeight={64}
+                          preserveWhileLoading
+                        />
+                        <div className="jf-mt-1 jf-px-1">
+                          <div className="jf-text-[10px] jf-font-medium jf-text-gray-700 jf-leading-tight jf-truncate" title={attachment.filename}>{`附件 ${index + 1}`}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Linked Issues (Jira only) */}
           {isJira && links.length > 0 && (

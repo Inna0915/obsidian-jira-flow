@@ -410,6 +410,17 @@ export interface JiraBoard {
   type: string;
 }
 
+export interface JiraAttachment {
+  id: string;
+  filename: string;
+  mimeType?: string;
+  size?: number;
+  content: string;
+  thumbnail?: string;
+  created?: string;
+  author?: JiraUser | null;
+}
+
 export interface JiraIssueFields {
   summary: string;
   description: string | null;
@@ -423,6 +434,7 @@ export interface JiraIssueFields {
   duedate: string | null;
   labels: string[];
   sprint?: JiraSprint | JiraSprint[] | null;
+  attachment?: JiraAttachment[];
   [key: string]: unknown;
 }
 

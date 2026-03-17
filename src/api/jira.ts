@@ -84,7 +84,7 @@ export class JiraApi {
 
   private get fieldsParam(): string {
     const s = this.plugin.settings;
-    const fields = `summary,description,status,issuetype,priority,assignee,reporter,created,updated,duedate,labels,issuelinks,${s.storyPointsField},${s.dueDateField},${s.sprintField}`;
+    const fields = `summary,description,status,issuetype,priority,assignee,reporter,created,updated,duedate,labels,issuelinks,attachment,${s.storyPointsField},${s.dueDateField},${s.sprintField}`;
     return fields;
   }
 
