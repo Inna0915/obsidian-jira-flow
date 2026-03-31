@@ -466,6 +466,8 @@ export interface TaskFrontmatter {
   assignee: string;
   reporter: string;
   reporter_only?: boolean;
+  parent_key?: string;
+  parent_summary?: string;
   sprint: string;
   sprint_state: string;
   tags: string[];
@@ -490,6 +492,8 @@ export interface KanbanCard {
   assignee: string;
   reporter?: string;
   reporter_only?: boolean;
+  parentKey?: string;
+  parentSummary?: string;
   summary: string;
   created?: string;
   updated?: string;

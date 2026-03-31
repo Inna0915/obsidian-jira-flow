@@ -81,7 +81,7 @@ export const Column: React.FC<ColumnProps> = ({
       onDrop={handleDrop}
     >
       {/* Column Body - No header here anymore, just cards */}
-      <div className="jf-px-2 jf-py-3 jf-space-y-2 jf-min-h-[120px]">
+      <div className="jf-flex jf-flex-col jf-items-start jf-px-2 jf-py-3 jf-space-y-2 jf-min-h-[120px]">
         {cards.map((card) => (
           <Card
             key={card.filePath}

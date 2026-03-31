@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { TFile } from "obsidian";
+import { Notice, TFile } from "obsidian";
 import { KANBAN_COLUMNS, SWIMLANES } from "../types";
 import type { JiraAttachment, KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
@@ -92,6 +92,55 @@ function formatAttachmentSize(size?: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateInput(dateInput: string, days: number): string {
+  const baseDate = dateInput ? new Date(`${dateInput}T00:00:00`) : new Date();
+  baseDate.setDate(baseDate.getDate() + days);
+  return formatDateInput(baseDate);
+}
+
+function getThisWeekSaturdayDateInput(): string {
+  const today = new Date();
+  const day = today.getDay();
+  const daysUntilSaturday = day === 0 ? 6 : 6 - day;
+  today.setDate(today.getDate() + daysUntilSaturday);
+  return formatDateInput(today);
+}
+
+function getNextWeekSaturdayDateInput(): string {
+  const nextWeekSaturday = new Date();
+  const day = nextWeekSaturday.getDay();
+  const daysUntilThisSaturday = day === 0 ? 6 : 6 - day;
+  nextWeekSaturday.setDate(nextWeekSaturday.getDate() + daysUntilThisSaturday + 7);
+  return formatDateInput(nextWeekSaturday);
+}
+
+function formatDateTimeDisplay(value?: string): string {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 // ===== Task Detail Side Panel =====
 
 interface TaskDetailPanelProps {
@@ -111,8 +160,11 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   // Trap ESC key to close drawer without closing Obsidian tab
   useEscapeKey(plugin.app, onClose, true);
 
+  const cardDueDate = card.dueDate?.slice(0, 10) || "";
   const [storyPoints, setStoryPoints] = useState(card.storyPoints);
-  const [dueDate, setDueDate] = useState(card.dueDate?.slice(0, 10) || "");
+  const [dueDate, setDueDate] = useState(cardDueDate);
+  const [savedStoryPoints, setSavedStoryPoints] = useState(card.storyPoints);
+  const [savedDueDate, setSavedDueDate] = useState(cardDueDate);
   const [summary, setSummary] = useState(card.summary);
   const [description, setDescription] = useState("");
   const [links, setLinks] = useState<JiraLink[]>([]);
@@ -136,7 +188,9 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     : "";
 
   // Track dirty state for Jira save
-  const isDirty = storyPoints !== card.storyPoints || dueDate !== (card.dueDate?.slice(0, 10) || "");
+  const isStoryPointsDirty = storyPoints !== savedStoryPoints;
+  const isDueDateDirty = dueDate !== savedDueDate;
+  const isDirty = isStoryPointsDirty || isDueDateDirty;
   const selectedAttachment = imageAttachments[selectedAttachmentIndex] || null;
   const attachmentHint = useMemo(() => {
     if (imageAttachments.length <= 1) {
@@ -221,6 +275,13 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [imageAttachments.length, previewIssueKey, showDeleteConfirm, showEditModal]);
 
+  useEffect(() => {
+    setStoryPoints(card.storyPoints);
+    setDueDate(cardDueDate);
+    setSavedStoryPoints(card.storyPoints);
+    setSavedDueDate(cardDueDate);
+  }, [card.storyPoints, cardDueDate, card.filePath, card.jiraKey]);
+
   // For local tasks, read description from file body
   useEffect(() => {
     if (!isLocal) return;
@@ -236,35 +297,74 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     })();
   }, [card.filePath, isLocal, plugin]);
 
-  const handleSaveToJira = useCallback(async () => {
+  const handleSaveToJira = useCallback(async (overrides?: {
+    dueDate?: string;
+    storyPoints?: number;
+    fields?: Array<"storyPoints" | "dueDate">;
+  }) => {
+    const targetFields = overrides?.fields ?? ["storyPoints", "dueDate"];
+    const nextStoryPoints = overrides?.storyPoints ?? storyPoints;
+    const nextDueDate = overrides?.dueDate ?? dueDate;
+    const fields: Record<string, unknown> = {};
+    const spField = plugin.settings.storyPointsField;
+    const ddField = plugin.settings.dueDateField;
+    if (targetFields.includes("storyPoints") && nextStoryPoints !== savedStoryPoints) {
+      fields[spField] = nextStoryPoints;
+    }
+    if (targetFields.includes("dueDate") && nextDueDate !== savedDueDate) {
+      fields[ddField] = nextDueDate || null;
+    }
+    if (Object.keys(fields).length === 0) {
+      return;
+    }
+
     setSaving(true);
     setSaved(false);
     try {
-      const fields: Record<string, unknown> = {};
-      const spField = plugin.settings.storyPointsField;
-      const ddField = plugin.settings.dueDateField;
-      if (storyPoints !== card.storyPoints) fields[spField] = storyPoints;
-      if (dueDate !== (card.dueDate?.slice(0, 10) || "")) fields[ddField] = dueDate || null;
-
-      // Sync to Jira API
-      if (isJira && plugin.settings.jiraHost && Object.keys(fields).length > 0) {
-        await plugin.jiraApi.updateIssueFields(card.jiraKey, fields);
+      if (isJira && plugin.settings.jiraHost) {
+        const success = await plugin.jiraApi.updateIssueFields(card.jiraKey, fields);
+        if (!success) {
+          throw new Error("Jira 字段更新失败");
+        }
       }
-      // Update local file
+
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (file) {
         await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
-          fm.story_points = storyPoints;
-          fm.due_date = dueDate;
+          fm.story_points = nextStoryPoints;
+          fm.due_date = nextDueDate;
         });
       }
+
+      setStoryPoints(nextStoryPoints);
+      setDueDate(nextDueDate);
+      setSavedStoryPoints(nextStoryPoints);
+      setSavedDueDate(nextDueDate);
       setSaved(true);
       onCardUpdated();
       setTimeout(() => setSaved(false), 2000);
+    } catch (error) {
+      console.error("[Jira Flow] Failed to save Jira fields:", error);
+      new Notice(error instanceof Error ? error.message : "保存到 Jira 失败");
     } finally {
       setSaving(false);
     }
-  }, [card, storyPoints, dueDate, isJira, plugin, onCardUpdated]);
+  }, [card, dueDate, isJira, onCardUpdated, plugin, savedDueDate, savedStoryPoints, storyPoints]);
+
+  const handleQuickDueDateSave = useCallback((mode: "today" | "plusOne" | "weekSaturday" | "nextWeekSaturday") => {
+    let nextDueDate = formatDateInput(new Date());
+
+    if (mode === "plusOne") {
+      nextDueDate = addDaysToDateInput(dueDate || savedDueDate, 1);
+    } else if (mode === "weekSaturday") {
+      nextDueDate = getThisWeekSaturdayDateInput();
+    } else if (mode === "nextWeekSaturday") {
+      nextDueDate = getNextWeekSaturdayDateInput();
+    }
+
+    setDueDate(nextDueDate);
+    void handleSaveToJira({ dueDate: nextDueDate, fields: ["dueDate"] });
+  }, [dueDate, handleSaveToJira, savedDueDate]);
 
   const handleSaveSummary = useCallback(async () => {
     if (!isLocal) return;
@@ -385,23 +485,107 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             } valueColor={isOverdue ? "#FF5630" : undefined} />
           </div>
 
-          {/* Editable Fields */}
           <div className="jf-grid jf-grid-cols-2 jf-gap-4 jf-mb-5">
+            <InfoSection
+              title="人员"
+              items={[
+                { label: "报告人", value: card.reporter || "-" },
+                { label: "经办人", value: card.assignee || "-" },
+              ]}
+            />
+            <InfoSection
+              title="日期"
+              items={[
+                { label: "创建时间", value: formatDateTimeDisplay(card.created) },
+                { label: "最近更新", value: formatDateTimeDisplay(card.updated) },
+              ]}
+            />
+          </div>
+
+          {/* Editable Fields */}
+          <div className="jf-grid jf-gap-4 jf-mb-3" style={{ gridTemplateColumns: "minmax(0, 0.82fr) minmax(0, 1.38fr)" }}>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">故事点</label>
-              <input type="number" min={0} value={storyPoints}
-                onChange={(e) => setStoryPoints(Number(e.target.value))}
-                className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500"
-                disabled={saving} />
+              <div className="jf-relative">
+                <input type="number" min={0} value={storyPoints}
+                  onChange={(e) => setStoryPoints(Number(e.target.value))}
+                  className="jf-w-full jf-px-3 jf-py-2 jf-pr-10 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500"
+                  disabled={saving} />
+                {showSaveToJira && isStoryPointsDirty && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveToJira({ fields: ["storyPoints"] })}
+                    disabled={saving}
+                    title="提交故事点"
+                    aria-label="提交故事点"
+                    className="jf-absolute jf-right-2 jf-top-1/2 jf-inline-flex jf-h-8 jf-w-8 jf--translate-y-1/2 jf-items-center jf-justify-center jf-rounded-lg jf-border jf-border-gray-200 jf-bg-white jf-text-green-700 hover:jf-bg-green-50 disabled:jf-cursor-not-allowed disabled:jf-opacity-40"
+                  >
+                    <svg className="jf-h-5 jf-w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             </div>
             <div>
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">截止日期</label>
-              <input type="date" value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className={`jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 ${isOverdue ? "jf-text-red-500" : ""}`}
-                disabled={saving} />
+              <div className="jf-flex jf-items-center jf-gap-2" style={{ flexWrap: "nowrap" }}>
+                <input type="date" value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className={`jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 ${isOverdue ? "jf-text-red-500" : ""}`}
+                  style={{ width: "170px", flexShrink: 0 }}
+                  disabled={saving} />
+                {showSaveToJira && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDueDateSave("today")}
+                      disabled={saving}
+                      className="jf-rounded-lg jf-border jf-border-blue-200 jf-bg-white jf-px-2.5 jf-py-2 jf-text-[11px] jf-font-medium jf-text-blue-700 hover:jf-bg-blue-50 disabled:jf-cursor-not-allowed disabled:jf-opacity-50"
+                    >
+                      当天
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDueDateSave("plusOne")}
+                      disabled={saving}
+                      className="jf-rounded-lg jf-border jf-border-blue-200 jf-bg-white jf-px-2.5 jf-py-2 jf-text-[11px] jf-font-medium jf-text-blue-700 hover:jf-bg-blue-50 disabled:jf-cursor-not-allowed disabled:jf-opacity-50"
+                    >
+                      +1天
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDueDateSave("weekSaturday")}
+                      disabled={saving}
+                      className="jf-rounded-lg jf-border jf-border-blue-200 jf-bg-white jf-px-2.5 jf-py-2 jf-text-[11px] jf-font-medium jf-text-blue-700 hover:jf-bg-blue-50 disabled:jf-cursor-not-allowed disabled:jf-opacity-50"
+                    >
+                      本周六
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDueDateSave("nextWeekSaturday")}
+                      disabled={saving}
+                      className="jf-rounded-lg jf-border jf-border-blue-200 jf-bg-white jf-px-2.5 jf-py-2 jf-text-[11px] jf-font-medium jf-text-blue-700 hover:jf-bg-blue-50 disabled:jf-cursor-not-allowed disabled:jf-opacity-50"
+                    >
+                      下周六
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
+
+          {showSaveToJira && (saved || isDueDateDirty) && (
+            <div className="jf-mb-5 jf-flex jf-items-center jf-justify-end jf-gap-3">
+              {saved && <span className="jf-text-xs jf-text-green-600 jf-font-medium">已保存</span>}
+              {isDueDateDirty && (
+                <button onClick={() => void handleSaveToJira()} disabled={saving}
+                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-green-600 hover:jf-bg-green-700 jf-rounded-lg jf-transition-colors disabled:jf-opacity-60">
+                  {saving ? "保存中..." : "保存到 Jira"}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Local-only editable fields */}
           {isLocal && (
@@ -589,13 +773,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             )}
           </div>
           <div className="jf-flex jf-items-center jf-gap-3">
-            {saved && <span className="jf-text-xs jf-text-green-600 jf-font-medium">已保存</span>}
-            {showSaveToJira && isDirty && (
-              <button onClick={handleSaveToJira} disabled={saving} 
-                className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-green-600 hover:jf-bg-green-700 jf-rounded-lg jf-transition-colors disabled:jf-opacity-60">
-                {saving ? "保存中..." : "保存到 Jira"}
-              </button>
-            )}
             <button onClick={() => { onOpenFile(card.filePath); onClose(); }} 
               className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-rounded-lg jf-transition-colors">
               打开文件
@@ -685,6 +862,20 @@ const MetaCell: React.FC<{ label: string; value: string; valueColor?: string }> 
   <div className="jf-p-3 jf-border-b jf-border-r jf-border-gray-100">
     <div className="jf-text-[10px] jf-font-semibold jf-text-gray-400 jf-uppercase jf-tracking-wide jf-mb-1">{label}</div>
     <div className="jf-text-sm jf-font-medium" style={{ color: valueColor || "#374151" }}>{value}</div>
+  </div>
+);
+
+const InfoSection: React.FC<{ title: string; items: Array<{ label: string; value: string }> }> = ({ title, items }) => (
+  <div className="jf-rounded-lg jf-border jf-border-gray-200 jf-bg-white jf-p-4">
+    <div className="jf-text-sm jf-font-semibold jf-text-gray-800 jf-mb-3">{title}</div>
+    <div className="jf-space-y-2">
+      {items.map((item) => (
+        <div key={`${title}-${item.label}`} className="jf-flex jf-items-start jf-justify-between jf-gap-3">
+          <div className="jf-text-xs jf-font-medium jf-text-gray-400">{item.label}</div>
+          <div className="jf-text-sm jf-font-medium jf-text-gray-700 jf-text-right">{item.value}</div>
+        </div>
+      ))}
+    </div>
   </div>
 );
 

@@ -88,6 +88,8 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
   const dragTriggeredRef = useRef(false);
   const isMatched = searchQuery && (
     card.jiraKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    card.parentKey?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    card.parentSummary?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     card.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
     card.assignee?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     card.priority.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -149,7 +151,7 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       data-card-path={card.filePath}
-      className={`jf-bg-white jf-p-3 jf-rounded-md jf-shadow-[0_1px_2px_rgba(9,30,66,0.08)] jf-border hover:jf-shadow-[0_4px_8px_rgba(9,30,66,0.16)] hover:jf-border-[#C1C7D0] jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative ${
+      className={`jf-w-full jf-bg-white jf-p-3 jf-rounded-md jf-shadow-[0_1px_2px_rgba(9,30,66,0.08)] jf-border hover:jf-shadow-[0_4px_8px_rgba(9,30,66,0.16)] hover:jf-border-[#C1C7D0] jf-transition-all jf-cursor-grab active:jf-cursor-grabbing jf-group jf-relative ${
         isSelected
           ? "jf-selection-emphasis jf-selection-band jf-border-[#0052CC] jf-ring-2 jf-ring-[#4C9AFF] jf-bg-[#F0F7FF] jf-shadow-[0_10px_22px_rgba(9,30,66,0.14)]"
           :
@@ -194,6 +196,17 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
       <div className="jf-text-sm jf-font-medium jf-text-[#172B4D] jf-leading-snug jf-mb-3 line-clamp-2">
         {highlightText(card.summary, searchQuery)}
       </div>
+
+      {card.parentKey && (
+        <div className="jf-mb-3 jf-flex jf-items-center jf-gap-2 jf-rounded-lg jf-border jf-border-[#D9E2EC] jf-bg-[#F8FBFF] jf-px-2.5 jf-py-2">
+          <span className="jf-inline-flex jf-items-center jf-rounded-full jf-bg-[#EAF2F8] jf-px-2 jf-py-0.5 jf-text-[10px] jf-font-semibold jf-text-[#334E68]">
+            {highlightText(card.parentKey, searchQuery)}
+          </span>
+          <span className="jf-line-clamp-1 jf-text-[11px] jf-text-[#486581]">
+            {highlightText(card.parentSummary || "父任务", searchQuery)}
+          </span>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="jf-flex jf-items-center jf-justify-between jf-text-xs jf-text-[#6B778C]">

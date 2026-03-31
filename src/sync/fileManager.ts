@@ -130,6 +130,29 @@ export class FileManager {
       tags.push(...f.labels.map((l: string) => `jira/label/${l.toLowerCase()}`));
     }
 
+    const issueLinks = (f.issuelinks as Array<{
+      type?: { name?: string; inward?: string; outward?: string };
+      inwardIssue?: { key: string; fields?: { summary?: string } };
+      outwardIssue?: { key: string; fields?: { summary?: string } };
+    }> | undefined) || [];
+
+    const parentLink = issueLinks.find((link) => {
+      const outwardLabel = link.type?.outward?.toLowerCase() || "";
+      const inwardLabel = link.type?.inward?.toLowerCase() || "";
+      const typeName = link.type?.name?.toLowerCase() || "";
+
+      return outwardLabel.includes("child of")
+        || outwardLabel.includes("sub-task of")
+        || inwardLabel.includes("parent of")
+        || typeName.includes("parent")
+        || typeName.includes("epic");
+    });
+
+    const parentIssue = parentLink?.outwardIssue
+      || (parentLink?.type?.inward?.toLowerCase().includes("parent of") ? parentLink.inwardIssue : undefined);
+    const parentKey = parentIssue?.key || "";
+    const parentSummary = parentIssue?.fields?.summary || "";
+
     return {
       jira_key: issue.key,
       source: "JIRA",
@@ -142,6 +165,8 @@ export class FileManager {
       assignee: assigneeName,
       reporter: reporterName,
       reporter_only: reporterOnly,
+      parent_key: parentKey,
+      parent_summary: parentSummary,
       sprint: sprintName || "",
       sprint_state: sprintState || "",
       tags,
@@ -293,6 +318,8 @@ export class FileManager {
     if (fm.reporter_only) {
       lines.push(`reporter_only: true`);
     }
+    lines.push(`parent_key: "${(fm.parent_key || "").replace(/"/g, '\\"')}"`);
+    lines.push(`parent_summary: "${(fm.parent_summary || "").replace(/"/g, '\\"')}"`);
     lines.push(`sprint: "${fm.sprint}"`);
     lines.push(`sprint_state: "${fm.sprint_state}"`);
     lines.push(`summary: "${fm.summary.replace(/"/g, '\\"')}"`);
@@ -392,6 +419,8 @@ export class FileManager {
       assignee: fm.assignee || "",
       reporter: fm.reporter || "",
       reporter_only: fm.reporter_only === true,
+      parent_key: fm.parent_key || "",
+      parent_summary: fm.parent_summary || "",
       sprint: fm.sprint || "",
       sprint_state: fm.sprint_state || "",
       tags: fm.tags || [],
@@ -448,6 +477,8 @@ export class FileManager {
       && existing.assignee === incoming.assignee
       && existing.reporter === incoming.reporter
       && existing.reporter_only === incoming.reporter_only
+      && (existing.parent_key || "") === (incoming.parent_key || "")
+      && (existing.parent_summary || "") === (incoming.parent_summary || "")
       && existing.sprint === incoming.sprint
       && existing.sprint_state === incoming.sprint_state
       && existing.summary === incoming.summary

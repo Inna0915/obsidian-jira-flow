@@ -49,6 +49,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateJiraModal, setShowCreateJiraModal] = useState(false);
   const [showReportCenter, setShowReportCenter] = useState(false);
+  const [showParentFilterPanel, setShowParentFilterPanel] = useState(true);
+  const [selectedParentKeys, setSelectedParentKeys] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -72,6 +74,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const matchedCards = searchQuery
     ? allCards.filter((card) =>
         card.jiraKey.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.parentKey?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        card.parentSummary?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         card.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
         card.assignee?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         card.reporter?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -164,6 +168,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         assignee: fm.assignee,
         reporter: fm.reporter,
         reporter_only: fm.reporter_only,
+        parentKey: fm.parent_key,
+        parentSummary: fm.parent_summary,
         summary: fm.summary,
         created: fm.created,
         updated: fm.updated,
@@ -201,6 +207,71 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     return true; // "all" (Backlog) - show all issues without restriction
   });
 
+  const kanbanBaseCards = useMemo(
+    () => filteredCards.filter((card) => !card.reporter_only),
+    [filteredCards]
+  );
+
+  const parentOptions = useMemo(() => {
+    const optionMap = new Map<string, { key: string; summary: string; count: number }>();
+
+    for (const card of kanbanBaseCards) {
+      if (!card.parentKey) {
+        continue;
+      }
+
+      const existing = optionMap.get(card.parentKey);
+      if (existing) {
+        existing.count += 1;
+        if (!existing.summary && card.parentSummary) {
+          existing.summary = card.parentSummary;
+        }
+        continue;
+      }
+
+      optionMap.set(card.parentKey, {
+        key: card.parentKey,
+        summary: card.parentSummary || "",
+        count: 1,
+      });
+    }
+
+    return Array.from(optionMap.values()).sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+
+      return left.key.localeCompare(right.key, "zh-CN");
+    });
+  }, [kanbanBaseCards]);
+
+  useEffect(() => {
+    setSelectedParentKeys((previous) => {
+      const validKeys = new Set(parentOptions.map((option) => option.key));
+      const next = new Set(Array.from(previous).filter((key) => validKeys.has(key)));
+
+      if (next.size === previous.size && Array.from(next).every((key) => previous.has(key))) {
+        return previous;
+      }
+
+      return next;
+    });
+  }, [parentOptions]);
+
+  const kanbanCards = useMemo(() => {
+    if (selectedParentKeys.size === 0) {
+      return kanbanBaseCards;
+    }
+
+    return kanbanBaseCards.filter((card) => {
+      if (card.parentKey && selectedParentKeys.has(card.parentKey)) {
+        return true;
+      }
+
+      return selectedParentKeys.has(card.jiraKey);
+    });
+  }, [kanbanBaseCards, selectedParentKeys]);
+
   const displayCards = layoutMode === "kanban"
     ? filteredCards.filter((card) => !card.reporter_only)
     : [...filteredCards].sort((left, right) => {
@@ -208,8 +279,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         const leftTime = left.created ? new Date(left.created).getTime() : 0;
         return rightTime - leftTime;
       });
-
-  const kanbanCards = filteredCards.filter((card) => !card.reporter_only);
 
   // Build swimlane data from filtered cards
   const swimlanes: SwimlaneData[] = (() => {
@@ -483,6 +552,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         assignee: data.assignee,
         reporter: "",
         reporter_only: false,
+        parent_key: "",
+        parent_summary: "",
         sprint: "",
         sprint_state: "",
         tags: ["jira/source/local", data.issuetype === "Personal" ? "jira/type/personal" : "jira/type/work"],
@@ -535,6 +606,22 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     },
     [plugin, loadCards]
   );
+
+  const handleToggleParentSelection = useCallback((parentKey: string) => {
+    setSelectedParentKeys((previous) => {
+      const next = new Set(previous);
+      if (next.has(parentKey)) {
+        next.delete(parentKey);
+      } else {
+        next.add(parentKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleClearParentSelection = useCallback(() => {
+    setSelectedParentKeys(new Set());
+  }, []);
 
   const toggleSwimlane = useCallback((id: SwimlaneType) => {
     setCollapsedSwimlanes((prev) => {
@@ -716,24 +803,151 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       </div>
 
       {layoutMode === "kanban" ? (
-        <Board
-          swimlanes={swimlanes}
-          collapsedSwimlanes={collapsedSwimlanes}
-          onToggleSwimlane={toggleSwimlane}
-          onCardMove={handleCardMove}
-          onCardOpen={handleCardOpen}
-          onCardSelect={handleCardSelect}
-          onCardDragStart={handleCardDragStart}
-          onCardDragEnd={handleCardDragEnd}
-          onOpenFile={handleOpenFile}
-          searchQuery={searchQuery}
-          matchedCards={matchedCards}
-          searchMatchIndex={searchMatchIndex}
-          selectedPaths={selectedPaths}
-          dragState={dragState}
-          onDragStateChange={setDragState}
-          onClearSelection={handleClearSelection}
-        />
+        <>
+          <Board
+            swimlanes={swimlanes}
+            collapsedSwimlanes={collapsedSwimlanes}
+            onToggleSwimlane={toggleSwimlane}
+            onCardMove={handleCardMove}
+            onCardOpen={handleCardOpen}
+            onCardSelect={handleCardSelect}
+            onCardDragStart={handleCardDragStart}
+            onCardDragEnd={handleCardDragEnd}
+            onOpenFile={handleOpenFile}
+            searchQuery={searchQuery}
+            matchedCards={matchedCards}
+            searchMatchIndex={searchMatchIndex}
+            selectedPaths={selectedPaths}
+            dragState={dragState}
+            onDragStateChange={setDragState}
+            onClearSelection={handleClearSelection}
+          />
+
+          <div className="jf-fixed jf-right-4 jf-top-1/2 jf-z-30 jf-flex jf--translate-y-1/2 jf-items-center jf-gap-2">
+            {showParentFilterPanel ? (
+              <div className="jf-w-[248px] jf-max-h-[calc(100vh-120px)] jf-overflow-hidden jf-rounded-2xl jf-border jf-border-[#D7DFEA] jf-bg-[#F7F8FA]/95 jf-shadow-[0_18px_40px_rgba(9,30,66,0.16)] jf-backdrop-blur">
+                <div className="jf-flex jf-items-start jf-justify-between jf-gap-2 jf-border-b jf-border-[#E2E8F0] jf-bg-white/90 jf-px-3 jf-py-3">
+                  <div>
+                    <div className="jf-text-[15px] jf-font-semibold jf-text-[#172B4D]">父任务筛选</div>
+                    <div className="jf-mt-1 jf-text-[11px] jf-text-[#5E6C84]">
+                      已选 {selectedParentKeys.size} 项，当前展示 {kanbanCards.length} 张卡片
+                    </div>
+                  </div>
+                  <div className="jf-flex jf-items-center jf-gap-1.5">
+                    <button
+                      onClick={handleClearParentSelection}
+                      disabled={selectedParentKeys.size === 0}
+                      className="jf-rounded-lg jf-border jf-border-[#DFE1E6] jf-bg-[#FAFBFC] jf-px-2.5 jf-py-1 jf-text-[11px] jf-font-medium jf-text-[#42526E] hover:jf-bg-white disabled:jf-cursor-not-allowed disabled:jf-opacity-40"
+                    >
+                      清空
+                    </button>
+                    <button
+                      onClick={() => setShowParentFilterPanel(false)}
+                      className="jf-inline-flex jf-h-8 jf-w-8 jf-items-center jf-justify-center jf-rounded-lg jf-border jf-border-[#DFE1E6] jf-bg-[#FAFBFC] jf-text-[#42526E] hover:jf-bg-white"
+                      title="收起父任务筛选"
+                    >
+                      <svg className="jf-h-4 jf-w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="jf-border-b jf-border-[#E2E8F0] jf-bg-[#F7F8FA] jf-px-3 jf-py-2.5">
+                  <div className="jf-flex jf-items-center jf-justify-between jf-text-[11px] jf-text-[#5E6C84]">
+                    <span className="jf-font-medium">父任务 {parentOptions.length} 个</span>
+                    <span>{selectedParentKeys.size === 0 ? "未启用筛选" : "多选筛选中"}</span>
+                  </div>
+                </div>
+
+                <div className="jf-max-h-[calc(100vh-212px)] jf-space-y-2.5 jf-overflow-y-auto jf-p-3">
+                  {parentOptions.length === 0 ? (
+                    <div className="jf-rounded-xl jf-border jf-border-dashed jf-border-[#DFE1E6] jf-bg-white jf-p-4 jf-text-sm jf-text-[#5E6C84]">
+                      当前看板里还没有可用的父任务关系。
+                    </div>
+                  ) : (
+                    parentOptions.map((option) => {
+                      const isActive = selectedParentKeys.has(option.key);
+
+                      return (
+                        <div
+                          key={option.key}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleToggleParentSelection(option.key)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              handleToggleParentSelection(option.key);
+                            }
+                          }}
+                          className={`jf-flex jf-w-full jf-flex-col jf-items-stretch jf-rounded-xl jf-border jf-p-3 jf-text-left jf-transition-all ${
+                            isActive
+                              ? "jf-cursor-pointer jf-border-[#4C9AFF] jf-bg-[#F0F7FF] jf-shadow-[0_10px_22px_rgba(9,30,66,0.14)] focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-[#4C9AFF]"
+                              : "jf-cursor-pointer jf-border-[#DFE1E6] jf-bg-white jf-shadow-[0_1px_2px_rgba(9,30,66,0.08)] hover:jf-border-[#C1C7D0] hover:jf-shadow-[0_4px_8px_rgba(9,30,66,0.16)] focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-[#C1C7D0]"
+                          }`}
+                          style={{
+                            borderLeftWidth: "4px",
+                            borderLeftStyle: "solid",
+                            borderLeftColor: isActive ? "#0052CC" : "#C1C7D0",
+                          }}
+                        >
+                          <div className="jf-flex jf-items-center jf-justify-between jf-gap-2">
+                            <span className={`jf-inline-flex jf-max-w-full jf-items-center jf-rounded jf-px-2 jf-py-1 jf-font-mono jf-text-[10px] jf-font-semibold ${
+                              isActive ? "jf-bg-[#DEEBFF] jf-text-[#0747A6]" : "jf-bg-[#F4F5F7] jf-text-[#42526E]"
+                            }`}>
+                              {option.key}
+                            </span>
+                            <span className="jf-flex-shrink-0 jf-rounded-full jf-bg-[#EBECF0] jf-px-2 jf-py-0.5 jf-text-[10px] jf-font-medium jf-text-[#5E6C84]">
+                              {option.count} 项
+                            </span>
+                          </div>
+
+                          <div className="jf-mt-2 jf-line-clamp-2 jf-break-words jf-text-[14px] jf-font-medium jf-leading-snug jf-text-[#172B4D]">
+                            {option.summary || "未同步父任务标题"}
+                          </div>
+
+                          <div className="jf-mt-3 jf-flex jf-items-center jf-justify-between jf-gap-2">
+                            <span className="jf-text-[10px] jf-text-[#6B778C]">
+                              {isActive ? "已纳入筛选" : "点击筛选该父任务"}
+                            </span>
+                            <span className={`jf-inline-flex jf-items-center jf-gap-1 jf-rounded-full jf-px-2.5 jf-py-1 jf-text-[10px] jf-font-semibold ${
+                              isActive
+                                ? "jf-bg-[#0052CC] jf-text-white"
+                                : "jf-bg-[#F4F5F7] jf-text-[#42526E]"
+                            }`}>
+                              {isActive && (
+                                <svg className="jf-h-3 jf-w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {isActive ? "已选" : "筛选"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowParentFilterPanel(true)}
+                className="jf-inline-flex jf-items-center jf-gap-2 jf-rounded-full jf-border jf-border-[#DFE1E6] jf-bg-white/95 jf-px-4 jf-py-2.5 jf-text-sm jf-font-semibold jf-text-[#172B4D] jf-shadow-[0_8px_24px_rgba(9,30,66,0.24)] jf-backdrop-blur hover:jf-bg-white"
+              >
+                <svg className="jf-h-4 jf-w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+                父任务筛选
+                {selectedParentKeys.size > 0 && (
+                  <span className="jf-rounded-full jf-bg-[#0B6E4F] jf-px-2 jf-py-0.5 jf-text-[11px] jf-text-white">
+                    {selectedParentKeys.size}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        </>
       ) : (
         <IssueListView
           cards={displayCards}

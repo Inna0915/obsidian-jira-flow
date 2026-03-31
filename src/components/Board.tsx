@@ -90,7 +90,7 @@ export const Board: React.FC<BoardProps> = ({
           data-preserve-selection="true"
           style={{ width: "140px", minWidth: "140px" }}
         >
-          <div className="jf-px-3 jf-py-3">
+          <div className="jf-px-3 jf-py-3 jf-text-left">
             <span className="jf-text-[11px] jf-font-semibold jf-text-[#6B778C] jf-uppercase jf-tracking-wider">
               Swimlane
             </span>
@@ -108,18 +108,20 @@ export const Board: React.FC<BoardProps> = ({
               data-preserve-selection="true"
               style={{ width: "180px", minWidth: "180px" }}
             >
-              <div className="jf-text-center">
-                <span className="jf-text-[11px] jf-font-semibold jf-text-[#42526E] jf-uppercase jf-tracking-wider">
-                  {col.label}
-                </span>
-                {count > 0 && (
-                  <span className="jf-ml-2 jf-bg-[#EBECF0] jf-text-[#42526E] jf-text-[10px] jf-px-2 jf-py-0.5 jf-rounded-full jf-font-medium">
-                    {count}
+              <div className="jf-flex jf-flex-col jf-items-start jf-gap-2 jf-text-left">
+                <div className="jf-flex jf-items-center jf-gap-2">
+                  <span className="jf-text-[11px] jf-font-semibold jf-text-[#42526E] jf-uppercase jf-tracking-wider">
+                    {col.label}
                   </span>
-                )}
+                  {count > 0 && (
+                    <span className="jf-bg-[#EBECF0] jf-text-[#42526E] jf-text-[10px] jf-px-2 jf-py-0.5 jf-rounded-full jf-font-medium">
+                      {count}
+                    </span>
+                  )}
+                </div>
                 {/* Status color indicator bar */}
                 <div 
-                  className="jf-h-1 jf-mt-2 jf-rounded-full"
+                  className="jf-h-1 jf-w-full jf-rounded-full"
                   style={{ backgroundColor: borderColor }}
                 />
               </div>
