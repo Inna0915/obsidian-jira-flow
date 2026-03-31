@@ -436,7 +436,24 @@ export class FileManager {
   }
 
   private canSkipSync(existing: TaskFrontmatter, incoming: TaskFrontmatter): boolean {
-    return !existing.archived && existing.updated === incoming.updated;
+    if (existing.archived || existing.updated !== incoming.updated) {
+      return false;
+    }
+
+    return existing.status === incoming.status
+      && existing.mapped_column === incoming.mapped_column
+      && existing.priority === incoming.priority
+      && existing.story_points === incoming.story_points
+      && existing.due_date === incoming.due_date
+      && existing.assignee === incoming.assignee
+      && existing.reporter === incoming.reporter
+      && existing.reporter_only === incoming.reporter_only
+      && existing.sprint === incoming.sprint
+      && existing.sprint_state === incoming.sprint_state
+      && existing.summary === incoming.summary
+      && existing.created === incoming.created
+      && existing.updated === incoming.updated
+      && JSON.stringify(existing.tags) === JSON.stringify(incoming.tags);
   }
 
   private composeTaskContent(frontmatter: TaskFrontmatter, description: string): string {
