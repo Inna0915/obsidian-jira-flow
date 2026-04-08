@@ -68,6 +68,7 @@ export interface JiraCreateIssueInput {
 
 export class JiraApi {
   private plugin: JiraFlowPlugin;
+  private currentUserCache: JiraCurrentUser | null | undefined = undefined;
 
   constructor(plugin: JiraFlowPlugin) {
     this.plugin = plugin;
@@ -312,12 +313,62 @@ export class JiraApi {
   }
 
   async getCurrentUser(): Promise<JiraCurrentUser | null> {
+    if (this.currentUserCache !== undefined) {
+      return this.currentUserCache;
+    }
+
     try {
-      return await this.request<JiraCurrentUser>("myself");
+      const currentUser = await this.request<JiraCurrentUser>("myself");
+      this.currentUserCache = currentUser;
+      return currentUser;
     } catch (error) {
       console.error("[Jira Flow] Failed to fetch current user", error);
+      this.currentUserCache = null;
       return null;
     }
+  }
+
+  private buildAssigneeField(currentUser: JiraCurrentUser): Record<string, string> | null {
+    if (currentUser.accountId) {
+      return { accountId: currentUser.accountId };
+    }
+
+    if (currentUser.name) {
+      return { name: currentUser.name };
+    }
+
+    if (currentUser.key) {
+      return { key: currentUser.key };
+    }
+
+    return null;
+  }
+
+  private getCurrentUserDisplayName(currentUser: JiraCurrentUser): string {
+    return currentUser.displayName || currentUser.name || currentUser.emailAddress || currentUser.key || "";
+  }
+
+  async assignIssueToCurrentUser(issueKey: string): Promise<{ success: boolean; assigneeName?: string }> {
+    const currentUser = await this.getCurrentUser();
+    if (!currentUser) {
+      return { success: false };
+    }
+
+    const assignee = this.buildAssigneeField(currentUser);
+    if (!assignee) {
+      console.error("[Jira Flow] Current Jira user has no supported assignee identifier", currentUser);
+      return { success: false };
+    }
+
+    const success = await this.updateIssueFields(issueKey, { assignee });
+    if (!success) {
+      return { success: false };
+    }
+
+    return {
+      success: true,
+      assigneeName: this.getCurrentUserDisplayName(currentUser),
+    };
   }
 
   async fetchCreateIssueMeta(projectKey: string): Promise<JiraCreateIssueMeta> {

@@ -52,6 +52,7 @@ const typeIcons: Record<string, string> = {
   Story: "S",
   Task: "T",
   Feature: "F",
+  Enabler: "EN",
   Personal: "P",
   "Sub-task": "ST",
   Epic: "E",
@@ -65,6 +66,7 @@ const getBorderColor = (issueType: string): string => {
     case "story": return "#22C55E";    // green-500
     case "task": return "#60A5FA";     // blue-400
     case "feature": return "#3B82F6";  // blue-500
+    case "enabler": return "#F97316";  // orange-500
     case "personal": return "#F59E0B"; // amber-500
     case "epic": return "#A855F7";     // purple-500
     default: return "#D1D5DB";         // gray-300
@@ -78,6 +80,7 @@ const getTypeBackground = (issueType: string): string => {
     case "story": return "#E3FCEF";
     case "task": return "#DEEBFF";
     case "feature": return "#DEEBFF";
+    case "enabler": return "#FFF7ED";
     case "personal": return "#FFF0B3";
     case "epic": return "#EAE6FF";
     default: return "#F4F5F7";

@@ -25,6 +25,7 @@ const typeStyles: Record<string, { bg: string; fg: string; label: string }> = {
   Bug: { bg: "#FFEBE6", fg: "#BF2600", label: "B" },
   Task: { bg: "#DEEBFF", fg: "#0747A6", label: "T" },
   Feature: { bg: "#DEEBFF", fg: "#0747A6", label: "F" },
+  Enabler: { bg: "#FFF7ED", fg: "#C2410C", label: "EN" },
   Personal: { bg: "#FFF0B3", fg: "#974F0C", label: "P" },
   Epic: { bg: "#EAE6FF", fg: "#403294", label: "E" },
   "Sub-task": { bg: "#F4F5F7", fg: "#42526E", label: "ST" },

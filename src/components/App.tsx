@@ -23,12 +23,45 @@ interface AppProps {
 
 export type ViewMode = "sprint" | "all" | "local";
 type LayoutMode = "kanban" | "list";
+type BatchDueDateMode = "today" | "plusOne" | "weekSaturday";
 
 export interface SwimlaneData {
   id: SwimlaneType;
   label: string;
   color: string;
   columns: Map<string, KanbanCard[]>;
+}
+
+function formatDateInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateInput(dateInput: string, days: number): string {
+  const baseDate = dateInput ? new Date(`${dateInput}T00:00:00`) : new Date();
+  baseDate.setDate(baseDate.getDate() + days);
+  return formatDateInput(baseDate);
+}
+
+function getThisWeekSaturdayDateInput(): string {
+  const today = new Date();
+  const day = today.getDay();
+  const daysUntilSaturday = day === 0 ? 6 : 6 - day;
+  today.setDate(today.getDate() + daysUntilSaturday);
+  return formatDateInput(today);
+}
+
+function resolveBatchDueDate(mode: BatchDueDateMode, currentDueDate: string): string {
+  switch (mode) {
+    case "today":
+      return formatDateInput(new Date());
+    case "plusOne":
+      return addDaysToDateInput(currentDueDate, 1);
+    case "weekSaturday":
+      return getThisWeekSaturdayDateInput();
+  }
 }
 
 export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
@@ -51,6 +84,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [showReportCenter, setShowReportCenter] = useState(false);
   const [showParentFilterPanel, setShowParentFilterPanel] = useState(true);
   const [selectedParentKeys, setSelectedParentKeys] = useState<Set<string>>(new Set());
+  const [batchDueDateMode, setBatchDueDateMode] = useState<BatchDueDateMode | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -352,6 +386,23 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           return;
         }
 
+        if (
+          fm.source === "JIRA"
+          && fm.issuetype.toLowerCase() === "bug"
+          && ["FUNNEL", "DEFINING"].includes(originalColumn)
+          && !fm.assignee?.trim()
+        ) {
+          const assignResult = await plugin.jiraApi.assignIssueToCurrentUser(fm.jira_key);
+          if (!assignResult.success) {
+            new Notice(`Jira Flow：${fm.jira_key} 自动设置经办人为自己失败，已取消拖拽。`);
+            return;
+          }
+
+          await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+            frontmatter.assignee = assignResult.assigneeName || plugin.settings.jiraUsername;
+          });
+        }
+
         await plugin.fileManager.updateStatus(file, targetColumn);
 
         if (fm.source === "JIRA" && plugin.settings.jiraHost) {
@@ -529,6 +580,75 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       new Notice(`Jira Flow：复制绝对路径失败：${error instanceof Error ? error.message : String(error)}`);
     }
   }, [plugin, selectedKanbanCards]);
+
+  const handleBatchDueDateUpdate = useCallback(async (mode: BatchDueDateMode) => {
+    if (selectedKanbanCards.length === 0) {
+      return;
+    }
+
+    setBatchDueDateMode(mode);
+
+    let updatedCount = 0;
+    let failedCount = 0;
+    let skippedCount = 0;
+
+    try {
+      for (const card of selectedKanbanCards) {
+        const currentDueDate = card.dueDate?.slice(0, 10) || "";
+        const nextDueDate = resolveBatchDueDate(mode, currentDueDate);
+
+        if (nextDueDate === currentDueDate) {
+          skippedCount += 1;
+          continue;
+        }
+
+        const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
+        if (!(file instanceof TFile)) {
+          failedCount += 1;
+          continue;
+        }
+
+        if (card.source === "JIRA") {
+          if (!plugin.settings.jiraHost || !plugin.settings.dueDateField) {
+            failedCount += 1;
+            continue;
+          }
+
+          const success = await plugin.jiraApi.updateIssueFields(card.jiraKey, {
+            [plugin.settings.dueDateField]: nextDueDate || null,
+          });
+
+          if (!success) {
+            failedCount += 1;
+            continue;
+          }
+        }
+
+        await plugin.app.fileManager.processFrontMatter(file, (fm) => {
+          fm.due_date = nextDueDate;
+        });
+
+        updatedCount += 1;
+      }
+
+      scheduleLoadCards(0);
+
+      if (updatedCount > 0 && failedCount === 0) {
+        new Notice(`Jira Flow：已批量更新 ${updatedCount} 项截止日期。`);
+      } else if (updatedCount > 0) {
+        new Notice(`Jira Flow：已批量更新 ${updatedCount} 项截止日期，${failedCount} 项失败。`);
+      } else if (skippedCount > 0 && failedCount === 0) {
+        new Notice("Jira Flow：所选任务的截止日期已是目标日期。");
+      } else {
+        new Notice(`Jira Flow：批量更新失败 ${failedCount} 项。`);
+      }
+    } catch (error) {
+      console.error("[Jira Flow] Failed to batch update due dates:", error);
+      new Notice(error instanceof Error ? error.message : "批量更新截止日期失败");
+    } finally {
+      setBatchDueDateMode(null);
+    }
+  }, [plugin, scheduleLoadCards, selectedKanbanCards]);
 
   useEffect(() => {
     if (selectedPaths.size === 0 && dragState.activePaths.size === 0) {
@@ -998,7 +1118,29 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
               已选 {selectedKanbanCards.length} 项
             </span>
             <button
+              onClick={() => void handleBatchDueDateUpdate("today")}
+              disabled={batchDueDateMode !== null}
+              className="jf-inline-flex jf-items-center jf-gap-1 jf-rounded-full jf-border jf-border-blue-200 jf-bg-white jf-px-3 jf-py-2 jf-text-sm jf-font-semibold jf-text-blue-700 hover:jf-bg-blue-50 jf-transition-colors disabled:jf-cursor-not-allowed disabled:jf-opacity-50"
+            >
+              当天
+            </button>
+            <button
+              onClick={() => void handleBatchDueDateUpdate("plusOne")}
+              disabled={batchDueDateMode !== null}
+              className="jf-inline-flex jf-items-center jf-gap-1 jf-rounded-full jf-border jf-border-blue-200 jf-bg-white jf-px-3 jf-py-2 jf-text-sm jf-font-semibold jf-text-blue-700 hover:jf-bg-blue-50 jf-transition-colors disabled:jf-cursor-not-allowed disabled:jf-opacity-50"
+            >
+              +1
+            </button>
+            <button
+              onClick={() => void handleBatchDueDateUpdate("weekSaturday")}
+              disabled={batchDueDateMode !== null}
+              className="jf-inline-flex jf-items-center jf-gap-1 jf-rounded-full jf-border jf-border-blue-200 jf-bg-white jf-px-3 jf-py-2 jf-text-sm jf-font-semibold jf-text-blue-700 hover:jf-bg-blue-50 jf-transition-colors disabled:jf-cursor-not-allowed disabled:jf-opacity-50"
+            >
+              本周六
+            </button>
+            <button
               onClick={handleCopySelectedAbsolutePaths}
+              disabled={batchDueDateMode !== null}
               className="jf-inline-flex jf-items-center jf-gap-2 jf-rounded-full jf-bg-[#0052CC] jf-px-4 jf-py-2 jf-text-sm jf-font-semibold jf-text-white hover:jf-bg-[#0747A6] jf-transition-colors"
             >
               <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1006,6 +1148,11 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
               </svg>
               批量复制绝对路径
             </button>
+            {batchDueDateMode && (
+              <span className="jf-px-2 jf-text-xs jf-font-medium jf-text-[#5E6C84]">
+                更新日期中...
+              </span>
+            )}
           </div>
         </div>
       )}
