@@ -16,6 +16,17 @@ export class FileManager {
     return this.plugin.app.vault;
   }
 
+  private normalizeFrontmatterText(value: unknown): string {
+    const text = typeof value === "string" ? value : value == null ? "" : String(value);
+    return text.replace(/\r?\n+/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  private escapeYamlString(value: unknown): string {
+    return this.normalizeFrontmatterText(value)
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"');
+  }
+
   async ensureFolders(): Promise<void> {
     const folders = [
       this.plugin.settings.tasksFolder,
@@ -85,9 +96,10 @@ export class FileManager {
   private issueToFrontmatter(issue: JiraIssue): TaskFrontmatter {
     const f = issue.fields;
 
-    const status = f.status.name;
+    const status = this.normalizeFrontmatterText(f.status.name);
     const mappedColumn = mapStatusToColumn(status);
-    const type = f.issuetype.name.toLowerCase();
+    const issueTypeName = this.normalizeFrontmatterText(f.issuetype.name);
+    const type = issueTypeName.toLowerCase();
 
     const spField = this.plugin.settings.storyPointsField;
     const storyPoints =
@@ -98,26 +110,26 @@ export class FileManager {
     // Due date: prefer configured custom field (Planned End Date), fallback to duedate
     const ddField = this.plugin.settings.dueDateField;
     const plannedEnd = f[ddField as keyof typeof f] as string | null;
-    const dueDate = plannedEnd || f.duedate || "";
+    const dueDate = this.normalizeFrontmatterText(plannedEnd || f.duedate || "");
 
     // Sprint info - read from configured sprint field and parse Jira Server format
     const sprintFieldName = this.plugin.settings.sprintField;
     const rawSprintData = f[sprintFieldName as keyof typeof f];
     
     // Use parser to handle Jira Server/Data Center's messy sprint format
-    const sprintName = parseJiraSprintName(rawSprintData);
-    const sprintState = parseJiraSprintState(rawSprintData);
+    const sprintName = this.normalizeFrontmatterText(parseJiraSprintName(rawSprintData));
+    const sprintState = this.normalizeFrontmatterText(parseJiraSprintState(rawSprintData));
 
     const tags = [
       `jira/status/${status.toLowerCase().replace(/\s+/g, "-")}`,
       `jira/type/${type.replace(/\s+/g, "-")}`,
       `jira/source/jira`,
     ];
-    const reporterName = f.reporter?.displayName || f.reporter?.name || f.reporter?.emailAddress || "";
+    const reporterName = this.normalizeFrontmatterText(f.reporter?.displayName || f.reporter?.name || f.reporter?.emailAddress || "");
     const reporterIdentity = [f.reporter?.name, f.reporter?.emailAddress, reporterName]
       .filter((item): item is string => !!item)
       .map((item) => item.toLowerCase());
-    const assigneeName = f.assignee?.displayName || f.assignee?.name || f.assignee?.emailAddress || "";
+    const assigneeName = this.normalizeFrontmatterText(f.assignee?.displayName || f.assignee?.name || f.assignee?.emailAddress || "");
     const assigneeIdentity = [f.assignee?.name, f.assignee?.emailAddress, assigneeName]
       .filter((item): item is string => !!item)
       .map((item) => item.toLowerCase());
@@ -150,16 +162,16 @@ export class FileManager {
 
     const parentIssue = parentLink?.outwardIssue
       || (parentLink?.type?.inward?.toLowerCase().includes("parent of") ? parentLink.inwardIssue : undefined);
-    const parentKey = parentIssue?.key || "";
-    const parentSummary = parentIssue?.fields?.summary || "";
+    const parentKey = this.normalizeFrontmatterText(parentIssue?.key || "");
+    const parentSummary = this.normalizeFrontmatterText(parentIssue?.fields?.summary || "");
 
     return {
-      jira_key: issue.key,
+      jira_key: this.normalizeFrontmatterText(issue.key),
       source: "JIRA",
       status,
       mapped_column: mappedColumn,
-      issuetype: f.issuetype.name,
-      priority: f.priority.name,
+      issuetype: issueTypeName,
+      priority: this.normalizeFrontmatterText(f.priority.name),
       story_points: storyPoints,
       due_date: dueDate,
       assignee: assigneeName,
@@ -167,12 +179,12 @@ export class FileManager {
       reporter_only: reporterOnly,
       parent_key: parentKey,
       parent_summary: parentSummary,
-      sprint: sprintName || "",
-      sprint_state: sprintState || "",
+      sprint: sprintName,
+      sprint_state: sprintState,
       tags,
-      summary: f.summary,
-      created: f.created,
-      updated: f.updated,
+      summary: this.normalizeFrontmatterText(f.summary),
+      created: this.normalizeFrontmatterText(f.created),
+      updated: this.normalizeFrontmatterText(f.updated),
     };
   }
 
@@ -305,29 +317,29 @@ export class FileManager {
 
   private frontmatterToYaml(fm: TaskFrontmatter): string {
     const lines: string[] = [];
-    lines.push(`jira_key: "${fm.jira_key}"`);
-    lines.push(`source: "${fm.source}"`);
-    lines.push(`status: "${fm.status}"`);
-    lines.push(`mapped_column: "${fm.mapped_column}"`);
-    lines.push(`issuetype: "${fm.issuetype}"`);
-    lines.push(`priority: "${fm.priority}"`);
+    lines.push(`jira_key: "${this.escapeYamlString(fm.jira_key)}"`);
+    lines.push(`source: "${this.escapeYamlString(fm.source)}"`);
+    lines.push(`status: "${this.escapeYamlString(fm.status)}"`);
+    lines.push(`mapped_column: "${this.escapeYamlString(fm.mapped_column)}"`);
+    lines.push(`issuetype: "${this.escapeYamlString(fm.issuetype)}"`);
+    lines.push(`priority: "${this.escapeYamlString(fm.priority)}"`);
     lines.push(`story_points: ${fm.story_points}`);
-    lines.push(`due_date: "${fm.due_date}"`);
-    lines.push(`assignee: "${fm.assignee}"`);
-    lines.push(`reporter: "${(fm.reporter || "").replace(/"/g, '\\"')}"`);
+    lines.push(`due_date: "${this.escapeYamlString(fm.due_date)}"`);
+    lines.push(`assignee: "${this.escapeYamlString(fm.assignee)}"`);
+    lines.push(`reporter: "${this.escapeYamlString(fm.reporter || "")}"`);
     if (fm.reporter_only) {
       lines.push(`reporter_only: true`);
     }
-    lines.push(`parent_key: "${(fm.parent_key || "").replace(/"/g, '\\"')}"`);
-    lines.push(`parent_summary: "${(fm.parent_summary || "").replace(/"/g, '\\"')}"`);
-    lines.push(`sprint: "${fm.sprint}"`);
-    lines.push(`sprint_state: "${fm.sprint_state}"`);
-    lines.push(`summary: "${fm.summary.replace(/"/g, '\\"')}"`);
-    lines.push(`created: "${fm.created}"`);
-    lines.push(`updated: "${fm.updated}"`);
+    lines.push(`parent_key: "${this.escapeYamlString(fm.parent_key || "")}"`);
+    lines.push(`parent_summary: "${this.escapeYamlString(fm.parent_summary || "")}"`);
+    lines.push(`sprint: "${this.escapeYamlString(fm.sprint)}"`);
+    lines.push(`sprint_state: "${this.escapeYamlString(fm.sprint_state)}"`);
+    lines.push(`summary: "${this.escapeYamlString(fm.summary)}"`);
+    lines.push(`created: "${this.escapeYamlString(fm.created)}"`);
+    lines.push(`updated: "${this.escapeYamlString(fm.updated)}"`);
     if (fm.archived) {
       lines.push(`archived: true`);
-      lines.push(`archived_date: "${fm.archived_date || ""}"`);
+      lines.push(`archived_date: "${this.escapeYamlString(fm.archived_date || "")}"`);
     }
     lines.push("tags:");
     for (const tag of fm.tags) {
@@ -406,29 +418,29 @@ export class FileManager {
     const cache = this.plugin.app.metadataCache.getFileCache(file);
     if (!cache?.frontmatter) return null;
     const fm = cache.frontmatter;
-    const status = fm.status || "";
+    const status = this.normalizeFrontmatterText(fm.status || "");
     return {
-      jira_key: fm.jira_key || "",
+      jira_key: this.normalizeFrontmatterText(fm.jira_key || ""),
       source: fm.source || "LOCAL",
       status,
-      mapped_column: fm.mapped_column || mapStatusToColumn(status),
-      issuetype: fm.issuetype || "Task",
-      priority: fm.priority || "Medium",
+      mapped_column: this.normalizeFrontmatterText(fm.mapped_column || mapStatusToColumn(status)),
+      issuetype: this.normalizeFrontmatterText(fm.issuetype || "Task"),
+      priority: this.normalizeFrontmatterText(fm.priority || "Medium"),
       story_points: fm.story_points || 0,
-      due_date: fm.due_date || "",
-      assignee: fm.assignee || "",
-      reporter: fm.reporter || "",
+      due_date: this.normalizeFrontmatterText(fm.due_date || ""),
+      assignee: this.normalizeFrontmatterText(fm.assignee || ""),
+      reporter: this.normalizeFrontmatterText(fm.reporter || ""),
       reporter_only: fm.reporter_only === true,
-      parent_key: fm.parent_key || "",
-      parent_summary: fm.parent_summary || "",
-      sprint: fm.sprint || "",
-      sprint_state: fm.sprint_state || "",
+      parent_key: this.normalizeFrontmatterText(fm.parent_key || ""),
+      parent_summary: this.normalizeFrontmatterText(fm.parent_summary || ""),
+      sprint: this.normalizeFrontmatterText(fm.sprint || ""),
+      sprint_state: this.normalizeFrontmatterText(fm.sprint_state || ""),
       tags: fm.tags || [],
-      summary: fm.summary || file.basename,
-      created: fm.created || "",
-      updated: fm.updated || "",
+      summary: this.normalizeFrontmatterText(fm.summary || file.basename),
+      created: this.normalizeFrontmatterText(fm.created || ""),
+      updated: this.normalizeFrontmatterText(fm.updated || ""),
       archived: fm.archived || false,
-      archived_date: fm.archived_date || "",
+      archived_date: this.normalizeFrontmatterText(fm.archived_date || ""),
     };
   }
 
