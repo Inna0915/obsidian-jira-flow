@@ -311,8 +311,8 @@ export default class JiraFlowPlugin extends Plugin {
 
     const stepCollect = toast.addStep("Collecting work logs & tasks...");
     try {
-      const stepGenerate = toast.addStep("Generating report via AI...");
       toast.updateStep(stepCollect, "success", "Data collected");
+      const stepGenerate = toast.addStep("Generating report via AI...");
 
       const result = await this.reportGenerator.generateReport(period);
       toast.updateStep(stepGenerate, "success", result.file.path);

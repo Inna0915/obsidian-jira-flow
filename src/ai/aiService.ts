@@ -285,7 +285,12 @@ export class AIService {
       durationMs: Date.now() - startedAt,
       responseChars: data?.content?.[0]?.text?.length ?? 0,
     });
-    return { content: data.content[0].text, reasoningContent: "" };
+    const claudeText = data?.content?.[0]?.text;
+    if (!claudeText?.trim()) {
+      const errDetail = data?.error?.message ?? JSON.stringify(data).slice(0, 300);
+      throw new Error(`Claude API returned empty/error response: ${errDetail}`);
+    }
+    return { content: claudeText, reasoningContent: "" };
   }
 
   /** Google Gemini API */
@@ -329,7 +334,16 @@ export class AIService {
       durationMs: Date.now() - startedAt,
       responseChars: data?.candidates?.[0]?.content?.parts?.[0]?.text?.length ?? 0,
     });
-    return { content: data.candidates[0].content.parts[0].text, reasoningContent: "" };
+    const blockReason = data?.promptFeedback?.blockReason;
+    if (blockReason) {
+      throw new Error(`Gemini request blocked: ${blockReason}`);
+    }
+    const geminiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!geminiText?.trim()) {
+      const errDetail = data?.error?.message ?? JSON.stringify(data).slice(0, 300);
+      throw new Error(`Gemini API returned empty/error response: ${errDetail}`);
+    }
+    return { content: geminiText, reasoningContent: "" };
   }
 
   private shouldLimitOpenAICompatibleTokens(model: AIModelConfig): boolean {

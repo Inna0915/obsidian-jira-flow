@@ -444,7 +444,8 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
 
   const buildSelectedTaskSummary = useCallback((task: TaskItem) => {
     const dueDateText = task.dueDate ? `, Due ${task.dueDate.slice(0, 10)}` : "";
-    return `- [${task.status}] ${task.key}: ${task.summary} (${task.issuetype}${dueDateText})`;
+    const tag = task.completed ? "COMPLETED" : "IN_PROGRESS";
+    return `- [${tag}] ${task.key}: ${task.summary} (${task.issuetype}${dueDateText})`;
   }, []);
 
   const handleCopySelectedTasks = useCallback(async () => {

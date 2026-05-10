@@ -4,6 +4,7 @@ import { AIService } from "./aiService";
 import { WorkLogService } from "../sync/workLogService";
 import type { DailyWorkLog } from "../sync/workLogService";
 import type { ReportPeriod } from "../types";
+import { isCompletedWorkflowColumn } from "../types";
 
 const REPORT_PREFIX_MAP: Record<ReportPeriod, string> = {
   weekly: "Weekly-Report",
@@ -229,8 +230,10 @@ export class ReportGenerator {
       const isLocal = fm.source === "LOCAL";
       const hasActiveSprint = fm.sprint_state?.toUpperCase() === "ACTIVE";
       if (!isLocal && !hasActiveSprint) continue;
+      const completed = isCompletedWorkflowColumn(fm.issuetype, fm.mapped_column, fm.source);
+      const tag = completed ? "COMPLETED" : "IN_PROGRESS";
       summaries.push(
-        `- [${fm.mapped_column}] ${fm.jira_key}: ${fm.summary} (${fm.issuetype}, ${fm.priority})`
+        `- [${tag}] ${fm.jira_key}: ${fm.summary} (${fm.issuetype}, ${fm.priority})`
       );
     }
 
@@ -314,9 +317,25 @@ export class ReportGenerator {
     }
 
     if (taskSummaries.length > 0) {
-      parts.push(`## Current Tasks\n`);
-      parts.push(taskSummaries.join("\n"));
-      parts.push("");
+      const completedTasks = taskSummaries.filter((t) => t.startsWith("- [COMPLETED]"));
+      const inProgressTasks = taskSummaries.filter((t) => t.startsWith("- [IN_PROGRESS]"));
+      const otherTasks = taskSummaries.filter((t) => !t.startsWith("- [COMPLETED]") && !t.startsWith("- [IN_PROGRESS]"));
+
+      if (completedTasks.length > 0) {
+        parts.push(`## Completed Tasks\n`);
+        parts.push(completedTasks.join("\n"));
+        parts.push("");
+      }
+      if (inProgressTasks.length > 0) {
+        parts.push(`## In Progress / Planned Tasks\n`);
+        parts.push(inProgressTasks.join("\n"));
+        parts.push("");
+      }
+      if (otherTasks.length > 0) {
+        parts.push(`## Other Tasks\n`);
+        parts.push(otherTasks.join("\n"));
+        parts.push("");
+      }
     }
 
     return parts.join("\n");

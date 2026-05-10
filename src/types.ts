@@ -274,21 +274,23 @@ export function isTransitionAllowed(issueType: string, fromColumn: string, toCol
   return getAllowedTransitions(issueType, fromColumn, source).includes(toColumn);
 }
 
-const INCOMPLETE_WORKFLOW_COLUMNS = new Set(["FUNNEL", "DEFINING", "READY", "TO DO", "EXECUTION"]);
+const STORY_INCOMPLETE_COLUMNS = new Set(["FUNNEL", "DEFINING", "READY", "TO DO", "EXECUTION"]);
+const BUG_INCOMPLETE_COLUMNS = new Set(["FUNNEL", "DEFINING", "READY", "TO DO", "EXECUTION", "EXECUTED", "TESTING & REVIEW", "TEST DONE"]);
 
 export function isCompletedWorkflowColumn(issueType: string, mappedColumn: string, source?: "JIRA" | "LOCAL"): boolean {
   if (!mappedColumn) return false;
 
-  if (source === "LOCAL") {
-    return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
+  const upper = mappedColumn.toUpperCase();
+
+  if (source === "LOCAL" || issueType.toLowerCase() === "story") {
+    return !STORY_INCOMPLETE_COLUMNS.has(upper);
   }
 
-  const normalizedType = issueType.toLowerCase();
-  if (normalizedType === "bug" || normalizedType === "story") {
-    return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
+  if (issueType.toLowerCase() === "bug") {
+    return !BUG_INCOMPLETE_COLUMNS.has(upper);
   }
 
-  return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
+  return !STORY_INCOMPLETE_COLUMNS.has(upper);
 }
 
 // ===== Swimlane Classification =====
@@ -334,7 +336,7 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
 【数据清洗规则】
 1. 删除每条记录开头的英文-数字任务编号（如 PRDAPD-704、WMS-123、Feature/PRDAPD-XXX 等）
 2. 识别"主功能项-标识"格式（如"转库单-20240201"、"出库单-临时"），提取"-"前的文字作为主功能项用于归类合并，相同主功能项的任务合并为一条描述
-3. 状态判定：内容包含"EXECUTED 执行完成" → 本周已完成；不包含 → 本周预计完成
+3. 状态判定：标记为 [COMPLETED] 的任务 → 本周已完成；标记为 [IN_PROGRESS] 的任务 → 本周预计完成/进行中（Bug 在 VALIDATING 及之后视为已完成，Story 在 EXECUTED 及之后视为已完成，标签已自动处理此差异）
 
 【输出格式】
 本周已完成
@@ -356,7 +358,7 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
 【数据清洗规则】
 1. 删除每条记录开头的英文-数字任务编号（如 PRDAPD-704、WMS-123、Feature/PRDAPD-XXX 等）
 2. 识别"主功能项-标识"格式（如"转库单-20240201"、"出库单-临时"），提取"-"前的文字作为主功能项用于归类合并，相同主功能项的任务合并为一条描述
-3. 状态判定：内容包含"EXECUTED 执行完成" → 本月已完成；不包含 → 本月预计完成
+3. 状态判定：标记为 [COMPLETED] 的任务 → 本月已完成；标记为 [IN_PROGRESS] 的任务 → 本月预计完成/进行中（Bug 在 VALIDATING 及之后视为已完成，Story 在 EXECUTED 及之后视为已完成，标签已自动处理此差异）
 
 【输出格式】
 本月已完成
