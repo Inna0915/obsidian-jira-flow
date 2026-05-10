@@ -43,55 +43,55 @@ export default class JiraFlowPlugin extends Plugin {
 
     this.addCommand({
       id: "open-kanban",
-      name: "打开看板",
+      name: "Jira Flow: 打开看板",
       callback: () => this.activateKanbanView(),
     });
 
     this.addCommand({
       id: "sync-jira",
-      name: "立即同步",
+      name: "Jira Flow: 立即同步",
       callback: () => this.syncJira(),
     });
 
     this.addCommand({
       id: "create-local-task",
-      name: "创建本地任务",
+      name: "Jira Flow: 创建本地任务",
       callback: () => this.createLocalTask(),
     });
 
     this.addCommand({
       id: "generate-weekly-report",
-      name: "生成周报",
+      name: "Jira Flow: 生成周报",
       callback: () => this.generateReport("weekly"),
     });
 
     this.addCommand({
       id: "generate-monthly-report",
-      name: "生成月报",
+      name: "Jira Flow: 生成月报",
       callback: () => this.generateReport("monthly"),
     });
 
     this.addCommand({
       id: "generate-quarterly-report",
-      name: "生成季报",
+      name: "Jira Flow: 生成季报",
       callback: () => this.generateReport("quarterly"),
     });
 
     this.addCommand({
       id: "generate-yearly-report",
-      name: "生成年报",
+      name: "Jira Flow: 生成年报",
       callback: () => this.generateReport("yearly"),
     });
 
     this.addCommand({
       id: "open-archive",
-      name: "打开归档视图",
+      name: "Jira Flow: 打开归档视图",
       callback: () => this.activateArchiveView(),
     });
 
     this.addCommand({
       id: "open-focus-view",
-      name: "打开专注视图（侧边栏）",
+      name: "Jira Flow: 打开专注视图",
       callback: () => this.activateSidebarView(),
     });
 
@@ -213,13 +213,13 @@ export default class JiraFlowPlugin extends Plugin {
 
     this.syncInProgress = true;
 
-    const toast = new StatusToast(document, "Jira Sync");
+    const toast = new StatusToast(document, "Jira 同步");
 
-    const stepFetch = toast.addStep("Fetching issues...");
+    const stepFetch = toast.addStep("正在获取任务...");
     let issues: import("./types").JiraIssue[];
     try {
       issues = await this.jiraApi.fetchIssues();
-      toast.updateStep(stepFetch, "success", `${issues.length} issues found`);
+      toast.updateStep(stepFetch, "success", `找到 ${issues.length} 个任务`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.updateStep(stepFetch, "error", msg);
@@ -228,12 +228,12 @@ export default class JiraFlowPlugin extends Plugin {
       return;
     }
 
-    const stepSync = toast.addStep("Syncing to local files...");
+    const stepSync = toast.addStep("正在同步到本地文件...");
     try {
       const result = await this.fileManager.syncIssues(issues);
-      const detail = `Created: ${result.created}, Updated: ${result.updated}` +
-        (result.archived > 0 ? `, Archived: ${result.archived}` : "") +
-        (result.errors.length > 0 ? `, Errors: ${result.errors.length}` : "");
+      const detail = `新建: ${result.created}, 更新: ${result.updated}` +
+        (result.archived > 0 ? `, 归档: ${result.archived}` : "") +
+        (result.errors.length > 0 ? `, 错误: ${result.errors.length}` : "");
       toast.updateStep(stepSync, result.errors.length > 0 ? "error" : "success", detail);
       toast.finish(result.errors.length === 0);
     } catch (e) {

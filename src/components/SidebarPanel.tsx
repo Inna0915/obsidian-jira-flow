@@ -79,16 +79,21 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   useEffect(() => {
     loadTasks();
     
-    // Listen for file changes to keep sidebar updated
+    // Listen for file changes to keep sidebar updated (debounced)
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedLoad = () => {
+      if (debounceTimer) return;
+      debounceTimer = setTimeout(() => { debounceTimer = null; loadTasks(); }, 300);
+    };
     const eventRef = plugin.app.metadataCache.on('changed', (file: TFile) => {
       if (file.path.startsWith(plugin.settings.tasksFolder)) {
-        loadTasks();
+        debouncedLoad();
       }
     });
-    
+
     // Also listen for vault changes (create/delete)
-    const createRef = plugin.app.vault.on('create', loadTasks);
-    const deleteRef = plugin.app.vault.on('delete', loadTasks);
+    const createRef = plugin.app.vault.on('create', debouncedLoad);
+    const deleteRef = plugin.app.vault.on('delete', debouncedLoad);
     
     return () => {
       plugin.app.metadataCache.offref(eventRef);
@@ -204,9 +209,10 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   
-  // Get end of week (Sunday)
+  // Get end of week (Sunday, ISO: Monday=0)
   const endOfWeek = new Date(now);
-  endOfWeek.setDate(now.getDate() + (7 - now.getDay()));
+  const daysUntilSunday = (7 - ((now.getDay() + 6) % 7)) % 7 || 7;
+  endOfWeek.setDate(now.getDate() + daysUntilSunday);
   endOfWeek.setHours(23, 59, 59, 999);
 
   const todayTasks = tasks.filter(t => {
@@ -444,8 +450,8 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
             </div>
 
             {/* +5 Min Button */}
-            <button 
-              onClick={() => setTimeLeft(prev => prev + 300)}
+            <button
+              onClick={() => setTimeLeft(prev => Math.min(prev + 300, 7200))}
               className="jf-text-gray-300 hover:jf-text-blue-500 jf-transition-colors jf-p-1 jf-rounded hover:jf-bg-blue-50"
               title="增加 5 分钟"
             >

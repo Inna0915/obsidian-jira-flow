@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TFile } from "obsidian";
+import { MarkdownRenderer, TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import { isCompletedWorkflowColumn, type ReportPeriod } from "../types";
 import type { DailyWorkLog } from "../sync/workLogService";
@@ -524,7 +524,6 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
     setGenerating(true);
     setThinkingContent("");
     setReportContent("");
-    setSavedReportContent("");
     setStreamPhase("thinking");
     try {
       const targetRange = getRangeForReportPeriod(period, selectedDate);
@@ -668,13 +667,13 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
         {/* Month Navigation */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <div style={{ display: "flex", gap: "4px" }}>
-            <NavBtn onClick={() => { setCalYear(calYear - 1); }}>«</NavBtn>
-            <NavBtn onClick={handlePrevMonth}>‹</NavBtn>
+            <NavBtn onClick={() => { setCalYear(calYear - 1); }} title="上一年">«</NavBtn>
+            <NavBtn onClick={handlePrevMonth} title="上一月">‹</NavBtn>
           </div>
-          <span style={{ fontSize: "14px", fontWeight: 600 }}>{calYear}年{calMonth + 1}月</span>
+          <span style={{ fontSize: "14px", fontWeight: 600, cursor: "pointer" }} title="回到今天" onClick={() => { const now = new Date(); setCalYear(now.getFullYear()); setCalMonth(now.getMonth()); setSelectedDate(now); }}>{calYear}年{calMonth + 1}月</span>
           <div style={{ display: "flex", gap: "4px" }}>
-            <NavBtn onClick={handleNextMonth}>›</NavBtn>
-            <NavBtn onClick={() => { setCalYear(calYear + 1); }}>»</NavBtn>
+            <NavBtn onClick={handleNextMonth} title="下一月">›</NavBtn>
+            <NavBtn onClick={() => { setCalYear(calYear + 1); }} title="下一年">»</NavBtn>
           </div>
         </div>
 
@@ -825,7 +824,7 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
               backgroundColor: "var(--background-secondary)",
             }}>
               <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                已选 {selectedReportTasks.length} / {allReportTasks.length} 项，生成周报时仅传递勾选的任务
+                已选 {selectedReportTasks.length} / {allReportTasks.length} 项，生成报告时仅传递勾选的任务
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
                 <ReportBtn onClick={handleCopySelectedTasks}>{copiedSelection ? "已复制" : "复制"}</ReportBtn>
@@ -899,7 +898,19 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
                       <span style={{ color: entry.completed ? "#36B37E" : "var(--text-muted)" }}>
                         {entry.completed ? "✓" : "○"}
                       </span>
-                      {entry.taskKey && <span style={{ fontFamily: "var(--font-monospace)", fontSize: "11px", color: "#0052CC" }}>{entry.taskKey}</span>}
+                      {entry.taskKey && (
+                        <span
+                          style={{ fontFamily: "var(--font-monospace)", fontSize: "11px", color: "#0052CC", cursor: "pointer", textDecoration: "underline" }}
+                          onClick={() => {
+                            const files = plugin.fileManager.getAllTaskFiles();
+                            const file = files.find((f) => {
+                              const fm = plugin.fileManager.getTaskFrontmatter(f);
+                              return fm?.jira_key === entry.taskKey;
+                            });
+                            if (file) plugin.app.workspace.getLeaf().openFile(file);
+                          }}
+                        >{entry.taskKey}</span>
+                      )}
                       <span>{entry.summary}</span>
                     </div>
                   ))}
@@ -1078,6 +1089,52 @@ const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, thinkingConte
     }
   }, [content]);
 
+  // Markdown rendering for report content
+  const mdContainerRef = useRef<HTMLDivElement>(null);
+  const lastRenderedRef = useRef<string>("");
+  const throttleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const container = mdContainerRef.current;
+    if (!container) return;
+    if (!content) {
+      container.innerHTML = "";
+      lastRenderedRef.current = "";
+      return;
+    }
+
+    const isError = content.startsWith("Error: ");
+    const doRender = () => {
+      container.innerHTML = "";
+      lastRenderedRef.current = content;
+      if (isError) {
+        const div = container.createDiv();
+        div.style.cssText = "padding:12px 16px;border-radius:8px;background:var(--background-modifier-error-foreground,#FEE2E2);border:1px solid #FCA5A5;color:var(--text-error,#DC2626);font-size:13px;line-height:1.6;white-space:pre-wrap;";
+        div.textContent = content;
+      } else {
+        MarkdownRenderer.renderMarkdown(content, container, "", plugin);
+      }
+    };
+
+    // Throttle during streaming (not idle = still generating)
+    if (generating && streamPhase !== "idle") {
+      if (throttleTimerRef.current) return;
+      throttleTimerRef.current = setTimeout(() => {
+        throttleTimerRef.current = null;
+        doRender();
+      }, 500);
+    } else {
+      doRender();
+    }
+
+    return () => {
+      if (throttleTimerRef.current) {
+        clearTimeout(throttleTimerRef.current);
+        throttleTimerRef.current = null;
+      }
+    };
+  }, [content, generating, streamPhase, plugin]);
+
   return (
   <>
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, backgroundColor: "rgba(0,0,0,0.3)" }} onClick={onClose} />
@@ -1171,10 +1228,10 @@ const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, thinkingConte
         {content ? (
           <div>
             <div style={{ fontSize: "12px", fontWeight: 700, color: "#0052CC", marginBottom: "8px" }}>最终输出</div>
-            <div style={{
-              fontSize: "13px", lineHeight: 1.8, whiteSpace: "pre-wrap",
+            <div ref={mdContainerRef} className="markdown-rendered jira-flow-report-content" style={{
+              fontSize: "13px", lineHeight: 1.8,
               color: "var(--text-normal)",
-            }}>{content}</div>
+            }} />
           </div>
         ) : generating ? (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>

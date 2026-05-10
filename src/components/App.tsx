@@ -805,7 +805,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   if (loading) {
     return (
       <div className="jf-flex jf-items-center jf-justify-center jf-h-full jf-text-lg">
-        Loading board...
+        正在加载看板...
       </div>
     );
   }
@@ -885,6 +885,9 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
                 className="jf-w-56 jf-px-3 jf-py-1.5 jf-text-sm jf-border jf-border-[#C1C7D0] jf-rounded-md jf-bg-white focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500 focus:jf-border-transparent jf-transition-all jf-placeholder-gray-400"
               />
               {/* Match count and navigation */}
+              {searchQuery && matchedCards.length === 0 && (
+                <span className="jf-absolute jf-right-20 jf-text-xs jf-text-red-500 jf-font-medium">无结果</span>
+              )}
               {searchQuery && matchedCards.length > 0 && (
                 <div className="jf-absolute jf-right-20 jf-flex jf-items-center jf-gap-1 jf-text-xs jf-text-gray-500">
                   <span className="jf-font-medium">

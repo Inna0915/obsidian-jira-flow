@@ -418,7 +418,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             </button>
             {isLocal && <span className="jf-text-[10px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-gray-200 jf-text-gray-500">LOCAL</span>}
           </div>
-          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-p-1 jf-rounded jf-hover:bg-gray-100">
+          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-p-1 jf-rounded hover:jf-bg-gray-100">
             <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -570,7 +570,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                 <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">类型</label>
                 <select value={card.issuetype} onChange={(e) => handleSaveLocalField("issuetype", e.target.value)} 
                   className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500">
-                  {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
+                  {["Task", "Bug", "Story", "Sub-task", "Epic", "Personal"].map((t) => <option key={t} value={t}>{t === "Personal" ? "个人任务" : t}</option>)}
                 </select>
               </div>
               <div>
@@ -785,7 +785,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                   fm.assignee = data.assignee;
                 });
                 new Notice(`任务 ${data.key} 已更新`);
-                onCardUpdated();
+                setTimeout(() => onCardUpdated(), 200);
               }
               setShowEditModal(false);
             }}
@@ -884,9 +884,13 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
   const [storyPoints, setStoryPoints] = useState(0);
   const [dueDate, setDueDate] = useState("");
   const [assignee, setAssignee] = useState("");
+  const [summaryError, setSummaryError] = useState(false);
 
   const handleSave = useCallback(() => {
-    if (!summary.trim()) return;
+    if (!summary.trim()) {
+      setSummaryError(true);
+      return;
+    }
     onSave({
       summary: summary.trim(),
       issuetype,
@@ -896,6 +900,7 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
       dueDate,
       assignee,
     });
+    new Notice("Jira Flow: 任务已创建");
     onClose();
   }, [summary, issuetype, priority, mappedColumn, storyPoints, dueDate, assignee, onSave, onClose]);
 
@@ -922,15 +927,16 @@ export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClos
           {/* Summary - Full width */}
           <div>
             <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
-            <input 
-              value={summary} 
-              onChange={(e) => setSummary(e.target.value)}
+            <input
+              value={summary}
+              onChange={(e) => { setSummary(e.target.value); if (summaryError) setSummaryError(false); }}
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
-              autoFocus 
+              autoFocus
               placeholder="需要做什么？"
               className={fieldClassName}
-              style={fieldStyle}
+              style={{ ...fieldStyle, ...(summaryError ? { borderColor: "#EF4444", boxShadow: "0 0 0 2px rgba(239,68,68,0.15)" } : {}) }}
             />
+            {summaryError && <div style={{ fontSize: "12px", color: "#EF4444", marginTop: "4px" }}>请输入任务摘要</div>}
           </div>
 
           {/* Row 2: Type & Priority */}
@@ -1052,6 +1058,7 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
   useEscapeKey(plugin.app, onClose, true);
 
   const [summary, setSummary] = useState(task.summary);
+  const [summaryError, setSummaryError] = useState(false);
   const [issuetype, setIssuetype] = useState(task.issuetype);
   const [priority, setPriority] = useState(task.priority);
   const [mappedColumn, setMappedColumn] = useState(task.mappedColumn);
@@ -1060,7 +1067,10 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
   const [assignee, setAssignee] = useState(task.assignee);
 
   const handleSave = useCallback(() => {
-    if (!summary.trim()) return;
+    if (!summary.trim()) {
+      setSummaryError(true);
+      return;
+    }
     onSave({
       key: task.key,
       summary: summary.trim(),
@@ -1100,15 +1110,16 @@ export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onCl
           {/* Summary - Full width */}
           <div>
             <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
-            <input 
-              value={summary} 
-              onChange={(e) => setSummary(e.target.value)}
+            <input
+              value={summary}
+              onChange={(e) => { setSummary(e.target.value); if (summaryError) setSummaryError(false); }}
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
-              autoFocus 
+              autoFocus
               placeholder="需要做什么？"
               className={fieldClassName}
-              style={fieldStyle}
+              style={{ ...fieldStyle, ...(summaryError ? { borderColor: "#EF4444", boxShadow: "0 0 0 2px rgba(239,68,68,0.15)" } : {}) }}
             />
+            {summaryError && <div style={{ fontSize: "12px", color: "#EF4444", marginTop: "4px" }}>请输入任务摘要</div>}
           </div>
 
           {/* Row 2: Type & Priority */}

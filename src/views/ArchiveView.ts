@@ -26,10 +26,15 @@ export class ArchiveView extends ItemView {
 
   async onOpen(): Promise<void> {
     this.render();
-    // Re-render on vault changes
-    this.registerEvent(this.app.vault.on("modify", () => this.render()));
-    this.registerEvent(this.app.vault.on("create", () => this.render()));
-    this.registerEvent(this.app.vault.on("delete", () => this.render()));
+    // Re-render on vault changes (debounced)
+    let renderTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedRender = () => {
+      if (renderTimer) return;
+      renderTimer = setTimeout(() => { renderTimer = null; this.render(); }, 300);
+    };
+    this.registerEvent(this.app.vault.on("modify", debouncedRender));
+    this.registerEvent(this.app.vault.on("create", debouncedRender));
+    this.registerEvent(this.app.vault.on("delete", debouncedRender));
   }
 
   async onClose(): Promise<void> {

@@ -328,7 +328,7 @@ export class JiraFlowSettingTab extends PluginSettingTab {
         .setName(label)
         .setDesc(`用于 ${key} AI 报告生成的系统提示词`)
         .addTextArea((text) => {
-          text.inputEl.rows = 3;
+          text.inputEl.rows = 8;
           text.inputEl.style.width = "100%";
           text
             .setValue(this.plugin.settings.ai.reportPrompts[key])
@@ -474,6 +474,8 @@ export class JiraFlowSettingTab extends PluginSettingTab {
         color: "#FF5630",
       });
       delBtn.addEventListener("click", async () => {
+        const confirmed = window.confirm(`确定要删除模型 "${model.displayName || model.name}" 吗？此操作不可撤销。`);
+        if (!confirmed) return;
         this.plugin.settings.ai.models = models.filter((m) => m.id !== model.id);
         if (this.plugin.settings.ai.activeModelId === model.id) {
           this.plugin.settings.ai.activeModelId = "";
@@ -640,7 +642,7 @@ class AddModelModal extends Modal {
           baseUrl: this.baseUrl.replace(/\/+$/, ""),
           apiKey: this.apiKey,
           model: this.model,
-          enabled: false,
+          enabled: true,
           enableThinking: this.enableThinking,
           enableStreaming: this.enableStreaming,
         });

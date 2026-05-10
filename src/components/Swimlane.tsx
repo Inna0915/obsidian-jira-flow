@@ -86,7 +86,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
               </span>
             </div>
             <span className="jf-text-[10px] jf-text-gray-400 jf-pl-4.5">
-              {totalCards} tasks
+              {totalCards} 个任务
             </span>
           </div>
         </div>
@@ -120,7 +120,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
         {collapsed && (
           <div className="jf-flex-1 jf-flex jf-items-center jf-px-4 jf-py-3 jf-bg-gray-50/50 jf-cursor-pointer" onMouseDown={onToggle} data-preserve-selection="true">
             <span className="jf-text-xs jf-text-gray-400">
-              {totalCards} tasks hidden
+              {totalCards} 个任务已隐藏
             </span>
           </div>
         )}
