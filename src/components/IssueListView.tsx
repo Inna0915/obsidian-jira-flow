@@ -12,13 +12,7 @@ interface IssueListViewProps {
   searchMatchIndex: number;
 }
 
-const priorityColors: Record<string, string> = {
-  Highest: "#DE350B",
-  High: "#FF5630",
-  Medium: "#FFAB00",
-  Low: "#36B37E",
-  Lowest: "#00875A",
-};
+import { priorityColors, stringToColor, getInitials } from "../utils/uiConstants";
 
 const typeStyles: Record<string, { bg: string; fg: string; label: string }> = {
   Story: { bg: "#E3FCEF", fg: "#006644", label: "S" },
@@ -50,22 +44,6 @@ const highlightText = (text: string, query: string): React.ReactNode => {
   );
 };
 
-const stringToColor = (str: string): string => {
-  const colors = ["#0052CC", "#00B8D9", "#6554C0", "#FF5630", "#FFAB00", "#36B37E", "#00875A"];
-  let hash = 0;
-  for (let index = 0; index < str.length; index += 1) {
-    hash = str.charCodeAt(index) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-};
-
-const getInitials = (name: string): string =>
-  name
-    .split(/[\s._-]+/)
-    .map((item) => item[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 
 export const IssueListView: React.FC<IssueListViewProps> = ({
   cards,

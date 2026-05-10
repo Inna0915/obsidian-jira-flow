@@ -12,31 +12,7 @@ import { JiraAuthImage } from "./JiraAuthImage";
 
 // ===== Helpers =====
 
-const priorityColors: Record<string, string> = {
-  Highest: "#FF5630",
-  High: "#FF7452",
-  Medium: "#FFAB00",
-  Low: "#36B37E",
-  Lowest: "#00875A",
-};
-
-const typeColors: Record<string, string> = {
-  Bug: "#FF5630",
-  Story: "#36B37E",
-  Task: "#4C9AFF",
-  Personal: "#F59E0B",
-  "Sub-task": "#6554C0",
-  Epic: "#FF991F",
-};
-
-const typeIcons: Record<string, string> = {
-  Bug: "\u{1F41B}",
-  Story: "\u{1F4D7}",
-  Task: "\u2705",
-  Personal: "\u{1F464}",
-  "Sub-task": "\u{1F4CE}",
-  Epic: "\u26A1",
-};
+import { priorityColors, typeColors, typeEmojiIcons as typeIcons } from "../utils/uiConstants";
 
 const LOCAL_TASK_TYPES = ["Personal", "Task", "Bug", "Story", "Sub-task", "Epic"];
 const fieldClassName = "jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all";

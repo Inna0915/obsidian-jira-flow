@@ -39,24 +39,7 @@ const highlightText = (text: string, query: string): React.ReactNode => {
   );
 };
 
-const priorityColors: Record<string, string> = {
-  Highest: "#FF5630",
-  High: "#FF7452",
-  Medium: "#FFAB00",
-  Low: "#36B37E",
-  Lowest: "#00875A",
-};
-
-const typeIcons: Record<string, string> = {
-  Bug: "B",
-  Story: "S",
-  Task: "T",
-  Feature: "F",
-  Enabler: "EN",
-  Personal: "P",
-  "Sub-task": "ST",
-  Epic: "E",
-};
+import { priorityColors, typeTextIcons as typeIcons, stringToColor, getInitials } from "../utils/uiConstants";
 
 // Get left border color (hex) for inline style to avoid Tailwind purge issues
 const getBorderColor = (issueType: string): string => {
@@ -260,25 +243,3 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
   );
 };
 
-// Helper to generate consistent color from string
-function stringToColor(str: string): string {
-  const colors = [
-    "#0052CC", "#00B8D9", "#6554C0", "#FF5630", "#FFAB00",
-    "#36B37E", "#00875A", "#253858", "#6B778C", "#FF7452"
-  ];
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
-// Helper to get initials from name
-function getInitials(name: string): string {
-  return name
-    .split(/[\s._-]+/)
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}

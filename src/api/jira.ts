@@ -581,7 +581,7 @@ export class JiraApi {
         `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=${this.fieldsParam}&expand=renderedFields`
       );
       allIssues.push(...data.issues);
-      if (startAt + data.maxResults >= data.total) break;
+      if (startAt + data.issues.length < maxResults || startAt + maxResults >= data.total) break;
       startAt += maxResults;
     }
 
