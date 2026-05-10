@@ -10,6 +10,8 @@ export interface AIModelConfig {
   apiKey: string;
   model: string;
   enabled: boolean;
+  enableThinking: boolean;
+  enableStreaming: boolean;
 }
 
 export interface ReportPrompts {
@@ -61,6 +63,8 @@ export const BUILTIN_MODELS: AIModelConfig[] = [
     apiKey: "",
     model: "moonshot-v1-8k",
     enabled: false,
+    enableThinking: true,
+    enableStreaming: true,
   },
   {
     id: "gemini-default",
@@ -71,6 +75,8 @@ export const BUILTIN_MODELS: AIModelConfig[] = [
     apiKey: "",
     model: "gemini-2.0-flash",
     enabled: false,
+    enableThinking: true,
+    enableStreaming: true,
   },
   {
     id: "claude-default",
@@ -81,6 +87,8 @@ export const BUILTIN_MODELS: AIModelConfig[] = [
     apiKey: "",
     model: "claude-sonnet-4-20250514",
     enabled: false,
+    enableThinking: true,
+    enableStreaming: true,
   },
 ];
 

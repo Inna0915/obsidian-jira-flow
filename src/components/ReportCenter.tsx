@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import { isCompletedWorkflowColumn, type ReportPeriod } from "../types";
@@ -245,10 +245,22 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
   const [completedTasks, setCompletedTasks] = useState<TaskItem[]>([]);
   const [workLogs, setWorkLogs] = useState<DailyWorkLog[]>([]);
   const [reportContent, setReportContent] = useState("");
+  const [thinkingContent, setThinkingContent] = useState("");
+  const [streamPhase, setStreamPhase] = useState<"idle" | "thinking" | "writing">("idle");
+  const [reportElapsedMs, setReportElapsedMs] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [showReportModal, setShowReportModal] = useState<ReportPeriod | null>(null);
   const [savedReportContent, setSavedReportContent] = useState("");
   const [weekReportMap, setWeekReportMap] = useState<Set<string>>(new Set());
+  const [selectedReportTaskKeys, setSelectedReportTaskKeys] = useState<Set<string>>(new Set());
+  const [reportSelectionTouched, setReportSelectionTouched] = useState(false);
+  const [copiedSelection, setCopiedSelection] = useState(false);
+  const reportStartedAtRef = useRef<number | null>(null);
+
+  const activeAiModel = useMemo(
+    () => plugin.settings.ai.models.find((model) => model.id === plugin.settings.ai.activeModelId),
+    [plugin.settings.ai.activeModelId, plugin.settings.ai.models]
+  );
 
   const todayLunar = useMemo(() => solarToLunar(today.getFullYear(), today.getMonth() + 1, today.getDate()), [today]);
 
@@ -287,6 +299,28 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
     }
     return getRangeForReportPeriod(showReportModal, selectedDate);
   }, [getRangeForReportPeriod, selectedDate, showReportModal]);
+
+  useEffect(() => {
+    if (!generating || reportStartedAtRef.current === null) {
+      return;
+    }
+
+    setReportElapsedMs(Date.now() - reportStartedAtRef.current);
+    const timerId = globalThis.setInterval(() => {
+      if (reportStartedAtRef.current !== null) {
+        setReportElapsedMs(Date.now() - reportStartedAtRef.current);
+      }
+    }, 200);
+
+    return () => {
+      globalThis.clearInterval(timerId);
+    };
+  }, [generating]);
+
+  const reportSelectionScopeKey = useMemo(
+    () => `${viewMode}:${formatDate(viewRange.start)}:${formatDate(viewRange.end)}`,
+    [viewMode, viewRange]
+  );
 
   // Load tasks for the current view range
   useEffect(() => {
@@ -338,6 +372,39 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
     setCompletedTasks(completed);
   }, [viewRange, plugin]);
 
+  const allReportTasks = useMemo(() => {
+    const taskMap = new Map<string, TaskItem>();
+    [...pendingTasks, ...completedTasks].forEach((task) => {
+      taskMap.set(task.key, task);
+    });
+    return Array.from(taskMap.values());
+  }, [completedTasks, pendingTasks]);
+
+  const selectedReportTasks = useMemo(
+    () => allReportTasks.filter((task) => selectedReportTaskKeys.has(task.key)),
+    [allReportTasks, selectedReportTaskKeys]
+  );
+
+  useEffect(() => {
+    setReportSelectionTouched(false);
+  }, [reportSelectionScopeKey]);
+
+  useEffect(() => {
+    const visibleKeys = new Set(allReportTasks.map((task) => task.key));
+    setSelectedReportTaskKeys((previous) => {
+      if (!reportSelectionTouched) {
+        return new Set(visibleKeys);
+      }
+
+      const next = new Set(Array.from(previous).filter((key) => visibleKeys.has(key)));
+      if (next.size === previous.size && Array.from(next).every((key) => previous.has(key))) {
+        return previous;
+      }
+
+      return next;
+    });
+  }, [allReportTasks, reportSelectionTouched]);
+
   // Load work logs for the view range
   useEffect(() => {
     (async () => {
@@ -351,6 +418,48 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
   useEffect(() => {
     setWeekReportMap(plugin.reportGenerator.listReportKeys("weekly"));
   }, [plugin]);
+
+  const toggleReportTaskSelection = useCallback((taskKey: string) => {
+    setReportSelectionTouched(true);
+    setSelectedReportTaskKeys((previous) => {
+      const next = new Set(previous);
+      if (next.has(taskKey)) {
+        next.delete(taskKey);
+      } else {
+        next.add(taskKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllReportTasks = useCallback(() => {
+    setReportSelectionTouched(true);
+    setSelectedReportTaskKeys(new Set(allReportTasks.map((task) => task.key)));
+  }, [allReportTasks]);
+
+  const handleClearReportTaskSelection = useCallback(() => {
+    setReportSelectionTouched(true);
+    setSelectedReportTaskKeys(new Set());
+  }, []);
+
+  const buildSelectedTaskSummary = useCallback((task: TaskItem) => {
+    const dueDateText = task.dueDate ? `, Due ${task.dueDate.slice(0, 10)}` : "";
+    return `- [${task.status}] ${task.key}: ${task.summary} (${task.issuetype}${dueDateText})`;
+  }, []);
+
+  const handleCopySelectedTasks = useCallback(async () => {
+    if (selectedReportTasks.length === 0) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(selectedReportTasks.map(buildSelectedTaskSummary).join("\n"));
+      setCopiedSelection(true);
+      globalThis.setTimeout(() => setCopiedSelection(false), 2000);
+    } catch (error) {
+      console.error("[Jira Flow] Failed to copy selected report tasks", error);
+    }
+  }, [buildSelectedTaskSummary, selectedReportTasks]);
 
   // Generate a template with correct dates for the selected period
   const generateReportTemplate = useCallback((period: ReportPeriod, start: Date, end: Date): string => {
@@ -374,7 +483,15 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
 
   // Load existing report for modal based on the selected date range
   useEffect(() => {
-    if (!showReportModal) { setSavedReportContent(""); setReportContent(""); return; }
+    if (!showReportModal) {
+      setSavedReportContent("");
+      setReportContent("");
+      setThinkingContent("");
+      setStreamPhase("idle");
+      setReportElapsedMs(0);
+      reportStartedAtRef.current = null;
+      return;
+    }
     (async () => {
       const targetRange = getRangeForReportPeriod(showReportModal, selectedDate);
       const matchingFile = plugin.reportGenerator.getReportFile(showReportModal, targetRange);
@@ -383,32 +500,84 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
         const content = await plugin.app.vault.read(matchingFile);
         setSavedReportContent(content);
         setReportContent(content);
+        setThinkingContent("");
+        setStreamPhase("idle");
+        setReportElapsedMs(0);
+        reportStartedAtRef.current = null;
       } else {
         // Generate a template with the correct dates instead of empty content
         const template = generateReportTemplate(showReportModal, targetRange.start, targetRange.end);
         setSavedReportContent("");
         setReportContent(template);
+        setThinkingContent("");
+        setStreamPhase("idle");
+        setReportElapsedMs(0);
+        reportStartedAtRef.current = null;
       }
     })();
   }, [showReportModal, plugin, selectedDate, getRangeForReportPeriod, generateReportTemplate]);
 
   const handleGenerate = useCallback(async (period: ReportPeriod) => {
+    reportStartedAtRef.current = Date.now();
+    setReportElapsedMs(0);
     setGenerating(true);
+    setThinkingContent("");
+    setReportContent("");
+    setSavedReportContent("");
+    setStreamPhase("thinking");
     try {
       const targetRange = getRangeForReportPeriod(period, selectedDate);
+      const canReuseVisibleLogs =
+        formatDate(targetRange.start) === formatDate(viewRange.start) &&
+        formatDate(targetRange.end) === formatDate(viewRange.end);
+
+      console.info("[Jira Flow] Report generation requested", {
+        period,
+        selectedDate: formatDate(selectedDate),
+        targetStart: formatDate(targetRange.start),
+        targetEnd: formatDate(targetRange.end),
+        canReuseVisibleLogs,
+        visibleLogDays: workLogs.length,
+        selectedTasks: selectedReportTasks.length,
+      });
+
       const result = await plugin.reportGenerator.generateReport(period, {
         start: targetRange.start,
         end: targetRange.end,
+        preloadedLogs: canReuseVisibleLogs ? workLogs : undefined,
+        selectedTaskSummaries: selectedReportTasks.map(buildSelectedTaskSummary),
+        onProgress: ({ reasoningContent, content }) => {
+          if (typeof reasoningContent === "string") {
+            setThinkingContent(reasoningContent);
+            setStreamPhase("thinking");
+          }
+          if (typeof content === "string") {
+            setReportContent(content);
+            setStreamPhase("writing");
+          }
+        },
       });
+      if (result.reasoningContent) {
+        setThinkingContent(result.reasoningContent);
+      }
       setReportContent(result.content);
       setSavedReportContent(result.content);
+      setStreamPhase("idle");
+      if (reportStartedAtRef.current !== null) {
+        setReportElapsedMs(Date.now() - reportStartedAtRef.current);
+      }
       setWeekReportMap(plugin.reportGenerator.listReportKeys("weekly"));
     } catch (e) {
+      setThinkingContent("");
+      setStreamPhase("idle");
+      if (reportStartedAtRef.current !== null) {
+        setReportElapsedMs(Date.now() - reportStartedAtRef.current);
+      }
       setReportContent(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setGenerating(false);
     }
-  }, [getRangeForReportPeriod, plugin, selectedDate]);
+  }, [buildSelectedTaskSummary, getRangeForReportPeriod, plugin, selectedDate, selectedReportTasks, viewRange, workLogs]);
 
   const handleRefresh = useCallback(() => {
     setSelectedDate(new Date(selectedDate));
@@ -642,6 +811,29 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
 
         {/* Task Content */}
         <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          {allReportTasks.length > 0 && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              marginBottom: "16px",
+              padding: "10px 14px",
+              borderRadius: "8px",
+              border: "1px solid var(--background-modifier-border)",
+              backgroundColor: "var(--background-secondary)",
+            }}>
+              <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                已选 {selectedReportTasks.length} / {allReportTasks.length} 项，生成周报时仅传递勾选的任务
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <ReportBtn onClick={handleCopySelectedTasks}>{copiedSelection ? "已复制" : "复制"}</ReportBtn>
+                <ReportBtn onClick={handleSelectAllReportTasks}>全选</ReportBtn>
+                <ReportBtn onClick={handleClearReportTaskSelection}>清空</ReportBtn>
+              </div>
+            </div>
+          )}
+
           {/* Pending Tasks */}
           <div style={{ marginBottom: "28px" }}>
             <h3 style={{ fontSize: "15px", fontWeight: 700, marginBottom: "4px" }}>
@@ -654,7 +846,15 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
               <EmptyState text="暂无预计完成的任务" sub="当前时间范围内没有截止的待完成任务" />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {pendingTasks.map((t) => <TaskRow key={t.key} task={t} plugin={plugin} />)}
+                {pendingTasks.map((t) => (
+                  <TaskRow
+                    key={t.key}
+                    task={t}
+                    plugin={plugin}
+                    isSelected={selectedReportTaskKeys.has(t.key)}
+                    onToggleSelection={toggleReportTaskSelection}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -668,7 +868,15 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
               <EmptyState text="暂无工作日志" sub="在指定时间范围内没有找到记录" />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {completedTasks.map((t) => <TaskRow key={t.key} task={t} plugin={plugin} />)}
+                {completedTasks.map((t) => (
+                  <TaskRow
+                    key={t.key}
+                    task={t}
+                    plugin={plugin}
+                    isSelected={selectedReportTaskKeys.has(t.key)}
+                    onToggleSelection={toggleReportTaskSelection}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -706,6 +914,10 @@ export const ReportCenter: React.FC<ReportCenterProps> = ({ plugin, onBack }) =>
         <ReportModal
           plugin={plugin}
           period={showReportModal}
+          thinkingContent={thinkingContent}
+          streamPhase={streamPhase}
+          thinkingEnabled={activeAiModel?.enableThinking ?? true}
+          reportElapsedMs={reportElapsedMs}
           content={reportContent}
           savedContent={savedReportContent}
           generating={generating}
@@ -750,7 +962,12 @@ const typeIconMap: Record<string, string> = {
   Bug: "🐛", Story: "📗", Task: "✅", "Sub-task": "📎", Epic: "⚡",
 };
 
-const TaskRow: React.FC<{ task: TaskItem; plugin: JiraFlowPlugin }> = ({ task, plugin }) => {
+const TaskRow: React.FC<{
+  task: TaskItem;
+  plugin: JiraFlowPlugin;
+  isSelected: boolean;
+  onToggleSelection: (taskKey: string) => void;
+}> = ({ task, plugin, isSelected, onToggleSelection }) => {
   const onHoverTask = (e: React.MouseEvent, taskKey: string) => {
     if (plugin?.app) {
       const targetFile = plugin.fileManager.findTaskFileByKey(taskKey);
@@ -787,6 +1004,17 @@ const TaskRow: React.FC<{ task: TaskItem; plugin: JiraFlowPlugin }> = ({ task, p
       onClick={() => onClickTask(task.key)}
       onMouseEnter={(e) => onHoverTask(e, task.key)}
     >
+      <label
+        style={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelection(task.key)}
+          style={{ cursor: "pointer" }}
+        />
+      </label>
       <span style={{ fontSize: "12px" }}>{typeIconMap[task.issuetype] || "📋"}</span>
       <span style={{ fontFamily: "var(--font-monospace)", fontSize: "11px", color: "#0052CC", fontWeight: 600, flexShrink: 0 }}>{task.key}</span>
       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{task.summary}</span>
@@ -803,6 +1031,10 @@ const TaskRow: React.FC<{ task: TaskItem; plugin: JiraFlowPlugin }> = ({ task, p
 interface ReportModalProps {
   plugin: JiraFlowPlugin;
   period: ReportPeriod;
+  thinkingContent: string;
+  streamPhase: "idle" | "thinking" | "writing";
+  thinkingEnabled: boolean;
+  reportElapsedMs: number;
   content: string;
   savedContent: string;
   generating: boolean;
@@ -816,7 +1048,16 @@ const periodLabels: Record<ReportPeriod, string> = {
   weekly: "周报", monthly: "月报", quarterly: "季报", yearly: "年报",
 };
 
-const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, content, savedContent, generating, onGenerate, onClose, viewTitle, dateRange }) => {
+const formatDuration = (durationMs: number): string => {
+  if (durationMs < 1000) {
+    return `${durationMs} ms`;
+  }
+
+  const seconds = durationMs / 1000;
+  return seconds >= 10 ? `${seconds.toFixed(1)} s` : `${seconds.toFixed(2)} s`;
+};
+
+const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, thinkingContent, streamPhase, thinkingEnabled, reportElapsedMs, content, savedContent, generating, onGenerate, onClose, viewTitle, dateRange }) => {
   // Trap ESC key to close modal without closing Obsidian tab
   useEscapeKey(plugin.app, onClose, true);
 
@@ -861,6 +1102,15 @@ const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, content, save
             color: "var(--text-faint)",
             fontFamily: "var(--font-monospace)",
           }}>{dateRangeStr}</span>
+          {reportElapsedMs > 0 && (
+            <span style={{
+              fontSize: "11px",
+              padding: "2px 8px",
+              borderRadius: "999px",
+              backgroundColor: "var(--background-secondary)",
+              color: "var(--text-muted)",
+            }}>{generating ? `已耗时 ${formatDuration(reportElapsedMs)}` : `实际时长 ${formatDuration(reportElapsedMs)}`}</span>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
           <button onClick={handleCopy} disabled={!content} title="复制内容" style={{
@@ -877,11 +1127,63 @@ const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, content, save
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+        {thinkingEnabled && (thinkingContent || generating) && (
+          <details style={{
+            marginBottom: "16px",
+            borderRadius: "10px",
+            border: "1px solid var(--background-modifier-border)",
+            backgroundColor: "#F6F7F9",
+            overflow: "hidden",
+          }}>
+            <summary style={{
+              cursor: "pointer",
+              listStyle: "none",
+              padding: "12px 14px",
+              userSelect: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              fontSize: "12px",
+              color: "#556070",
+              fontWeight: 600,
+            }}>
+              <span>思考过程</span>
+              <span>{generating ? "点击展开推理过程" : "点击查看推理过程"}</span>
+            </summary>
+            <div style={{ padding: "0 14px 14px 14px" }}>
+              <div style={{
+                borderLeft: "3px solid #C7CED8",
+                backgroundColor: "#EEF1F4",
+                color: "#5E6978",
+                fontSize: "12px",
+                lineHeight: 1.75,
+                whiteSpace: "pre-wrap",
+                padding: "12px 14px",
+                borderRadius: "0 8px 8px 0",
+              }}>
+                {thinkingContent || "AI 正在思考中..."}
+              </div>
+            </div>
+          </details>
+        )}
+
         {content ? (
-          <div style={{
-            fontSize: "13px", lineHeight: 1.8, whiteSpace: "pre-wrap",
-            color: "var(--text-normal)",
-          }}>{content}</div>
+          <div>
+            <div style={{ fontSize: "12px", fontWeight: 700, color: "#0052CC", marginBottom: "8px" }}>最终输出</div>
+            <div style={{
+              fontSize: "13px", lineHeight: 1.8, whiteSpace: "pre-wrap",
+              color: "var(--text-normal)",
+            }}>{content}</div>
+          </div>
+        ) : generating ? (
+          <div style={{ textAlign: "center", padding: "60px 20px" }}>
+            <div style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "8px" }}>
+              {streamPhase === "thinking" ? "AI 正在思考..." : "AI 正在输出正文..."}
+            </div>
+            <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
+              将实时展示思考过程和最终输出
+            </div>
+          </div>
         ) : (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: "14px", color: "var(--text-muted)", marginBottom: "8px" }}>
@@ -900,7 +1202,7 @@ const ReportModal: React.FC<ReportModalProps> = ({ plugin, period, content, save
               {dateRangeStr}
             </div>
             <div style={{ fontSize: "12px", color: "var(--text-faint)" }}>
-              点击下方按钮使用 AI 生成
+              {savedContent ? "点击下方按钮重新生成" : "点击下方按钮使用 AI 生成"}
             </div>
           </div>
         )}

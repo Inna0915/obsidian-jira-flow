@@ -2,6 +2,7 @@ import { TFile, normalizePath } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import { AIService } from "./aiService";
 import { WorkLogService } from "../sync/workLogService";
+import type { DailyWorkLog } from "../sync/workLogService";
 import type { ReportPeriod } from "../types";
 
 const REPORT_PREFIX_MAP: Record<ReportPeriod, string> = {
@@ -12,6 +13,19 @@ const REPORT_PREFIX_MAP: Record<ReportPeriod, string> = {
 };
 
 type ReportRange = { start: Date; end: Date };
+export type ReportGenerationProgress = {
+  reasoningContent?: string;
+  content?: string;
+};
+
+type ReportGenerationOptions = {
+  start?: Date;
+  end?: Date;
+  modelId?: string;
+  selectedTaskSummaries?: string[];
+  preloadedLogs?: DailyWorkLog[];
+  onProgress?: (progress: ReportGenerationProgress) => void;
+};
 
 export class ReportGenerator {
   private plugin: JiraFlowPlugin;
@@ -30,8 +44,9 @@ export class ReportGenerator {
    */
   async generateReport(
     period: ReportPeriod = "weekly",
-    options?: { start?: Date; end?: Date; modelId?: string }
-  ): Promise<{ content: string; file: TFile }> {
+    options?: ReportGenerationOptions
+  ): Promise<{ content: string; reasoningContent?: string; file: TFile }> {
+    const reportStartedAt = Date.now();
     const modelId = options?.modelId || this.plugin.settings.ai.activeModelId;
     const activeModel = this.plugin.settings.ai.models.find(
       (m) => m.id === modelId && m.enabled
@@ -46,10 +61,23 @@ export class ReportGenerator {
 
     const periodLabel = this.getPeriodLabel(start, end);
 
-    // Gather data
-    const personalTaskKeys = this.collectPersonalTaskKeys();
-    const logs = this.filterLogs(await this.workLogService.collectLogs(start, end), personalTaskKeys);
-    const taskSummaries = this.collectTaskSummaries(personalTaskKeys);
+    const taskContextStartedAt = Date.now();
+    const taskContext = this.collectTaskContext(options?.selectedTaskSummaries);
+    const taskContextMs = Date.now() - taskContextStartedAt;
+
+    const usingPreloadedLogs = !!options?.preloadedLogs;
+    const logCollectionStartedAt = Date.now();
+    const sourceLogs = options?.preloadedLogs ?? await this.workLogService.collectLogs(start, end);
+    const logCollectionMs = Date.now() - logCollectionStartedAt;
+
+    const rawLogDays = sourceLogs.length;
+    const rawLogEntries = sourceLogs.reduce((count, log) => count + log.entries.length, 0);
+    const logs = this.filterLogs(sourceLogs, taskContext.personalTaskKeys);
+    const filteredLogDays = logs.length;
+    const filteredLogEntries = logs.reduce((count, log) => count + log.entries.length, 0);
+    const taskSummaries = options?.selectedTaskSummaries ?? taskContext.taskSummaries;
+
+    const promptStartedAt = Date.now();
     const stats = this.buildStatsFromLogs(logs, start, end);
 
     if (logs.length === 0 && taskSummaries.length === 0) {
@@ -58,16 +86,53 @@ export class ReportGenerator {
 
     const userContent = this.buildPromptContent(period, periodLabel, start, end, logs, taskSummaries, stats);
     const systemPrompt = this.getSystemPrompt(period);
+    const promptBuildMs = Date.now() - promptStartedAt;
+
+    console.info("[Jira Flow] Report timing", {
+      period,
+      start: this.formatDate(start),
+      end: this.formatDate(end),
+      usingPreloadedLogs,
+      taskFilesScanned: taskContext.scannedFiles,
+      personalTaskKeys: taskContext.personalTaskKeys.size,
+      taskContextMs,
+      logCollectionMs,
+      rawLogDays,
+      rawLogEntries,
+      filteredLogDays,
+      filteredLogEntries,
+      taskSummaries: taskSummaries.length,
+      promptBuildMs,
+      promptChars: userContent.length,
+    });
+
+    const aiMessages = [
+      { role: "system" as const, content: systemPrompt },
+      { role: "user" as const, content: userContent },
+    ];
 
     // Call AI
-    const response = await this.aiService.chat(activeModel, [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userContent },
-    ]);
+    const response = options?.onProgress
+      ? await this.aiService.chatStream(activeModel, aiMessages, {
+          onReasoningUpdate: (reasoningContent) => options.onProgress?.({ reasoningContent }),
+          onContentUpdate: (content) => options.onProgress?.({ content }),
+        })
+      : await this.aiService.chat(activeModel, aiMessages);
 
     // Save report with the period's end date (not current date)
+    const saveStartedAt = Date.now();
     const file = await this.saveReport(period, response.content, { start, end });
-    return { content: response.content, file };
+    const saveReportMs = Date.now() - saveStartedAt;
+
+    console.info("[Jira Flow] Report timing completed", {
+      period,
+      totalMs: Date.now() - reportStartedAt,
+      saveReportMs,
+      outputChars: response.content.length,
+      filePath: file.path,
+    });
+
+    return { content: response.content, reasoningContent: response.reasoningContent, file };
   }
 
   // Keep backward compat
@@ -83,7 +148,7 @@ export class ReportGenerator {
     logs: import("../sync/workLogService").DailyWorkLog[];
     stats: { totalDays: number; activeDays: number; totalEntries: number; completedEntries: number; taskKeys: Set<string> };
   }> {
-    const personalTaskKeys = this.collectPersonalTaskKeys();
+    const { personalTaskKeys } = this.collectTaskContext();
     const logs = this.filterLogs(await this.workLogService.collectLogs(start, end), personalTaskKeys);
     const stats = this.buildStatsFromLogs(logs, start, end);
     return { logs, stats };
@@ -146,14 +211,20 @@ export class ReportGenerator {
     return `${this.formatDate(start)} ~ ${this.formatDate(end)}`;
   }
 
-  private collectTaskSummaries(personalTaskKeys: Set<string>): string[] {
+  private collectTaskContext(selectedTaskSummaries?: string[]): { personalTaskKeys: Set<string>; taskSummaries: string[]; scannedFiles: number } {
     const files = this.plugin.fileManager.getAllTaskFiles();
+    const personalTaskKeys = new Set<string>();
     const summaries: string[] = [];
+    const shouldCollectTaskSummaries = !selectedTaskSummaries;
 
     for (const file of files) {
       const fm = this.plugin.fileManager.getTaskFrontmatter(file);
       if (!fm) continue;
-      if (personalTaskKeys.has(fm.jira_key) || this.isPersonalIssueType(fm.issuetype)) continue;
+      if (this.isPersonalIssueType(fm.issuetype)) {
+        personalTaskKeys.add(fm.jira_key);
+        continue;
+      }
+      if (!shouldCollectTaskSummaries) continue;
       // Only include local tasks and active sprint tasks
       const isLocal = fm.source === "LOCAL";
       const hasActiveSprint = fm.sprint_state?.toUpperCase() === "ACTIVE";
@@ -163,22 +234,7 @@ export class ReportGenerator {
       );
     }
 
-    return summaries;
-  }
-
-  private collectPersonalTaskKeys(): Set<string> {
-    const personalTaskKeys = new Set<string>();
-
-    for (const file of this.plugin.fileManager.getAllTaskFiles()) {
-      const fm = this.plugin.fileManager.getTaskFrontmatter(file);
-      if (!fm) continue;
-
-      if (this.isPersonalIssueType(fm.issuetype)) {
-        personalTaskKeys.add(fm.jira_key);
-      }
-    }
-
-    return personalTaskKeys;
+    return { personalTaskKeys, taskSummaries: selectedTaskSummaries ?? summaries, scannedFiles: files.length };
   }
 
   private filterLogs(
@@ -250,17 +306,11 @@ export class ReportGenerator {
     parts.push(`- Unique tasks touched: ${stats.taskKeys.size}`);
     parts.push("");
 
-    if (logs.length > 0) {
+    const logLines = this.buildLogSectionForPrompt(period, logs);
+    if (logLines.length > 0) {
       parts.push(`## Work Logs\n`);
-      for (const log of logs) {
-        parts.push(`### ${log.date}`);
-        for (const entry of log.entries) {
-          const check = entry.completed ? "x" : " ";
-          const key = entry.taskKey ? `${entry.taskKey}: ` : "";
-          parts.push(`- [${check}] ${key}${entry.summary}`);
-        }
-        parts.push("");
-      }
+      parts.push(...logLines);
+      parts.push("");
     }
 
     if (taskSummaries.length > 0) {
@@ -270,6 +320,59 @@ export class ReportGenerator {
     }
 
     return parts.join("\n");
+  }
+
+  private buildLogSectionForPrompt(period: ReportPeriod, logs: DailyWorkLog[]): string[] {
+    const totalEntries = logs.reduce((count, log) => count + log.entries.length, 0);
+
+    if (period === "weekly" && totalEntries <= 40) {
+      const lines: string[] = [];
+      for (const log of logs) {
+        lines.push(`### ${log.date}`);
+        for (const entry of log.entries) {
+          const check = entry.completed ? "x" : " ";
+          const key = entry.taskKey ? `${entry.taskKey}: ` : "";
+          lines.push(`- [${check}] ${key}${entry.summary}`);
+        }
+        lines.push("");
+      }
+      return lines;
+    }
+
+    const groupedEntries = new Map<string, {
+      label: string;
+      completed: number;
+      total: number;
+      dates: Set<string>;
+    }>();
+
+    for (const log of logs) {
+      for (const entry of log.entries) {
+        const identity = entry.taskKey?.trim() ? entry.taskKey.trim() : `summary:${entry.summary.trim()}`;
+        const label = entry.taskKey ? `${entry.taskKey}: ${entry.summary}` : entry.summary;
+        const existing = groupedEntries.get(identity) ?? {
+          label,
+          completed: 0,
+          total: 0,
+          dates: new Set<string>(),
+        };
+
+        existing.total += 1;
+        if (entry.completed) {
+          existing.completed += 1;
+        }
+        existing.dates.add(log.date);
+        groupedEntries.set(identity, existing);
+      }
+    }
+
+    return Array.from(groupedEntries.values())
+      .sort((left, right) => right.total - left.total || left.label.localeCompare(right.label))
+      .map((item) => {
+        const dates = Array.from(item.dates).sort();
+        const dateLabel = dates.length <= 3 ? dates.join(", ") : `${dates[0]} ~ ${dates[dates.length - 1]}`;
+        return `- ${item.label} (${item.total} 条记录, 完成 ${item.completed}/${item.total}, 日期 ${dateLabel})`;
+      });
   }
 
   private async saveReport(period: ReportPeriod, content: string, range: ReportRange): Promise<TFile> {

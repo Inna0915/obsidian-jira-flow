@@ -364,7 +364,7 @@ export class JiraFlowSettingTab extends PluginSettingTab {
 
     const thead = table.createEl("thead");
     const headerRow = thead.createEl("tr");
-    for (const h of ["显示名称", "提供商", "模型", "启用", "操作"]) {
+    for (const h of ["显示名称", "提供商", "模型", "思考模式", "流式输出", "启用", "操作"]) {
       const th = headerRow.createEl("th", { text: h });
       Object.assign(th.style, {
         textAlign: "left",
@@ -406,6 +406,28 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       modelCell.textContent = model.model;
       modelCell.style.fontFamily = "var(--font-monospace)";
       modelCell.style.fontSize = "12px";
+
+      // Thinking toggle
+      const thinkingCell = row.createEl("td");
+      Object.assign(thinkingCell.style, cellStyle);
+      const thinkingToggle = thinkingCell.createEl("input", { type: "checkbox" });
+      thinkingToggle.checked = model.enableThinking;
+      thinkingToggle.style.cursor = "pointer";
+      thinkingToggle.addEventListener("change", async () => {
+        model.enableThinking = thinkingToggle.checked;
+        await this.plugin.saveSettings();
+      });
+
+      // Streaming toggle
+      const streamingCell = row.createEl("td");
+      Object.assign(streamingCell.style, cellStyle);
+      const streamingToggle = streamingCell.createEl("input", { type: "checkbox" });
+      streamingToggle.checked = model.enableStreaming;
+      streamingToggle.style.cursor = "pointer";
+      streamingToggle.addEventListener("change", async () => {
+        model.enableStreaming = streamingToggle.checked;
+        await this.plugin.saveSettings();
+      });
 
       // Enabled toggle
       const toggleCell = row.createEl("td");
@@ -483,6 +505,8 @@ class AddModelModal extends Modal {
   private baseUrl: string;
   private apiKey: string;
   private model: string;
+  private enableThinking: boolean;
+  private enableStreaming: boolean;
 
   constructor(app: App, plugin: JiraFlowPlugin, onSave: () => void, editing?: AIModelConfig) {
     super(app);
@@ -496,6 +520,8 @@ class AddModelModal extends Modal {
     this.baseUrl = editing?.baseUrl ?? "";
     this.apiKey = editing?.apiKey ?? "";
     this.model = editing?.model ?? "";
+    this.enableThinking = editing?.enableThinking ?? true;
+    this.enableStreaming = editing?.enableStreaming ?? true;
   }
 
   onOpen(): void {
@@ -546,6 +572,24 @@ class AddModelModal extends Modal {
         text.setPlaceholder("例如：gpt-4").setValue(this.model).onChange((v) => { this.model = v; })
       );
 
+    new Setting(contentEl)
+      .setName("思考模式")
+      .setDesc("启用后会请求模型返回 reasoning/thinking 内容")
+      .addToggle((toggle) =>
+        toggle.setValue(this.enableThinking).onChange((value) => {
+          this.enableThinking = value;
+        })
+      );
+
+    new Setting(contentEl)
+      .setName("流式输出")
+      .setDesc("启用后在报告弹窗中实时展示推理和正文输出")
+      .addToggle((toggle) =>
+        toggle.setValue(this.enableStreaming).onChange((value) => {
+          this.enableStreaming = value;
+        })
+      );
+
     // Buttons
     const btnContainer = contentEl.createDiv();
     Object.assign(btnContainer.style, {
@@ -583,6 +627,8 @@ class AddModelModal extends Modal {
             baseUrl: this.baseUrl.replace(/\/+$/, ""),
             apiKey: this.apiKey,
             model: this.model,
+            enableThinking: this.enableThinking,
+            enableStreaming: this.enableStreaming,
           };
         }
       } else {
@@ -595,6 +641,8 @@ class AddModelModal extends Modal {
           apiKey: this.apiKey,
           model: this.model,
           enabled: false,
+          enableThinking: this.enableThinking,
+          enableStreaming: this.enableStreaming,
         });
       }
 

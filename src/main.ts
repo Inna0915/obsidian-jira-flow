@@ -120,6 +120,12 @@ export default class JiraFlowPlugin extends Plugin {
     this.settings.ai = Object.assign({}, DEFAULT_SETTINGS.ai, saved?.ai);
     if (!this.settings.ai.models || this.settings.ai.models.length === 0) {
       this.settings.ai.models = [...DEFAULT_SETTINGS.ai.models];
+    } else {
+      this.settings.ai.models = this.settings.ai.models.map((model) => ({
+        ...model,
+        enableThinking: model.enableThinking ?? true,
+        enableStreaming: model.enableStreaming ?? true,
+      }));
     }
     // Deep merge reportPrompts
     this.settings.ai.reportPrompts = Object.assign(

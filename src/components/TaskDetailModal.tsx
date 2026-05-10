@@ -330,7 +330,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
 
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (file) {
-        await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
+        await plugin.fileManager.processFrontMatterWithRetry(file as TFile, (fm) => {
           fm.story_points = nextStoryPoints;
           fm.due_date = nextDueDate;
         });
@@ -371,7 +371,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setEditingSummary(false);
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
     if (file) {
-      await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
+      await plugin.fileManager.processFrontMatterWithRetry(file as TFile, (fm) => {
         fm.summary = summary;
       });
     }
@@ -382,7 +382,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     if (!isLocal) return;
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
     if (file) {
-      await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
+      await plugin.fileManager.processFrontMatterWithRetry(file as TFile, (fm) => {
         fm[field] = value;
       });
     }
@@ -798,7 +798,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             onSave={async (data) => {
               const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
               if (file && file instanceof TFile) {
-                await plugin.app.fileManager.processFrontMatter(file, (fm) => {
+                await plugin.fileManager.processFrontMatterWithRetry(file, (fm) => {
                   fm.summary = data.summary;
                   fm.issuetype = data.issuetype;
                   fm.priority = data.priority;

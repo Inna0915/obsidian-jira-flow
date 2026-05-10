@@ -7,6 +7,7 @@ import { parseJiraSprintName, parseJiraSprintState } from "../utils/jiraParser";
 export class FileManager {
   private plugin: JiraFlowPlugin;
   private readonly frontmatterRegex = /^---\n[\s\S]*?\n---\n?/;
+  private readonly missingFrontmatterWarnedPaths = new Set<string>();
 
   constructor(plugin: JiraFlowPlugin) {
     this.plugin = plugin;
@@ -209,7 +210,7 @@ export class FileManager {
     description?: string
   ): Promise<void> {
     try {
-      const content = await this.vault.read(file);
+      const content = await this.readFileWithRetry(file);
       const currentBody = this.extractBody(content);
       const nextDescription = description ?? currentBody;
       const nextFrontmatter: TaskFrontmatter = {
@@ -228,8 +229,28 @@ export class FileManager {
     }
   }
 
+  async processFrontMatterWithRetry(file: TFile, updater: (frontmatter: any) => void): Promise<void> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await this.plugin.app.fileManager.processFrontMatter(file, updater);
+        return;
+      } catch (error) {
+        if (!this.isRetryableFileError(error) || attempt === 2) {
+          throw error;
+        }
+
+        lastError = error;
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 40 * (attempt + 1)));
+      }
+    }
+
+    throw lastError;
+  }
+
   async updateStatus(file: TFile, newColumnId: string): Promise<void> {
-    await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+    await this.processFrontMatterWithRetry(file, (fm) => {
       fm.mapped_column = newColumnId;
       fm.status = newColumnId;
       const oldStatusTag = fm.tags?.find((t: string) =>
@@ -416,7 +437,15 @@ export class FileManager {
 
   getTaskFrontmatter(file: TFile): TaskFrontmatter | null {
     const cache = this.plugin.app.metadataCache.getFileCache(file);
-    if (!cache?.frontmatter) return null;
+    if (!cache?.frontmatter) {
+      if (!this.missingFrontmatterWarnedPaths.has(file.path)) {
+        this.missingFrontmatterWarnedPaths.add(file.path);
+        console.warn(`[Jira Flow] Task file metadata cache has no frontmatter yet, will retry later: ${file.path}`);
+      }
+      return null;
+    }
+
+    this.missingFrontmatterWarnedPaths.delete(file.path);
     const fm = cache.frontmatter;
     const status = this.normalizeFrontmatterText(fm.status || "");
     return {
@@ -449,7 +478,7 @@ export class FileManager {
    * For JIRA tasks, this is HTML content. For local tasks, this may be markdown.
    */
   async readDescription(file: TFile): Promise<string> {
-    const content = await this.vault.read(file);
+    const content = await this.readFileWithRetry(file);
     // Remove frontmatter to get body content
     const frontmatterRegex = /^---\n[\s\S]*?\n---\n?/;
     const body = content.replace(frontmatterRegex, "").trim();
@@ -457,7 +486,7 @@ export class FileManager {
   }
 
   async archiveTask(file: TFile): Promise<void> {
-    await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+    await this.processFrontMatterWithRetry(file, (fm) => {
       fm.archived = true;
       fm.archived_date = new Date().toISOString();
     });
@@ -521,12 +550,43 @@ export class FileManager {
         await this.vault.modify(file, content);
         return;
       } catch (error) {
+        if (!this.isRetryableFileError(error) || attempt === 2) {
+          throw error;
+        }
+
         lastError = error;
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 40 * (attempt + 1)));
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 40 * (attempt + 1)));
       }
     }
 
     throw lastError;
+  }
+
+  private async readFileWithRetry(file: TFile): Promise<string> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await this.vault.read(file);
+      } catch (error) {
+        if (!this.isRetryableFileError(error) || attempt === 2) {
+          throw error;
+        }
+
+        lastError = error;
+        await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 40 * (attempt + 1)));
+      }
+    }
+
+    throw lastError;
+  }
+
+  private isRetryableFileError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    return /(EBUSY|EAGAIN|EPERM|resource busy or locked|file is busy|locked)/i.test(error.message);
   }
 
   private async archiveMissingJiraIssues(seenIssueKeys: Set<string>): Promise<number> {
@@ -543,7 +603,7 @@ export class FileManager {
         continue;
       }
 
-      await this.plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      await this.processFrontMatterWithRetry(file, (frontmatter) => {
         frontmatter.archived = true;
         frontmatter.archived_date = now;
       });
@@ -558,6 +618,6 @@ export class FileManager {
   }
 
   private async yieldToMainThread(): Promise<void> {
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0));
   }
 }

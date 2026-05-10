@@ -24,6 +24,7 @@ interface AppProps {
 export type ViewMode = "sprint" | "all" | "local";
 type LayoutMode = "kanban" | "list";
 type BatchDueDateMode = "today" | "plusOne" | "weekSaturday";
+const MAX_MISSING_FRONTMATTER_RETRIES = 5;
 
 export interface SwimlaneData {
   id: SwimlaneType;
@@ -89,6 +90,9 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const refreshTimerRef = useRef<number | null>(null);
+  const missingFrontmatterRetryCountRef = useRef(0);
+  const missingFrontmatterSignatureRef = useRef("");
+  const pendingCardMovesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
@@ -178,10 +182,14 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const loadCards = useCallback(() => {
     const files = plugin.fileManager.getAllTaskFiles();
     const cards: KanbanCard[] = [];
+    const missingFrontmatterPaths: string[] = [];
 
     for (const file of files) {
       const fm = plugin.fileManager.getTaskFrontmatter(file);
-      if (!fm) continue;
+      if (!fm) {
+        missingFrontmatterPaths.push(file.path);
+        continue;
+      }
 
       const mappedColumn = fm.mapped_column;
       const swimlane = classifySwimlane(fm.due_date, mappedColumn, fm.issuetype, fm.source);
@@ -212,6 +220,35 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         sprint: fm.sprint,
         sprint_state: fm.sprint_state,
       });
+    }
+
+    if (missingFrontmatterPaths.length > 0) {
+      missingFrontmatterRetryCountRef.current += 1;
+      const signature = missingFrontmatterPaths.slice().sort().join("|");
+
+      if (missingFrontmatterSignatureRef.current !== signature) {
+        console.warn("[Jira Flow] Kanban load skipped files whose frontmatter cache is not ready yet", {
+          retryCount: missingFrontmatterRetryCountRef.current,
+          skippedCount: missingFrontmatterPaths.length,
+          files: missingFrontmatterPaths,
+        });
+        missingFrontmatterSignatureRef.current = signature;
+      }
+
+      if (missingFrontmatterRetryCountRef.current <= MAX_MISSING_FRONTMATTER_RETRIES) {
+        const retryDelay = Math.min(800, missingFrontmatterRetryCountRef.current * 150);
+        if (refreshTimerRef.current !== null) {
+          window.clearTimeout(refreshTimerRef.current);
+        }
+
+        refreshTimerRef.current = window.setTimeout(() => {
+          refreshTimerRef.current = null;
+          loadCards();
+        }, retryDelay);
+      }
+    } else {
+      missingFrontmatterRetryCountRef.current = 0;
+      missingFrontmatterSignatureRef.current = "";
     }
 
     startTransition(() => {
@@ -364,6 +401,13 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
   const handleCardMove = useCallback(
     async (cardPath: string, targetColumn: string, _targetSwimlane: SwimlaneType) => {
+      if (pendingCardMovesRef.current.has(cardPath)) {
+        console.log(`[Jira Flow] handleCardMove ignored duplicate: ${cardPath} → ${targetColumn}`);
+        return;
+      }
+
+      pendingCardMovesRef.current.add(cardPath);
+      let shouldRefreshBoard = false;
       console.log(`[Jira Flow] handleCardMove: ${cardPath} → ${targetColumn}`);
       try {
         const file = plugin.app.vault.getAbstractFileByPath(cardPath);
@@ -398,12 +442,13 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
             return;
           }
 
-          await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+          await plugin.fileManager.processFrontMatterWithRetry(file, (frontmatter) => {
             frontmatter.assignee = assignResult.assigneeName || plugin.settings.jiraUsername;
           });
         }
 
         await plugin.fileManager.updateStatus(file, targetColumn);
+        shouldRefreshBoard = true;
 
         if (fm.source === "JIRA" && plugin.settings.jiraHost) {
           const result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
@@ -437,10 +482,15 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       } catch (e) {
         console.error("[Jira Flow] handleCardMove error:", e);
         new Notice(`Jira Flow：拖拽操作出错: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        pendingCardMovesRef.current.delete(cardPath);
+        if (shouldRefreshBoard) {
+          scheduleLoadCards(0);
+        }
       }
       // Board refreshes automatically via metadataCache "changed" event
     },
-    [plugin]
+    [plugin, scheduleLoadCards]
   );
 
   const handleSync = useCallback(async () => {
@@ -624,7 +674,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           }
         }
 
-        await plugin.app.fileManager.processFrontMatter(file, (fm) => {
+        await plugin.fileManager.processFrontMatterWithRetry(file, (fm) => {
           fm.due_date = nextDueDate;
         });
 

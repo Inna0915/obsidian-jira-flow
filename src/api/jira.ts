@@ -329,16 +329,16 @@ export class JiraApi {
   }
 
   private buildAssigneeField(currentUser: JiraCurrentUser): Record<string, string> | null {
-    if (currentUser.accountId) {
-      return { accountId: currentUser.accountId };
-    }
-
     if (currentUser.name) {
       return { name: currentUser.name };
     }
 
     if (currentUser.key) {
       return { key: currentUser.key };
+    }
+
+    if (currentUser.accountId) {
+      return { accountId: currentUser.accountId };
     }
 
     return null;
