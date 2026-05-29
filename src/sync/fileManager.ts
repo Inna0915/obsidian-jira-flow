@@ -31,7 +31,6 @@ export class FileManager {
   }
 
   async syncIssues(issues: JiraIssue[]): Promise<SyncResult> {
-    console.log(`[Jira Flow] Starting sync of ${issues.length} issues`);
     await this.ensureFolders();
     const result: SyncResult = { created: 0, updated: 0, archived: 0, errors: [] };
     const seenIssueKeys = new Set<string>();

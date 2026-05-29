@@ -362,7 +362,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
   const handleCardMove = useCallback(
     async (cardPath: string, targetColumn: string, _targetSwimlane: SwimlaneType) => {
-      console.log(`[Jira Flow] handleCardMove: ${cardPath} → ${targetColumn}`);
       try {
         const file = plugin.app.vault.getAbstractFileByPath(cardPath);
         if (!file || !(file instanceof TFile)) {
@@ -377,7 +376,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         }
 
         const originalColumn = fm.mapped_column;
-        console.log(`[Jira Flow] handleCardMove: ${fm.jira_key} from "${originalColumn}" to "${targetColumn}", source=${fm.source}`);
 
         if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn, fm.source)) {
           new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);

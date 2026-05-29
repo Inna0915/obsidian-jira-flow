@@ -188,27 +188,13 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
   useEffect(() => {
     const loadIssue = async () => {
       setLoading(true);
-      console.log(`[Jira Flow Preview] Loading issue: ${issueKey}`);
       
       // Fetch issue with renderedFields and remote links
       const data = await plugin.jiraApi.fetchIssue(issueKey); 
       
-      console.log(`[Jira Flow Preview] API Response for ${issueKey}:`, data);
       
       if (data) {
-        // Log key fields
-        console.log(`[Jira Flow Preview] Issue ${issueKey} fields:`, {
-          summary: data.fields?.summary,
-          status: data.fields?.status?.name,
-          assignee: data.fields?.assignee?.displayName,
-          issuetype: data.fields?.issuetype?.name,
-          priority: data.fields?.priority?.name,
-          descriptionLength: data.fields?.description?.length || 0,
-          renderedDescriptionLength: data.renderedFields?.description?.length || 0,
-          remoteLinksCount: data.remotelinks?.length || 0,
-          issueLinksCount: data.fields?.issuelinks?.length || 0,
-        });
-        
+
         // Run description through asset downloader
         const rawDesc = data.renderedFields?.description || data.fields?.description || "";
         const processedDesc = await plugin.fileManager.processDescription(rawDesc, issueKey);
@@ -223,7 +209,6 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
   }, [issueKey, plugin]);
 
   const handleLinkedIssueClick = (clickedKey: string) => {
-    console.log(`[Jira Flow Preview] Navigating to linked issue: ${clickedKey}`);
     setIssueKey(clickedKey);
   };
 

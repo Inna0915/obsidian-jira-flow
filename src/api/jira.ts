@@ -592,15 +592,10 @@ export class JiraApi {
   async transitionIssue(issueKey: string, targetColumnId: string): Promise<{ success: boolean; actualStatus?: string; actualColumn?: string }> {
     try {
       // Step 1: Get available transitions
-      console.log(`[Jira Flow] Transition ${issueKey}: requesting available transitions...`);
       const data = await this.request<{
         transitions: Array<{ id: string; name: string; to: { name: string } }>;
       }>(`issue/${issueKey}/transitions`);
 
-      console.log(`[Jira Flow] Transition ${issueKey}: available transitions:`,
-        data.transitions.map((t) => `[${t.id}] "${t.name}" → "${t.to.name}" (maps to: ${mapStatusToColumn(t.to.name)})`)
-      );
-      console.log(`[Jira Flow] Transition ${issueKey}: target column = "${targetColumnId}"`);
 
       // Step 2: Match target transition
       // 2a: mapStatusToColumn match
@@ -608,7 +603,6 @@ export class JiraApi {
         (t) => mapStatusToColumn(t.to.name) === targetColumnId
       );
       if (target) {
-        console.log(`[Jira Flow] Transition ${issueKey}: matched via mapStatusToColumn → [${target.id}] "${target.name}"`);
       }
 
       // 2b: direct name match
@@ -617,7 +611,6 @@ export class JiraApi {
           (t) => t.to.name.toUpperCase() === targetColumnId.toUpperCase()
         );
         if (target) {
-          console.log(`[Jira Flow] Transition ${issueKey}: matched via direct name → [${target.id}] "${target.name}"`);
         }
       }
 
@@ -628,7 +621,6 @@ export class JiraApi {
           (t) => t.name.toLowerCase().includes(colLower) || t.to.name.toLowerCase().includes(colLower)
         );
         if (target) {
-          console.log(`[Jira Flow] Transition ${issueKey}: matched via keyword → [${target.id}] "${target.name}"`);
         }
       }
 
@@ -650,13 +642,10 @@ export class JiraApi {
       };
       if (isDoneStatus) {
         transitionBody.fields = { resolution: { name: "Done" } };
-        console.log(`[Jira Flow] Transition ${issueKey}: target is Done-category, injecting resolution field`);
       }
 
-      console.log(`[Jira Flow] Transition ${issueKey}: executing transition [${target.id}] "${target.name}"...`);
       try {
         await this.request(`issue/${issueKey}/transitions`, "POST", transitionBody);
-        console.log(`[Jira Flow] Transition ${issueKey}: transition succeeded`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         // If first attempt failed and we didn't include resolution, retry with it
@@ -667,7 +656,6 @@ export class JiraApi {
               transition: { id: target.id },
               fields: { resolution: { name: "Done" } },
             });
-            console.log(`[Jira Flow] Transition ${issueKey}: retry with resolution succeeded`);
           } catch (e2) {
             const msg2 = e2 instanceof Error ? e2.message : String(e2);
             console.error(`[Jira Flow] Transition ${issueKey}: retry also failed: ${msg2}`);
@@ -686,7 +674,6 @@ export class JiraApi {
         );
         const actualStatus = updated.fields.status.name;
         const actualColumn = mapStatusToColumn(actualStatus);
-        console.log(`[Jira Flow] Transition ${issueKey}: post-transition status = "${actualStatus}" → column "${actualColumn}"`);
         return { success: true, actualStatus, actualColumn };
       } catch {
         console.warn(`[Jira Flow] Transition ${issueKey}: re-fetch failed, using expected values`);
@@ -701,9 +688,7 @@ export class JiraApi {
   /** Update issue fields on Jira (story points, due date, etc.) */
   async updateIssueFields(issueKey: string, fields: Record<string, unknown>): Promise<boolean> {
     try {
-      console.log(`[Jira Flow] Updating ${issueKey} fields:`, fields);
       await this.request(`issue/${issueKey}`, "PUT", { fields });
-      console.log(`[Jira Flow] Updated ${issueKey} successfully`);
       return true;
     } catch (e) {
       console.error(`[Jira Flow] Failed to update ${issueKey}:`, e);
@@ -724,7 +709,6 @@ export class JiraApi {
       if (issue) {
         // Attach the remote links to our issue object
         (issue as JiraIssue & { remotelinks?: any[] }).remotelinks = remoteLinks;
-        console.log(`[Jira Flow] Fetched ${remoteLinks.length} remote links for ${issueKey}`);
       }
       return issue;
     } catch (error) {
