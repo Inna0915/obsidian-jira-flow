@@ -726,7 +726,7 @@ export class JiraApi {
         (issue as JiraIssue & { remotelinks?: any[] }).remotelinks = remoteLinks;
         console.log(`[Jira Flow] Fetched ${remoteLinks.length} remote links for ${issueKey}`);
       }
-      return issue as JiraIssue & { remotelinks?: any[] };
+      return issue;
     } catch (error) {
       console.error(`[Jira Flow] Failed to fetch issue ${issueKey}`, error);
       return null;

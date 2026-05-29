@@ -160,7 +160,7 @@ export class WorkLogService {
         summary = linkMatch[2].trim();
       } else {
         // Pattern: JIRA-KEY: Summary or JIRA-KEY - Summary
-        const keyMatch = rest.match(/^([A-Z][\w]+-\d+)\s*[:\-]\s*(.+)$/);
+        const keyMatch = rest.match(/^([A-Z][\w]+-\d+)\s*[:-]\s*(.+)$/);
         if (keyMatch) {
           taskKey = keyMatch[1];
           summary = keyMatch[2].trim();

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Notice, TFile } from "obsidian";
-import { KANBAN_COLUMNS, SWIMLANES } from "../types";
+import { KANBAN_COLUMNS } from "../types";
 import type { JiraAttachment, KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
 import type { JiraCreateIssueMeta, JiraCreateIssueInput } from "../api/jira";
@@ -190,7 +190,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   // Track dirty state for Jira save
   const isStoryPointsDirty = storyPoints !== savedStoryPoints;
   const isDueDateDirty = dueDate !== savedDueDate;
-  const isDirty = isStoryPointsDirty || isDueDateDirty;
   const selectedAttachment = imageAttachments[selectedAttachmentIndex] || null;
   const attachmentHint = useMemo(() => {
     if (imageAttachments.length <= 1) {
@@ -288,7 +287,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     (async () => {
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (!file || !(file instanceof TFile)) return;
-      const content = await plugin.app.vault.read(file as TFile);
+      const content = await plugin.app.vault.read(file);
       // Strip frontmatter
       const fmEnd = content.indexOf("---", content.indexOf("---") + 3);
       const body = fmEnd > 0 ? content.slice(fmEnd + 3).trim() : "";
@@ -342,7 +341,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
       setSavedDueDate(nextDueDate);
       setSaved(true);
       onCardUpdated();
-      setTimeout(() => setSaved(false), 2000);
+      window.setTimeout(() => setSaved(false), 2000);
     } catch (error) {
       console.error("[Jira Flow] Failed to save Jira fields:", error);
       new Notice(error instanceof Error ? error.message : "保存到 Jira 失败");
@@ -394,19 +393,19 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setEditingDesc(false);
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
     if (!file || !(file instanceof TFile)) return;
-    const content = await plugin.app.vault.read(file as TFile);
+    const content = await plugin.app.vault.read(file);
     const fmEnd = content.indexOf("---", content.indexOf("---") + 3);
     const newContent = fmEnd > 0
       ? content.slice(0, fmEnd + 3) + "\n" + localDesc
       : content + "\n" + localDesc;
-    await plugin.app.vault.modify(file as TFile, newContent);
+    await plugin.app.vault.modify(file, newContent);
     setDescription(localDesc);
   }, [isLocal, localDesc, card, plugin]);
 
   const handleCopyKey = useCallback(() => {
     navigator.clipboard.writeText(`${card.summary} - ${card.jiraKey}`);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    window.setTimeout(() => setCopied(false), 1500);
   }, [card]);
 
   const pColor = priorityColors[card.priority] || "#6B778C";
@@ -1063,7 +1062,7 @@ export interface EditTaskData {
   assignee: string;
 }
 
-export interface CreateJiraIssueData extends JiraCreateIssueInput {}
+export type CreateJiraIssueData = JiraCreateIssueInput;
 
 interface EditTaskModalProps {
   plugin: JiraFlowPlugin;

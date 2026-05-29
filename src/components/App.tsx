@@ -719,7 +719,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     async (card: KanbanCard) => {
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (!file || !(file instanceof TFile)) return;
-      await plugin.app.vault.delete(file);
+      await plugin.app.fileManager.trashFile(file);
       new Notice(`Jira Flow：${card.jiraKey} 已删除。`);
       setDetailCard(null);
       loadCards();

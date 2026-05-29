@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { TFile, Notice } from 'obsidian';
 import type JiraFlowPlugin from '../main';
-import { isCompletedWorkflowColumn, type TaskFrontmatter } from '../types';
+import { isCompletedWorkflowColumn } from '../types';
 
 
 interface SidebarTask {
@@ -99,9 +99,9 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
 
   // --- Pomodoro Timer Effect ---
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: number;
     if (isTimerRunning && timeLeft > 0) {
-      interval = setInterval(() => {
+      interval = window.setInterval(() => {
         setTimeLeft((prev) => prev - 1);
         setElapsedSeconds((prev) => prev + 1); // Track actual time spent
       }, 1000);
@@ -109,7 +109,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       setIsTimerRunning(false);
       handlePomodoroComplete();
     }
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [isTimerRunning, timeLeft]);
 
   // --- Log Focus Time to File ---
@@ -127,7 +127,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
         });
 
         // 2. Wait a brief moment to avoid EBUSY lock from frontmatter update
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => window.setTimeout(resolve, 300));
 
         // 3. Append to Body
         const content = await plugin.app.vault.read(file);

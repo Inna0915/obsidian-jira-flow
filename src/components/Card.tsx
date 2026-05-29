@@ -237,7 +237,7 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
           <span
             className="jf-w-5 jf-h-5 jf-rounded-full jf-flex jf-items-center jf-justify-center jf-text-white jf-text-[9px] jf-font-bold"
             style={{ backgroundColor: stringToColor(card.assignee) }}
-            title={highlightText(card.assignee, searchQuery)?.toString() || card.assignee}
+            title={card.assignee}
           >
             {getInitials(card.assignee)}
           </span>

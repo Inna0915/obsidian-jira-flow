@@ -245,7 +245,7 @@ export class FileManager {
     // Keep: alphanumeric, spaces, hyphens, underscores
     // Replace: slashes, colons, etc. with hyphens
     return summary
-      .replace(/[\/\\:?*"<>|]/g, '-')  // Replace invalid chars with hyphen
+      .replace(/[/\\:?*"<>|]/g, '-')  // Replace invalid chars with hyphen
       .replace(/\s+/g, ' ')              // Collapse multiple spaces
       .trim();
   }
@@ -370,8 +370,8 @@ export class FileManager {
             `<img src="${localPath}"${restOfTag}>`
           );
         }
-      } catch (e) {
-        console.log(`[Jira Flow] Failed to download image ${imgUrl}, keeping original.`);
+      } catch {
+        // Image download failed; keep the original remote URL.
       }
     }
 

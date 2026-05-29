@@ -16,7 +16,7 @@ export const openLocalWikiPage = async (app: App, targetUrl: string): Promise<bo
     try {
       const urlObj = new URL(targetUrl);
       targetPageId = urlObj.searchParams.get('pageId');
-    } catch (e) { /* ignore invalid URLs */ }
+    } catch { /* ignore invalid URLs */ }
 
     for (const file of files) {
       const cache = app.metadataCache.getFileCache(file);

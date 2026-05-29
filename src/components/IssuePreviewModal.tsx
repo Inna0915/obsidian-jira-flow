@@ -85,7 +85,9 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
     let targetPageId: string | null = null;
     try {
       targetPageId = new URL(url).searchParams.get('pageId');
-    } catch (e) {}
+    } catch {
+      /* ignore invalid URLs */
+    }
 
     const files = plugin.app.vault.getMarkdownFiles();
     for (const file of files) {
