@@ -14,7 +14,6 @@ import { Board } from "./Board";
 import { IssueListView } from "./IssueListView";
 import { TaskDetailPanel, CreateJiraIssueModal, type CreateJiraIssueData, CreateTaskModal } from "./TaskDetailModal";
 import type { CreateTaskData } from "./TaskDetailModal";
-import { ReportCenter } from "./ReportCenter";
 
 interface AppProps {
   plugin: JiraFlowPlugin;
@@ -81,7 +80,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateJiraModal, setShowCreateJiraModal] = useState(false);
-  const [showReportCenter, setShowReportCenter] = useState(false);
   const [showParentFilterPanel, setShowParentFilterPanel] = useState(true);
   const [selectedParentKeys, setSelectedParentKeys] = useState<Set<string>>(new Set());
   const [batchDueDateMode, setBatchDueDateMode] = useState<BatchDueDateMode | null>(null);
@@ -417,21 +415,23 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           }
         }
 
-        console.log(`[Jira Flow] handleCardMove: checking work log trigger, type="${fm.issuetype}", targetColumn="${targetColumn}", source="${fm.source}"`);
-        // Determine if this move constitutes "work done" for logging purposes:
-        // - Story/Task: moved to EXECUTED (development done)
-        // - Bug: moved to TESTING & REVIEW (fix submitted for verification)
-        // - LOCAL tasks: moved to DONE or CLOSED
-        // - Also log for DONE/CLOSED/RESOLVED for any type as a catch-all
+        // Completion state is defined by the target column.
+        const isCompletedNow = isCompletedWorkflowColumn(fm.issuetype, targetColumn, fm.source);
+
+        if (isCompletedNow) {
+          await plugin.completionTracker.markCompleted(file);
+        } else {
+          await plugin.completionTracker.clearCompleted(file);
+        }
+
+        // Work-log rule: Story/Task -> EXECUTED, Bug -> VALIDATING, plus any completed column.
         const isBug = fm.issuetype.toLowerCase() === "bug";
         const shouldLog =
-          (fm.source === "LOCAL" && isCompletedWorkflowColumn(fm.issuetype, targetColumn, fm.source)) ||
           (!isBug && targetColumn === "EXECUTED") ||
           (isBug && targetColumn === "VALIDATING") ||
-          isCompletedWorkflowColumn(fm.issuetype, targetColumn, fm.source);
+          isCompletedNow;
 
         if (shouldLog) {
-          console.log(`[Jira Flow] handleCardMove: calling logWork for ${fm.jira_key}`);
           await plugin.workLogger.logWork(file, { jiraKey: fm.jira_key, summary: fm.summary });
         }
       } catch (e) {
@@ -760,10 +760,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     );
   }
 
-  // Report Center full-screen view
-  if (showReportCenter) {
-    return <ReportCenter plugin={plugin} onBack={() => setShowReportCenter(false)} />;
-  }
 
   const viewModes: { id: ViewMode; label: string }[] = [
     { id: "sprint", label: "当前迭代" },
@@ -779,7 +775,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   ];
 
   return (
-    <div className="jf-flex jf-flex-col jf-h-full jf-bg-[#F7F8FA]">
+    <div className="jira-flow-root jf-flex jf-flex-col jf-h-full jf-bg-[#F7F8FA]">
       {/* Header */}
       <div className="jf-flex jf-items-center jf-justify-between jf-px-4 jf-py-3 jf-border-b jf-border-[#DFE1E6] jf-bg-[#FAFBFC]">
         <div className="jf-flex jf-items-center jf-gap-3">
@@ -875,15 +871,20 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           </div>
         </div>
         <div className="jf-flex jf-items-center jf-gap-2">
-          {/* Reports Button - Ghost Style */}
+          {/* Report shortcuts: open the markdown report directly */}
           <button
-            onClick={() => setShowReportCenter(true)}
-            className="jf-flex jf-items-center jf-gap-2 jf-px-3 jf-py-1.5 jf-text-[#42526E] hover:jf-bg-white jf-border jf-border-transparent hover:jf-border-[#DFE1E6] jf-rounded-md jf-text-sm jf-transition-all"
+            className="jf-toolbar-btn"
+            aria-label="打开周报"
+            onClick={() => plugin.openReportDraft("weekly")}
           >
-            <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            任务报告
+            周报
+          </button>
+          <button
+            className="jf-toolbar-btn"
+            aria-label="打开月报"
+            onClick={() => plugin.openReportDraft("monthly")}
+          >
+            月报
           </button>
           {/* New Task Button - Secondary Style */}
           <button

@@ -1,10 +1,13 @@
 import { Notice, Plugin } from "obsidian";
-import { DEFAULT_SETTINGS, type JiraFlowSettings } from "./types";
+import { DEFAULT_SETTINGS, type JiraFlowSettings, type ReportPeriod } from "./types";
 import { JiraFlowSettingTab } from "./settings";
 import { JiraApi } from "./api/jira";
 import { FileManager as JFFileManager } from "./sync/fileManager";
 import { WorkLogger } from "./sync/logger";
-import { ReportGenerator } from "./ai/reportGenerator";
+import { CompletionTracker } from "./sync/completionTracker";
+import { ReportDataService } from "./report/reportDataService";
+import { getPeriodRange } from "./utils/dateUtils";
+import { migrateSettings } from "./utils/migrateSettings";
 import { KANBAN_VIEW_TYPE, KanbanView } from "./views/KanbanView";
 import { ARCHIVE_VIEW_TYPE, ArchiveView } from "./views/ArchiveView";
 import { SIDEBAR_VIEW_TYPE, SidebarView } from "./views/SidebarView";
@@ -15,7 +18,8 @@ export default class JiraFlowPlugin extends Plugin {
   jiraApi!: JiraApi;
   fileManager!: JFFileManager;
   workLogger!: WorkLogger;
-  reportGenerator!: ReportGenerator;
+  completionTracker!: CompletionTracker;
+  reportData!: ReportDataService;
   private syncIntervalId: number | null = null;
   private syncInProgress = false;
 
@@ -25,7 +29,8 @@ export default class JiraFlowPlugin extends Plugin {
     this.jiraApi = new JiraApi(this);
     this.fileManager = new JFFileManager(this);
     this.workLogger = new WorkLogger(this);
-    this.reportGenerator = new ReportGenerator(this);
+    this.completionTracker = new CompletionTracker(this);
+    this.reportData = new ReportDataService(this);
 
     this.addRibbonIcon("kanban", "打开 Jira Flow 看板", () => {
       this.activateKanbanView();
@@ -60,27 +65,15 @@ export default class JiraFlowPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "generate-weekly-report",
-      name: "生成周报",
-      callback: () => this.generateReport("weekly"),
+      id: "open-weekly-report",
+      name: "打开周报草稿",
+      callback: () => this.openReportDraft("weekly"),
     });
 
     this.addCommand({
-      id: "generate-monthly-report",
-      name: "生成月报",
-      callback: () => this.generateReport("monthly"),
-    });
-
-    this.addCommand({
-      id: "generate-quarterly-report",
-      name: "生成季报",
-      callback: () => this.generateReport("quarterly"),
-    });
-
-    this.addCommand({
-      id: "generate-yearly-report",
-      name: "生成年报",
-      callback: () => this.generateReport("yearly"),
+      id: "open-monthly-report",
+      name: "打开月报草稿",
+      callback: () => this.openReportDraft("monthly"),
     });
 
     this.addCommand({
@@ -112,21 +105,7 @@ export default class JiraFlowPlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const saved = await this.loadData();
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
-    if (!this.settings.jiraBrowseHost) {
-      this.settings.jiraBrowseHost = DEFAULT_SETTINGS.jiraBrowseHost;
-    }
-    // Deep merge ai settings so existing users get defaults
-    this.settings.ai = Object.assign({}, DEFAULT_SETTINGS.ai, saved?.ai);
-    if (!this.settings.ai.models || this.settings.ai.models.length === 0) {
-      this.settings.ai.models = [...DEFAULT_SETTINGS.ai.models];
-    }
-    // Deep merge reportPrompts
-    this.settings.ai.reportPrompts = Object.assign(
-      {},
-      DEFAULT_SETTINGS.ai.reportPrompts,
-      saved?.ai?.reportPrompts
-    );
+    this.settings = migrateSettings(saved);
   }
 
   async saveSettings(): Promise<void> {
@@ -288,41 +267,18 @@ export default class JiraFlowPlugin extends Plugin {
     new Notice("Jira Flow: Local task created.");
   }
 
-  async generateReport(period: import("./types").ReportPeriod = "weekly"): Promise<void> {
-    const periodLabel = period.charAt(0).toUpperCase() + period.slice(1);
-    const toast = new StatusToast(document, `${periodLabel} Report`);
-
-    const stepCheck = toast.addStep("Checking AI configuration...");
-    const activeModel = this.settings.ai.models.find(
-      (m) => m.id === this.settings.ai.activeModelId && m.enabled
-    );
-    if (!activeModel) {
-      toast.updateStep(stepCheck, "error", "No active AI model. Configure one in Settings > AI Models.");
-      toast.finish(false);
-      return;
-    }
-    toast.updateStep(stepCheck, "success", activeModel.displayName);
-
-    const stepCollect = toast.addStep("Collecting work logs & tasks...");
+  async openReportDraft(period: ReportPeriod = "weekly"): Promise<void> {
     try {
-      const stepGenerate = toast.addStep("Generating report via AI...");
-      toast.updateStep(stepCollect, "success", "Data collected");
-
-      const result = await this.reportGenerator.generateReport(period);
-      toast.updateStep(stepGenerate, "success", result.file.path);
-
-      toast.finish(true);
-
+      const range = getPeriodRange(period, new Date());
+      let file = this.reportData.getReportFile(period, range);
+      if (!file) {
+        const draft = await this.reportData.buildReportDraft(period, range);
+        file = await this.reportData.saveReport(period, draft, range);
+      }
       const leaf = this.app.workspace.getLeaf("tab");
-      await leaf.openFile(result.file);
+      await leaf.openFile(file);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.updateStep(
-        toast.addStep("Error"),
-        "error",
-        msg
-      );
-      toast.finish(false);
+      new Notice(`Jira Flow：打开报告失败 ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

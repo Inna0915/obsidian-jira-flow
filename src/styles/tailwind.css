@@ -29,3 +29,41 @@
 .jira-flow-plugin .jf-selection-band {
   background-image: linear-gradient(90deg, rgba(76, 154, 255, 0.22), rgba(76, 154, 255, 0.04));
 }
+
+/* ===== Claude classic color tokens (light/dark follow Obsidian theme) ===== */
+.jira-flow-root {
+  --jf-bg: #FAF9F5;
+  --jf-bg-secondary: #F0EEE6;
+  --jf-border: #E3E1D7;
+  --jf-text: #1F1E1D;
+  --jf-text-muted: #73726C;
+  --jf-accent: #D97757;
+  --jf-accent-hover: #C15F3C;
+  --jf-on-accent: #FFFFFF;
+  --jf-success: #6B8E5A;
+  --jf-danger: #BF4D43;
+}
+.theme-dark .jira-flow-root {
+  --jf-bg: #262624;
+  --jf-bg-secondary: #30302E;
+  --jf-border: #3A3A37;
+  --jf-text: #ECEAE1;
+  --jf-text-muted: #9A9890;
+  --jf-accent: #E08A6A;
+  --jf-accent-hover: #D97757;
+  --jf-on-accent: #1F1E1D;
+  --jf-success: #7FA06A;
+  --jf-danger: #D2685C;
+}
+.jf-toolbar-btn {
+  padding: var(--size-4-1, 6px) var(--size-4-3, 12px);
+  border: 1px solid var(--jf-border);
+  border-radius: var(--radius-m, 6px);
+  background: var(--jf-bg-secondary);
+  color: var(--jf-accent);
+  cursor: pointer;
+  font-size: var(--font-ui-small, 13px);
+  font-weight: 600;
+}
+.jf-toolbar-btn:hover { background: var(--background-modifier-hover); }
+.jf-toolbar-btn:focus-visible { outline: 2px solid var(--jf-accent); outline-offset: 2px; }

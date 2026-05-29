@@ -1,32 +1,5 @@
 // ===== Plugin Settings =====
-export type AIProvider = "kimi" | "gemini" | "claude" | "custom";
-
-export interface AIModelConfig {
-  id: string;
-  name: string;
-  displayName: string;
-  provider: AIProvider;
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-  enabled: boolean;
-}
-
-export interface ReportPrompts {
-  weekly: string;
-  monthly: string;
-  quarterly: string;
-  yearly: string;
-}
-
-export type ReportPeriod = "weekly" | "monthly" | "quarterly" | "yearly";
-
-export interface AISettings {
-  models: AIModelConfig[];
-  activeModelId: string;
-  reportPrompt: string; // legacy, kept for compat
-  reportPrompts: ReportPrompts;
-}
+export type ReportPeriod = "weekly" | "monthly";
 
 export interface JiraFlowSettings {
   jiraHost: string;
@@ -48,41 +21,7 @@ export interface JiraFlowSettings {
   plannedStartDateField: string;
   dueDateField: string;
   sprintField: string;
-  ai: AISettings;
 }
-
-export const BUILTIN_MODELS: AIModelConfig[] = [
-  {
-    id: "kimi-default",
-    name: "moonshot-v1-8k",
-    displayName: "Kimi (Moonshot)",
-    provider: "kimi",
-    baseUrl: "https://api.moonshot.cn/v1",
-    apiKey: "",
-    model: "moonshot-v1-8k",
-    enabled: false,
-  },
-  {
-    id: "gemini-default",
-    name: "gemini-2.0-flash",
-    displayName: "Gemini 2.0 Flash",
-    provider: "gemini",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
-    apiKey: "",
-    model: "gemini-2.0-flash",
-    enabled: false,
-  },
-  {
-    id: "claude-default",
-    name: "claude-sonnet-4-20250514",
-    displayName: "Claude Sonnet 4",
-    provider: "claude",
-    baseUrl: "https://api.anthropic.com/v1",
-    apiKey: "",
-    model: "claude-sonnet-4-20250514",
-    enabled: false,
-  },
-];
 
 // ===== Kanban Column Definitions (12 columns) =====
 export interface ColumnDef {
@@ -316,59 +255,6 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
   plannedStartDateField: "",
   dueDateField: "customfield_10329",
   sprintField: "customfield_10109",
-  ai: {
-    models: [...BUILTIN_MODELS],
-    activeModelId: "",
-    reportPrompt: "Based on the following work logs and task data, generate a concise weekly summary report in Markdown format. Include: key accomplishments, tasks in progress, blockers, and priorities for next week.",
-    reportPrompts: {
-      weekly: `你是一位敏捷开发任务整理专家。请根据以下原始内容生成结构化周报，严格遵循以下处理规则：
-
-【数据清洗规则】
-1. 删除每条记录开头的英文-数字任务编号（如 PRDAPD-704、WMS-123、Feature/PRDAPD-XXX 等）
-2. 识别"主功能项-标识"格式（如"转库单-20240201"、"出库单-临时"），提取"-"前的文字作为主功能项用于归类合并，相同主功能项的任务合并为一条描述
-3. 状态判定：内容包含"EXECUTED 执行完成" → 本周已完成；不包含 → 本周预计完成
-
-【输出格式】
-本周已完成
-1. 主功能项：任务简述
-2. 主功能项：任务简述
-3. 主功能项：任务简述
-
-本周预计完成
-1. 主功能项：任务简述
-2. 主功能项：任务简述
-3. 主功能项：任务简述
-
-【约束】
-- 去除技术细节（如SQL、方法名、异常堆栈），保留业务含义
-- 同一主功能项多行记录合并为一行，用顿号或"及"连接
-- 严禁输出解释性文字，直接给出结果`,
-      monthly: `你是一位敏捷开发任务整理专家。请根据以下原始内容生成结构化月报，严格遵循以下处理规则：
-
-【数据清洗规则】
-1. 删除每条记录开头的英文-数字任务编号（如 PRDAPD-704、WMS-123、Feature/PRDAPD-XXX 等）
-2. 识别"主功能项-标识"格式（如"转库单-20240201"、"出库单-临时"），提取"-"前的文字作为主功能项用于归类合并，相同主功能项的任务合并为一条描述
-3. 状态判定：内容包含"EXECUTED 执行完成" → 本月已完成；不包含 → 本月预计完成
-
-【输出格式】
-本月已完成
-1. 主功能项：任务简述
-2. 主功能项：任务简述
-3. 主功能项：任务简述
-
-本月预计完成
-1. 主功能项：任务简述
-2. 主功能项：任务简述
-3. 主功能项：任务简述
-
-【约束】
-- 去除技术细节（如SQL、方法名、异常堆栈），保留业务含义
-- 同一主功能项多行记录合并为一行，用顿号或"及"连接
-- 严禁输出解释性文字，直接给出结果`,
-      quarterly: "Based on the following work logs and task data, generate a detailed quarterly review report in Markdown format. Include: major milestones achieved, project health overview, team velocity trends, key challenges and how they were addressed, and strategic priorities for next quarter.",
-      yearly: "Based on the following work logs and task data, generate a comprehensive annual review report in Markdown format. Include: yearly highlights and achievements, project completion rates, growth metrics, lessons learned, and strategic goals for the coming year.",
-    },
-  },
 };
 
 // ===== Jira API Types =====
@@ -476,6 +362,8 @@ export interface TaskFrontmatter {
   updated: string;
   archived?: boolean;
   archived_date?: string;
+  completed_at?: string; // YYYY-MM-DD, set when moved to a completed column
+  completed_week?: string; // YYYY-Www, ISO week of completion
 }
 
 // ===== Kanban Types =====

@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
-    "css": "npx tailwindcss -i ./src/styles/tailwind.css -o ./styles.css --minify"
+    "css": "npx tailwindcss -i ./src/styles/tailwind.css -o ./styles.css --minify",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src"
   },
   "keywords": [
     "obsidian",
@@ -20,9 +23,13 @@
     "@types/react-dom": "^18.2.18",
     "builtin-modules": "^3.3.0",
     "esbuild": "^0.19.12",
+    "eslint": "^9.39.4",
+    "eslint-plugin-obsidianmd": "^0.3.0",
     "obsidian": "latest",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.60.0",
+    "vitest": "^4.1.7"
   },
   "dependencies": {
     "html-react-parser": "^5.2.17",
