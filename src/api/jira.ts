@@ -137,7 +137,7 @@ export class JiraApi {
     if (response.status >= 400) {
       let detail = "";
       try {
-        const errBody = response.json;
+        const errBody = response.json as { errorMessages?: string[]; message?: string } | undefined;
         detail = errBody?.errorMessages?.join("; ") || errBody?.message || JSON.stringify(errBody);
       } catch {
         detail = response.text?.slice(0, 500) || "";
@@ -295,7 +295,7 @@ export class JiraApi {
     if (response.status >= 400) {
       let detail = "";
       try {
-        const errBody = response.json;
+        const errBody = response.json as { errorMessages?: string[]; message?: string } | undefined;
         detail = errBody?.errorMessages?.join("; ") || errBody?.message || JSON.stringify(errBody);
       } catch {
         detail = response.text?.slice(0, 500) || "";
@@ -689,18 +689,18 @@ export class JiraApi {
   }
 
   /** Fetch full issue details including remote links (Confluence/Wiki pages) */
-  async fetchIssue(issueKey: string): Promise<JiraIssue & { remotelinks?: any[] } | null> {
+  async fetchIssue(issueKey: string): Promise<JiraIssue & { remotelinks?: unknown[] } | null> {
     try {
       // Fire both requests concurrently for speed
       const [issue, remoteLinks] = await Promise.all([
         this.request<JiraIssue>(`issue/${issueKey}?fields=${this.fieldsParam}&expand=renderedFields`),
         // Catch errors on remotelink just in case the endpoint fails, returning empty array
-        this.request<any[]>(`issue/${issueKey}/remotelink`).catch(() => []) 
+        this.request<unknown[]>(`issue/${issueKey}/remotelink`).catch(() => [])
       ]);
 
       if (issue) {
         // Attach the remote links to our issue object
-        (issue as JiraIssue & { remotelinks?: any[] }).remotelinks = remoteLinks;
+        (issue as JiraIssue & { remotelinks?: unknown[] }).remotelinks = remoteLinks;
       }
       return issue;
     } catch (error) {

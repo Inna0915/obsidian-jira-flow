@@ -797,7 +797,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             onSave={async (data) => {
               const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
               if (file && file instanceof TFile) {
-                await plugin.app.fileManager.processFrontMatter(file, (fm) => {
+                await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
                   fm.summary = data.summary;
                   fm.issuetype = data.issuetype;
                   fm.priority = data.priority;

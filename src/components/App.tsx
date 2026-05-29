@@ -394,7 +394,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
             return;
           }
 
-          await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+          await plugin.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
             frontmatter.assignee = assignResult.assigneeName || plugin.settings.jiraUsername;
           });
         }
@@ -622,7 +622,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           }
         }
 
-        await plugin.app.fileManager.processFrontMatter(file, (fm) => {
+        await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
           fm.due_date = nextDueDate;
         });
 

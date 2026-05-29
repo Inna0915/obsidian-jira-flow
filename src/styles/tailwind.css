@@ -112,3 +112,9 @@
 .jira-flow-root .jf-border-\[\#D9E2EC\],
 .jira-flow-root .jf-border-\[\#D7DFEA\] { border-color: var(--jf-border); }
 .jira-flow-root .hover\:jf-border-\[\#DFE1E6\]:hover { border-color: var(--jf-border); }
+
+/* Kanban view wrapper (replaces inline element.style) */
+.jira-flow-plugin {
+  height: 100%;
+  overflow: auto;
+}

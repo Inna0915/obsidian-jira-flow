@@ -122,7 +122,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     if (file && file instanceof TFile) {
       try {
         // 1. Update Frontmatter (Cumulative Total)
-        await plugin.app.fileManager.processFrontMatter(file, (fm: any) => {
+        await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, number | undefined>) => {
           fm.focused_minutes = (fm.focused_minutes || 0) + minutes;
         });
 

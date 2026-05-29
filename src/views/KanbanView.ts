@@ -10,6 +10,7 @@ export class KanbanView extends ItemView {
   plugin: JiraFlowPlugin;
   private reactRoot: Root | null = null;
   private searchInputId = "jira-flow-search-input";
+  private keyScope: Scope | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: JiraFlowPlugin) {
     super(leaf);
@@ -30,7 +31,7 @@ export class KanbanView extends ItemView {
 
   // Handle Ctrl+F to focus search input
   private focusSearchInput = (event: KeyboardEvent): boolean => {
-    const activeElement = document.activeElement as HTMLElement | null;
+    const activeElement = activeDocument.activeElement as HTMLElement | null;
     if (activeElement?.id === this.searchInputId) {
       return false;
     }
@@ -38,7 +39,7 @@ export class KanbanView extends ItemView {
     event.preventDefault();
     event.stopPropagation();
 
-    const searchInput = document.getElementById(this.searchInputId) as HTMLInputElement | null;
+    const searchInput = activeDocument.getElementById(this.searchInputId) as HTMLInputElement | null;
     if (searchInput) {
       searchInput.focus();
       searchInput.select();
@@ -52,8 +53,6 @@ export class KanbanView extends ItemView {
     container.empty();
 
     const wrapper = container.createDiv({ cls: "jira-flow-plugin" });
-    wrapper.style.height = "100%";
-    wrapper.style.overflow = "auto";
 
     this.reactRoot = createRoot(wrapper);
     this.reactRoot.render(createElement(App, { plugin: this.plugin, searchInputId: this.searchInputId }));
@@ -64,14 +63,13 @@ export class KanbanView extends ItemView {
     this.app.keymap.pushScope(scope);
 
     // Store scope for cleanup
-    (this as any)._keyScope = scope;
+    this.keyScope = scope;
   }
 
   async onClose(): Promise<void> {
     // Cleanup keyboard scope
-    const scope = (this as any)._keyScope;
-    if (scope) {
-      this.app.keymap.popScope(scope);
+    if (this.keyScope) {
+      this.app.keymap.popScope(this.keyScope);
     }
 
     if (this.reactRoot) {

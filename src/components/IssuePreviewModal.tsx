@@ -234,7 +234,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
         const rawDesc = data.renderedFields?.description || data.fields?.description || "";
         const processedDesc = await plugin.fileManager.processDescription(rawDesc, issueKey);
         
-        setIssue({ ...data, processedDesc });
+        setIssue({ ...data, processedDesc } as PreviewIssue);
       } else {
         console.error(`[Jira Flow Preview] Failed to load issue ${issueKey}`);
       }
