@@ -9,7 +9,6 @@ import { ReportDataService } from "./report/reportDataService";
 import { getPeriodRange } from "./utils/dateUtils";
 import { migrateSettings } from "./utils/migrateSettings";
 import { KANBAN_VIEW_TYPE, KanbanView } from "./views/KanbanView";
-import { ARCHIVE_VIEW_TYPE, ArchiveView } from "./views/ArchiveView";
 import { SIDEBAR_VIEW_TYPE, SidebarView } from "./views/SidebarView";
 import { StatusToast } from "./ui/StatusToast";
 
@@ -43,7 +42,6 @@ export default class JiraFlowPlugin extends Plugin {
     this.addSettingTab(new JiraFlowSettingTab(this.app, this));
 
     this.registerView(KANBAN_VIEW_TYPE, (leaf) => new KanbanView(leaf, this));
-    this.registerView(ARCHIVE_VIEW_TYPE, (leaf) => new ArchiveView(leaf, this));
     this.registerView(SIDEBAR_VIEW_TYPE, (leaf) => new SidebarView(leaf, this));
 
     this.addCommand({
@@ -59,12 +57,6 @@ export default class JiraFlowPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "create-local-task",
-      name: "创建本地任务",
-      callback: () => this.createLocalTask(),
-    });
-
-    this.addCommand({
       id: "open-weekly-report",
       name: "打开周报草稿",
       callback: () => this.openReportDraft("weekly"),
@@ -74,12 +66,6 @@ export default class JiraFlowPlugin extends Plugin {
       id: "open-monthly-report",
       name: "打开月报草稿",
       callback: () => this.openReportDraft("monthly"),
-    });
-
-    this.addCommand({
-      id: "open-archive",
-      name: "打开归档视图",
-      callback: () => this.activateArchiveView(),
     });
 
     this.addCommand({
@@ -138,16 +124,6 @@ export default class JiraFlowPlugin extends Plugin {
     void this.app.workspace.revealLeaf(leaf);
   }
 
-  async activateArchiveView(): Promise<void> {
-    const existing = this.app.workspace.getLeavesOfType(ARCHIVE_VIEW_TYPE);
-    if (existing.length > 0) {
-      void this.app.workspace.revealLeaf(existing[0]);
-      return;
-    }
-    const leaf = this.app.workspace.getLeaf("tab");
-    await leaf.setViewState({ type: ARCHIVE_VIEW_TYPE, active: true });
-    void this.app.workspace.revealLeaf(leaf);
-  }
 
   async activateSidebarView(): Promise<void> {
     const { workspace } = this.app;
@@ -205,7 +181,6 @@ export default class JiraFlowPlugin extends Plugin {
     try {
       const result = await this.fileManager.syncIssues(issues);
       const detail = `Created: ${result.created}, Updated: ${result.updated}` +
-        (result.archived > 0 ? `, Archived: ${result.archived}` : "") +
         (result.errors.length > 0 ? `, Errors: ${result.errors.length}` : "");
       toast.updateStep(stepSync, result.errors.length > 0 ? "error" : "success", detail);
       toast.finish(result.errors.length === 0);
@@ -240,31 +215,6 @@ export default class JiraFlowPlugin extends Plugin {
       toast.updateStep(stepConnect, "error", msg);
       toast.finish(false);
     }
-  }
-
-  async createLocalTask(): Promise<void> {
-    const key = `LOCAL-${Date.now()}`;
-    const frontmatter = {
-      jira_key: key,
-      source: "LOCAL" as const,
-      status: "TO DO",
-      mapped_column: "TO DO",
-      issuetype: "Personal",
-      priority: "Medium",
-      story_points: 0,
-      due_date: "",
-      assignee: "",
-      reporter: "",
-      reporter_only: false,
-      sprint: "",
-      sprint_state: "",
-      tags: ["jira/source/local", "jira/type/personal"],
-      summary: "New Personal Task",
-      created: new Date().toISOString(),
-      updated: new Date().toISOString(),
-    };
-    await this.fileManager.createTaskFile(key, "New Personal Task", frontmatter, "");
-    new Notice("Jira Flow: Local task created.");
   }
 
   async openReportDraft(period: ReportPeriod = "weekly"): Promise<void> {

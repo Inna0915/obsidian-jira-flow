@@ -32,13 +32,11 @@ export class FileManager {
 
   async syncIssues(issues: JiraIssue[]): Promise<SyncResult> {
     await this.ensureFolders();
-    const result: SyncResult = { created: 0, updated: 0, archived: 0, errors: [] };
-    const seenIssueKeys = new Set<string>();
+    const result: SyncResult = { created: 0, updated: 0, errors: [] };
     const taskIndex = this.buildTaskFileIndex();
 
     for (const issue of issues) {
       try {
-        seenIssueKeys.add(issue.key);
         const frontmatter = this.issueToFrontmatter(issue);
         const summary = issue.fields.summary;
         const existing = taskIndex.get(issue.key) ?? this.findExistingTaskFile(issue.key, summary);
@@ -75,8 +73,6 @@ export class FileManager {
         console.error(`Jira Flow: Error syncing ${issue.key}:`, e);
       }
     }
-
-    result.archived = await this.archiveMissingJiraIssues(seenIssueKeys);
 
     return result;
   }
@@ -154,7 +150,6 @@ export class FileManager {
 
     return {
       jira_key: issue.key,
-      source: "JIRA",
       status,
       mapped_column: mappedColumn,
       issuetype: f.issuetype.name,
@@ -199,12 +194,7 @@ export class FileManager {
       const content = await this.vault.read(file);
       const currentBody = this.extractBody(content);
       const nextDescription = description ?? currentBody;
-      const nextFrontmatter: TaskFrontmatter = {
-        ...frontmatter,
-        archived: false,
-        archived_date: "",
-      };
-      const newContent = this.composeTaskContent(nextFrontmatter, nextDescription);
+      const newContent = this.composeTaskContent(frontmatter, nextDescription);
 
       if (newContent !== content) {
         await this.modifyFileWithRetry(file, newContent);
@@ -304,7 +294,6 @@ export class FileManager {
   private frontmatterToYaml(fm: TaskFrontmatter): string {
     const lines: string[] = [];
     lines.push(`jira_key: "${fm.jira_key}"`);
-    lines.push(`source: "${fm.source}"`);
     lines.push(`status: "${fm.status}"`);
     lines.push(`mapped_column: "${fm.mapped_column}"`);
     lines.push(`issuetype: "${fm.issuetype}"`);
@@ -323,10 +312,6 @@ export class FileManager {
     lines.push(`summary: "${fm.summary.replace(/"/g, '\\"')}"`);
     lines.push(`created: "${fm.created}"`);
     lines.push(`updated: "${fm.updated}"`);
-    if (fm.archived) {
-      lines.push(`archived: true`);
-      lines.push(`archived_date: "${fm.archived_date || ""}"`);
-    }
     lines.push("tags:");
     for (const tag of fm.tags) {
       lines.push(`  - ${tag}`);
@@ -407,7 +392,6 @@ export class FileManager {
     const status = fm.status || "";
     return {
       jira_key: fm.jira_key || "",
-      source: fm.source || "LOCAL",
       status,
       mapped_column: fm.mapped_column || mapStatusToColumn(status),
       issuetype: fm.issuetype || "Task",
@@ -425,8 +409,6 @@ export class FileManager {
       summary: fm.summary || file.basename,
       created: fm.created || "",
       updated: fm.updated || "",
-      archived: fm.archived || false,
-      archived_date: fm.archived_date || "",
     };
   }
 
@@ -440,13 +422,6 @@ export class FileManager {
     const frontmatterRegex = /^---\n[\s\S]*?\n---\n?/;
     const body = content.replace(frontmatterRegex, "").trim();
     return body;
-  }
-
-  async archiveTask(file: TFile): Promise<void> {
-    await this.plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
-      fm.archived = true;
-      fm.archived_date = new Date().toISOString();
-    });
   }
 
   private buildTaskFileIndex(): Map<string, TFile> {
@@ -463,7 +438,7 @@ export class FileManager {
   }
 
   private canSkipSync(existing: TaskFrontmatter, incoming: TaskFrontmatter): boolean {
-    if (existing.archived || existing.updated !== incoming.updated) {
+    if (existing.updated !== incoming.updated) {
       return false;
     }
 
@@ -486,12 +461,7 @@ export class FileManager {
   }
 
   private composeTaskContent(frontmatter: TaskFrontmatter, description: string): string {
-    const normalizedFrontmatter: TaskFrontmatter = {
-      ...frontmatter,
-      archived: frontmatter.archived || false,
-      archived_date: frontmatter.archived ? (frontmatter.archived_date || "") : "",
-    };
-    const yaml = this.frontmatterToYaml(normalizedFrontmatter);
+    const yaml = this.frontmatterToYaml(frontmatter);
     return `---\n${yaml}---\n${description}`;
   }
 
@@ -513,34 +483,6 @@ export class FileManager {
     }
 
     throw lastError;
-  }
-
-  private async archiveMissingJiraIssues(seenIssueKeys: Set<string>): Promise<number> {
-    let archivedCount = 0;
-    const now = new Date().toISOString();
-
-    for (const file of this.getAllTaskFiles()) {
-      const fm = this.getTaskFrontmatter(file);
-      if (!fm || fm.source !== "JIRA" || fm.archived || !fm.jira_key) {
-        continue;
-      }
-
-      if (seenIssueKeys.has(fm.jira_key)) {
-        continue;
-      }
-
-      await this.plugin.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-        frontmatter.archived = true;
-        frontmatter.archived_date = now;
-      });
-      archivedCount++;
-
-      if (archivedCount % 10 === 0) {
-        await this.yieldToMainThread();
-      }
-    }
-
-    return archivedCount;
   }
 
   private async yieldToMainThread(): Promise<void> {

@@ -33,8 +33,7 @@ export class ReportDataService {
 
   /** Collect logs + stats for a date range. */
   async getTasksForPeriod(start: Date, end: Date): Promise<{ logs: DailyWorkLog[]; stats: ReportStats }> {
-    const personalTaskKeys = this.collectPersonalTaskKeys();
-    const logs = this.filterLogs(await this.workLogService.collectLogs(start, end), personalTaskKeys);
+    const logs = await this.workLogService.collectLogs(start, end);
     const stats = this.buildStatsFromLogs(logs, start, end);
     return { logs, stats };
   }
@@ -42,11 +41,7 @@ export class ReportDataService {
   /** Build a pre-filled, human-editable markdown draft from real data (no AI). */
   async buildReportDraft(period: ReportPeriod, range: DateRange): Promise<string> {
     const normalized = getPeriodRange(period, range.start);
-    const personalTaskKeys = this.collectPersonalTaskKeys();
-    const logs = this.filterLogs(
-      await this.workLogService.collectLogs(normalized.start, normalized.end),
-      personalTaskKeys
-    );
+    const logs = await this.workLogService.collectLogs(normalized.start, normalized.end);
     const stats = this.buildStatsFromLogs(logs, normalized.start, normalized.end);
 
     const title = period === "weekly" ? "周报" : "月报";
@@ -134,24 +129,6 @@ export class ReportDataService {
     return m ? `${m[1]}-${m[2]}` : null;
   }
 
-  private collectPersonalTaskKeys(): Set<string> {
-    const keys = new Set<string>();
-    for (const file of this.plugin.fileManager.getAllTaskFiles()) {
-      const fm = this.plugin.fileManager.getTaskFrontmatter(file);
-      if (fm && this.isPersonalIssueType(fm.issuetype)) keys.add(fm.jira_key);
-    }
-    return keys;
-  }
-
-  private filterLogs(logs: DailyWorkLog[], personalTaskKeys: Set<string>): DailyWorkLog[] {
-    return logs
-      .map((log) => ({
-        ...log,
-        entries: log.entries.filter((e) => !e.taskKey || !personalTaskKeys.has(e.taskKey)),
-      }))
-      .filter((log) => log.entries.length > 0);
-  }
-
   private buildStatsFromLogs(logs: DailyWorkLog[], start: Date, end: Date): ReportStats {
     const taskKeys = new Set<string>();
     let totalEntries = 0;
@@ -165,10 +142,5 @@ export class ReportDataService {
     }
     const totalDays = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
     return { totalDays, activeDays: logs.length, totalEntries, completedEntries, taskKeys };
-  }
-
-  private isPersonalIssueType(issueType: string): boolean {
-    const n = (issueType || "").trim().toLowerCase();
-    return n === "personal" || n === "个人任务" || n === "personal task";
   }
 }

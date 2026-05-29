@@ -181,11 +181,7 @@ const BUG_WORKFLOW: Record<string, string[]> = {
 
 const BUG_GLOBAL_TARGETS = new Set(["FUNNEL", "TO DO", "CLOSED"]);
 
-export function getAllowedTransitions(issueType: string, fromColumn: string, source?: "JIRA" | "LOCAL"): string[] {
-  if (source === "LOCAL") {
-    return KANBAN_COLUMNS.map((column) => column.id).filter((columnId) => columnId !== fromColumn);
-  }
-
+export function getAllowedTransitions(issueType: string, fromColumn: string): string[] {
   const normalizedType = issueType.toLowerCase();
   const workflow = normalizedType === "bug" ? BUG_WORKFLOW : STORY_WORKFLOW;
   const globalTargets = normalizedType === "bug" ? BUG_GLOBAL_TARGETS : STORY_GLOBAL_TARGETS;
@@ -200,37 +196,27 @@ export function getAllowedTransitions(issueType: string, fromColumn: string, sou
   return Array.from(allowed);
 }
 
-export function isTransitionAllowed(issueType: string, fromColumn: string, toColumn: string, source?: "JIRA" | "LOCAL"): boolean {
+export function isTransitionAllowed(issueType: string, fromColumn: string, toColumn: string): boolean {
   if (fromColumn === toColumn) return false;
-  return getAllowedTransitions(issueType, fromColumn, source).includes(toColumn);
+  return getAllowedTransitions(issueType, fromColumn).includes(toColumn);
 }
 
 const INCOMPLETE_WORKFLOW_COLUMNS = new Set(["FUNNEL", "DEFINING", "READY", "TO DO", "EXECUTION"]);
 
-export function isCompletedWorkflowColumn(issueType: string, mappedColumn: string, source?: "JIRA" | "LOCAL"): boolean {
+export function isCompletedWorkflowColumn(_issueType: string, mappedColumn: string): boolean {
   if (!mappedColumn) return false;
-
-  if (source === "LOCAL") {
-    return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
-  }
-
-  const normalizedType = issueType.toLowerCase();
-  if (normalizedType === "bug" || normalizedType === "story") {
-    return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
-  }
-
   return !INCOMPLETE_WORKFLOW_COLUMNS.has(mappedColumn.toUpperCase());
 }
 
 // ===== Swimlane Classification =====
 
-export function classifySwimlane(dueDate: string, mappedColumn: string, issueType = "", source?: "JIRA" | "LOCAL"): SwimlaneType {
+export function classifySwimlane(dueDate: string, mappedColumn: string, issueType = ""): SwimlaneType {
   if (!dueDate) return "others";
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const due = new Date(dueDate);
   due.setHours(0, 0, 0, 0);
-  if (due < today && !isCompletedWorkflowColumn(issueType, mappedColumn, source)) return "overdue";
+  if (due < today && !isCompletedWorkflowColumn(issueType, mappedColumn)) return "overdue";
   return "onSchedule";
 }
 
@@ -342,7 +328,6 @@ export interface JiraSearchResponse {
 // ===== Task Frontmatter =====
 export interface TaskFrontmatter {
   jira_key: string;
-  source: "JIRA" | "LOCAL";
   status: string;
   mapped_column: string;
   issuetype: string;
@@ -360,8 +345,6 @@ export interface TaskFrontmatter {
   summary: string;
   created: string;
   updated: string;
-  archived?: boolean;
-  archived_date?: string;
   completed_at?: string; // YYYY-MM-DD, set when moved to a completed column
   completed_week?: string; // YYYY-Www, ISO week of completion
 }
@@ -370,7 +353,6 @@ export interface TaskFrontmatter {
 export interface KanbanCard {
   filePath: string;
   jiraKey: string;
-  source: "JIRA" | "LOCAL";
   status: string;
   mappedColumn: string;
   issuetype: string;
@@ -389,7 +371,6 @@ export interface KanbanCard {
   swimlane: SwimlaneType;
   sprint: string;
   sprint_state?: string;
-  archived?: boolean;
 }
 
 export interface KanbanColumn {
@@ -405,6 +386,5 @@ export interface KanbanBoard {
 export interface SyncResult {
   created: number;
   updated: number;
-  archived: number;
   errors: string[];
 }

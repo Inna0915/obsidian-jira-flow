@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Notice, TFile } from "obsidian";
-import { KANBAN_COLUMNS } from "../types";
 import type { JiraAttachment, KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
 import type { JiraCreateIssueMeta, JiraCreateIssueInput } from "../api/jira";
@@ -38,7 +37,6 @@ const typeIcons: Record<string, string> = {
   Epic: "\u26A1",
 };
 
-const LOCAL_TASK_TYPES = ["Personal", "Task", "Bug", "Story", "Sub-task", "Epic"];
 const fieldClassName = "jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-transition-all";
 const fieldStyle: React.CSSProperties = { minHeight: "44px", lineHeight: 1.5, boxSizing: "border-box" };
 
@@ -149,13 +147,11 @@ interface TaskDetailPanelProps {
   viewMode: ViewMode;
   onClose: () => void;
   onOpenFile: (filePath: string) => void;
-  onArchive: (card: KanbanCard) => void;
-  onDelete: (card: KanbanCard) => void;
   onCardUpdated: () => void;
 }
 
 export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
-  card, plugin, viewMode, onClose, onOpenFile, onArchive, onDelete, onCardUpdated,
+  card, plugin, viewMode, onClose, onOpenFile, onCardUpdated,
 }) => {
   // Trap ESC key to close drawer without closing Obsidian tab
   useEscapeKey(plugin.app, onClose, true);
@@ -174,15 +170,13 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const [editingDesc, setEditingDesc] = useState(false);
   const [localDesc, setLocalDesc] = useState("");
   const [copied, setCopied] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [previewIssueKey, setPreviewIssueKey] = useState<string | null>(null);
   const [imageAttachments, setImageAttachments] = useState<JiraAttachment[]>([]);
   const [selectedAttachmentIndex, setSelectedAttachmentIndex] = useState(0);
 
-  const isLocal = card.source === "LOCAL";
-  const isJira = card.source === "JIRA";
-  const showSaveToJira = (viewMode === "sprint" || viewMode === "all") && isJira;
+  const isLocal = false;
+  const isJira = true;
+  const showSaveToJira = viewMode === "sprint" || viewMode === "all";
   const jiraUrl = plugin.settings.jiraHost
     ? `${plugin.settings.jiraHost}/browse/${card.jiraKey}`
     : "";
@@ -249,7 +243,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (previewIssueKey || showEditModal || showDeleteConfirm) {
+      if (previewIssueKey) {
         return;
       }
 
@@ -272,7 +266,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [imageAttachments.length, previewIssueKey, showDeleteConfirm, showEditModal]);
+  }, [imageAttachments.length, previewIssueKey]);
 
   useEffect(() => {
     setStoryPoints(card.storyPoints);
@@ -412,7 +406,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const tColor = typeColors[card.issuetype] || "#4C9AFF";
   const cColor = columnColors[card.mappedColumn] || "#6B778C";
   const isOverdue = card.swimlane === "overdue";
-  const canArchive = isLocal && ["EXECUTED", "DONE", "CLOSED"].includes(card.mappedColumn);
 
   return (
     <>
@@ -478,7 +471,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             <MetaCell label="负责人" value={card.assignee || "-"} />
             <MetaCell label="类型" value={card.issuetype} />
             <MetaCell label="优先级" value={card.priority} valueColor={pColor} />
-            <MetaCell label="来源" value={card.source} />
             <MetaCell label="泳道" value={
               card.swimlane === "overdue" ? "已逾期" : card.swimlane === "onSchedule" ? "按时" : "其他"
             } valueColor={isOverdue ? "#FF5630" : undefined} />
@@ -750,89 +742,14 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="jf-flex jf-items-center jf-justify-between jf-px-5 jf-py-4 jf-border-t jf-border-gray-100 jf-bg-gray-50/50">
-          <div className="jf-flex jf-gap-2">
-            {canArchive && (
-              <button onClick={() => onArchive(card)} 
-                className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
-                归档
-              </button>
-            )}
-            {isLocal && (
-              <>
-                <button onClick={() => setShowEditModal(true)} 
-                  className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-blue-600 hover:jf-bg-blue-50 jf-rounded-lg jf-transition-colors">
-                  编辑
-                </button>
-                <button onClick={() => setShowDeleteConfirm(true)} 
-                  className="jf-px-3 jf-py-2 jf-text-sm jf-font-medium jf-text-red-600 hover:jf-bg-red-50 jf-rounded-lg jf-transition-colors">
-                  删除
-                </button>
-              </>
-            )}
-          </div>
+        <div className="jf-flex jf-items-center jf-justify-end jf-px-5 jf-py-4 jf-border-t jf-border-gray-100 jf-bg-gray-50/50">
           <div className="jf-flex jf-items-center jf-gap-3">
-            <button onClick={() => { onOpenFile(card.filePath); onClose(); }} 
+            <button onClick={() => { onOpenFile(card.filePath); onClose(); }}
               className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-rounded-lg jf-transition-colors">
               打开文件
             </button>
           </div>
         </div>
-
-        {/* Edit Task Modal */}
-        {showEditModal && isLocal && (
-          <EditTaskModal
-            plugin={plugin}
-            task={{
-              key: card.jiraKey,
-              summary: card.summary,
-              issuetype: card.issuetype,
-              priority: card.priority,
-              mappedColumn: card.mappedColumn,
-              storyPoints: card.storyPoints,
-              dueDate: card.dueDate?.slice(0, 10) || "",
-              assignee: card.assignee,
-            }}
-            onClose={() => setShowEditModal(false)}
-            onSave={async (data) => {
-              const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-              if (file && file instanceof TFile) {
-                await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
-                  fm.summary = data.summary;
-                  fm.issuetype = data.issuetype;
-                  fm.priority = data.priority;
-                  fm.mapped_column = data.mappedColumn;
-                  fm.status = data.mappedColumn;
-                  fm.story_points = data.storyPoints;
-                  fm.due_date = data.dueDate;
-                  fm.assignee = data.assignee;
-                });
-                new Notice(`任务 ${data.key} 已更新`);
-                onCardUpdated();
-              }
-              setShowEditModal(false);
-            }}
-          />
-        )}
-
-        {/* Delete Confirmation Dialog */}
-        {showDeleteConfirm && (
-          <>
-            <div className="jf-fixed jf-inset-0 jf-z-[10001] jf-bg-black/30" onClick={() => setShowDeleteConfirm(false)} />
-            <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-[10002] jf-w-[360px] jf-max-w-[90vw] jf-bg-white jf-rounded-xl jf-shadow-2xl jf-p-6">
-              <h3 className="jf-text-base jf-font-semibold jf-mb-3">确认删除</h3>
-              <p className="jf-text-sm jf-text-gray-500 jf-mb-5">
-                确定要删除 <strong>{card.jiraKey}</strong> 吗？这将永久删除该任务及其 Markdown 文件。
-              </p>
-              <div className="jf-flex jf-justify-end jf-gap-3">
-                <button onClick={() => setShowDeleteConfirm(false)} 
-                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg">取消</button>
-                <button onClick={() => { setShowDeleteConfirm(false); onDelete(card); }} 
-                  className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-red-600 hover:jf-bg-red-700 jf-rounded-lg">删除</button>
-              </div>
-            </div>
-          </>
-        )}
 
         {/* Issue Preview Modal */}
         {previewIssueKey && (
@@ -878,354 +795,7 @@ const InfoSection: React.FC<{ title: string; items: Array<{ label: string; value
   </div>
 );
 
-// ===== Create Task Modal =====
-
-export interface CreateTaskData {
-  summary: string;
-  issuetype: string;
-  priority: string;
-  mappedColumn: string;
-  storyPoints: number;
-  dueDate: string;
-  assignee: string;
-}
-
-interface CreateTaskModalProps {
-  plugin: JiraFlowPlugin;
-  onClose: () => void;
-  onSave: (data: CreateTaskData) => void;
-}
-
-export const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ plugin, onClose, onSave }) => {
-  // Trap ESC key to close modal without closing Obsidian tab
-  useEscapeKey(plugin.app, onClose, true);
-
-  const [summary, setSummary] = useState("");
-  const [issuetype, setIssuetype] = useState("Personal");
-  const [priority, setPriority] = useState("Medium");
-  const [mappedColumn, setMappedColumn] = useState("TO DO");
-  const [storyPoints, setStoryPoints] = useState(0);
-  const [dueDate, setDueDate] = useState("");
-  const [assignee, setAssignee] = useState("");
-
-  const handleSave = useCallback(() => {
-    if (!summary.trim()) return;
-    onSave({
-      summary: summary.trim(),
-      issuetype,
-      priority,
-      mappedColumn,
-      storyPoints,
-      dueDate,
-      assignee,
-    });
-    onClose();
-  }, [summary, issuetype, priority, mappedColumn, storyPoints, dueDate, assignee, onSave, onClose]);
-
-  return (
-    <>
-      {/* Overlay */}
-      <div className="jf-fixed jf-inset-0 jf-bg-black/40 jf-backdrop-blur-sm jf-z-50 jf-flex jf-items-center jf-justify-center" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-2xl jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
-        
-        {/* Header */}
-        <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
-          <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">创建本地任务</h3>
-          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-transition-colors">
-            <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="jf-p-6 jf-space-y-4" style={{ maxHeight: "min(70vh, 720px)", overflowY: "auto" }}>
-          {/* Summary - Full width */}
-          <div>
-            <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
-            <input 
-              value={summary} 
-              onChange={(e) => setSummary(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSave()}
-              autoFocus 
-              placeholder="需要做什么？"
-              className={fieldClassName}
-              style={fieldStyle}
-            />
-          </div>
-
-          {/* Row 2: Type & Priority */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">类型</label>
-              <select 
-                value={issuetype} 
-                onChange={(e) => setIssuetype(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}>
-                {LOCAL_TASK_TYPES.map((t) => <option key={t} value={t}>{t === "Personal" ? "个人任务" : t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">优先级</label>
-              <select 
-                value={priority} 
-                onChange={(e) => setPriority(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}>
-                {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Row 3: Column & Story Points */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">状态</label>
-              <select 
-                value={mappedColumn} 
-                onChange={(e) => setMappedColumn(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}>
-                {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">故事点</label>
-              <input 
-                type="number" 
-                min={0} 
-                value={storyPoints}
-                onChange={(e) => setStoryPoints(Number(e.target.value))} 
-                className={fieldClassName}
-                style={fieldStyle}
-              />
-            </div>
-          </div>
-
-          {/* Row 4: Due Date & Assignee */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">截止日期</label>
-              <input 
-                type="date" 
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}
-              />
-            </div>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">负责人</label>
-              <input 
-                value={assignee} 
-                onChange={(e) => setAssignee(e.target.value)}
-                placeholder="用户名"
-                className={fieldClassName}
-                style={fieldStyle}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="jf-px-6 jf-py-4 jf-bg-gray-50 jf-flex jf-justify-end jf-gap-3">
-          <button 
-            onClick={onClose} 
-            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg jf-transition-colors">
-            取消
-          </button>
-          <button 
-            onClick={handleSave} 
-            disabled={!summary.trim()} 
-            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-shadow-sm jf-rounded-lg jf-transition-all disabled:jf-opacity-50 disabled:jf-cursor-not-allowed">
-            创建任务
-          </button>
-        </div>
-      </div>
-    </>
-  );
-};
-
-// ===== Edit Task Modal =====
-
-export interface EditTaskData {
-  key: string;
-  summary: string;
-  issuetype: string;
-  priority: string;
-  mappedColumn: string;
-  storyPoints: number;
-  dueDate: string;
-  assignee: string;
-}
-
 export type CreateJiraIssueData = JiraCreateIssueInput;
-
-interface EditTaskModalProps {
-  plugin: JiraFlowPlugin;
-  task: EditTaskData;
-  onClose: () => void;
-  onSave: (data: EditTaskData) => void;
-}
-
-export const EditTaskModal: React.FC<EditTaskModalProps> = ({ plugin, task, onClose, onSave }) => {
-  useEscapeKey(plugin.app, onClose, true);
-
-  const [summary, setSummary] = useState(task.summary);
-  const [issuetype, setIssuetype] = useState(task.issuetype);
-  const [priority, setPriority] = useState(task.priority);
-  const [mappedColumn, setMappedColumn] = useState(task.mappedColumn);
-  const [storyPoints, setStoryPoints] = useState(task.storyPoints);
-  const [dueDate, setDueDate] = useState(task.dueDate);
-  const [assignee, setAssignee] = useState(task.assignee);
-
-  const handleSave = useCallback(() => {
-    if (!summary.trim()) return;
-    onSave({
-      key: task.key,
-      summary: summary.trim(),
-      issuetype,
-      priority,
-      mappedColumn,
-      storyPoints,
-      dueDate,
-      assignee,
-    });
-    onClose();
-  }, [summary, issuetype, priority, mappedColumn, storyPoints, dueDate, assignee, task.key, onSave, onClose]);
-
-  return (
-    <>
-      {/* Overlay */}
-      <div className="jf-fixed jf-inset-0 jf-bg-black/40 jf-backdrop-blur-sm jf-z-50 jf-flex jf-items-center jf-justify-center" onClick={onClose} />
-      
-      {/* Modal */}
-      <div className="jf-fixed jf-top-1/2 jf-left-1/2 jf-transform -jf-translate-x-1/2 -jf-translate-y-1/2 jf-z-50 jf-w-full jf-max-w-2xl jf-bg-white jf-rounded-xl jf-shadow-2xl jf-border jf-border-gray-100 jf-overflow-hidden">
-        
-        {/* Header */}
-        <div className="jf-px-6 jf-py-4 jf-border-b jf-border-gray-100 jf-bg-gray-50/50 jf-flex jf-justify-between jf-items-center">
-          <div className="jf-flex jf-items-center jf-gap-3">
-            <h3 className="jf-text-lg jf-font-semibold jf-text-gray-800">编辑本地任务</h3>
-            <span className="jf-text-sm jf-font-mono jf-text-blue-600 jf-bg-blue-50 jf-px-2 jf-py-1 jf-rounded">{task.key}</span>
-          </div>
-          <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-transition-colors">
-            <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="jf-p-6 jf-space-y-4" style={{ maxHeight: "min(70vh, 720px)", overflowY: "auto" }}>
-          {/* Summary - Full width */}
-          <div>
-            <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">摘要</label>
-            <input 
-              value={summary} 
-              onChange={(e) => setSummary(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSave()}
-              autoFocus 
-              placeholder="需要做什么？"
-              className={fieldClassName}
-              style={fieldStyle}
-            />
-          </div>
-
-          {/* Row 2: Type & Priority */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">类型</label>
-              <select 
-                value={issuetype} 
-                onChange={(e) => setIssuetype(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}>
-                {LOCAL_TASK_TYPES.map((t) => <option key={t} value={t}>{t === "Personal" ? "个人任务" : t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">优先级</label>
-              <select 
-                value={priority} 
-                onChange={(e) => setPriority(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}>
-                {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Row 3: Column & Story Points */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">状态</label>
-              <select 
-                value={mappedColumn} 
-                onChange={(e) => setMappedColumn(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}>
-                {KANBAN_COLUMNS.map((col) => <option key={col.id} value={col.id}>{col.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">故事点</label>
-              <input 
-                type="number" 
-                min={0} 
-                value={storyPoints}
-                onChange={(e) => setStoryPoints(Number(e.target.value))} 
-                className={fieldClassName}
-                style={fieldStyle}
-              />
-            </div>
-          </div>
-
-          {/* Row 4: Due Date & Assignee */}
-          <div className="jf-grid jf-grid-cols-2 jf-gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">截止日期</label>
-              <input 
-                type="date" 
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)} 
-                className={fieldClassName}
-                style={fieldStyle}
-              />
-            </div>
-            <div>
-              <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">负责人</label>
-              <input 
-                value={assignee} 
-                onChange={(e) => setAssignee(e.target.value)}
-                placeholder="用户名"
-                className={fieldClassName}
-                style={fieldStyle}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="jf-px-6 jf-py-4 jf-bg-gray-50 jf-flex jf-justify-end jf-gap-3">
-          <button 
-            onClick={onClose} 
-            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-gray-600 hover:jf-bg-gray-100 jf-rounded-lg jf-transition-colors">
-            取消
-          </button>
-          <button 
-            onClick={handleSave} 
-            disabled={!summary.trim()} 
-            className="jf-px-4 jf-py-2 jf-text-sm jf-font-medium jf-text-white jf-bg-blue-600 hover:jf-bg-blue-700 jf-shadow-sm jf-rounded-lg jf-transition-all disabled:jf-opacity-50 disabled:jf-cursor-not-allowed">
-            保存修改
-          </button>
-        </div>
-      </div>
-    </>
-  );
-};
 
 interface CreateJiraIssueModalProps {
   plugin: JiraFlowPlugin;

@@ -12,15 +12,14 @@ import {
 import type { KanbanCard, SwimlaneType } from "../types";
 import { Board } from "./Board";
 import { IssueListView } from "./IssueListView";
-import { TaskDetailPanel, CreateJiraIssueModal, type CreateJiraIssueData, CreateTaskModal } from "./TaskDetailModal";
-import type { CreateTaskData } from "./TaskDetailModal";
+import { TaskDetailPanel, CreateJiraIssueModal, type CreateJiraIssueData } from "./TaskDetailModal";
 
 interface AppProps {
   plugin: JiraFlowPlugin;
   searchInputId?: string;
 }
 
-export type ViewMode = "sprint" | "all" | "local";
+export type ViewMode = "sprint" | "all";
 type LayoutMode = "kanban" | "list";
 type BatchDueDateMode = "today" | "plusOne" | "weekSaturday";
 
@@ -78,7 +77,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     allowedColumns: new Set(),
     activePaths: new Set(),
   });
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateJiraModal, setShowCreateJiraModal] = useState(false);
   const [showParentFilterPanel, setShowParentFilterPanel] = useState(true);
   const [selectedParentKeys, setSelectedParentKeys] = useState<Set<string>>(new Set());
@@ -182,15 +180,11 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       if (!fm) continue;
 
       const mappedColumn = fm.mapped_column;
-      const swimlane = classifySwimlane(fm.due_date, mappedColumn, fm.issuetype, fm.source);
-
-      // Skip archived tasks on the board
-      if (fm.archived) continue;
+      const swimlane = classifySwimlane(fm.due_date, mappedColumn, fm.issuetype);
 
       cards.push({
         filePath: file.path,
         jiraKey: fm.jira_key,
-        source: fm.source,
         status: fm.status,
         mappedColumn,
         issuetype: fm.issuetype,
@@ -231,7 +225,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
   // Filter cards by view mode
   const filteredCards = allCards.filter((card) => {
-    if (viewMode === "local") return card.source === "LOCAL";
     if (viewMode === "sprint") {
       // Sprint view: only show ACTIVE sprint tasks
       return card.sprint_state === "ACTIVE" && !card.reporter_only;
@@ -377,14 +370,13 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
         const originalColumn = fm.mapped_column;
 
-        if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn, fm.source)) {
+        if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn)) {
           new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);
           return;
         }
 
         if (
-          fm.source === "JIRA"
-          && fm.issuetype.toLowerCase() === "bug"
+          fm.issuetype.toLowerCase() === "bug"
           && ["FUNNEL", "DEFINING"].includes(originalColumn)
           && !fm.assignee?.trim()
         ) {
@@ -401,7 +393,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
         await plugin.fileManager.updateStatus(file, targetColumn);
 
-        if (fm.source === "JIRA" && plugin.settings.jiraHost) {
+        if (plugin.settings.jiraHost) {
           const result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
           if (!result.success) {
             await plugin.fileManager.updateStatus(file, originalColumn);
@@ -414,7 +406,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         }
 
         // Completion state is defined by the target column.
-        const isCompletedNow = isCompletedWorkflowColumn(fm.issuetype, targetColumn, fm.source);
+        const isCompletedNow = isCompletedWorkflowColumn(fm.issuetype, targetColumn);
 
         if (isCompletedNow) {
           await plugin.completionTracker.markCompleted(file);
@@ -524,7 +516,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
   const buildAllowedColumnsForCards = useCallback((cards: KanbanCard[]) => {
     if (cards.length === 0) return new Set<string>();
-    const intersections = cards.map((card) => new Set(getAllowedTransitions(card.issuetype, card.mappedColumn, card.source)));
+    const intersections = cards.map((card) => new Set(getAllowedTransitions(card.issuetype, card.mappedColumn)));
     const [first, ...rest] = intersections;
     const allowed = new Set(Array.from(first).filter((columnId) => rest.every((set) => set.has(columnId))));
     return allowed;
@@ -606,20 +598,18 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           continue;
         }
 
-        if (card.source === "JIRA") {
-          if (!plugin.settings.jiraHost || !plugin.settings.dueDateField) {
-            failedCount += 1;
-            continue;
-          }
+        if (!plugin.settings.jiraHost || !plugin.settings.dueDateField) {
+          failedCount += 1;
+          continue;
+        }
 
-          const success = await plugin.jiraApi.updateIssueFields(card.jiraKey, {
-            [plugin.settings.dueDateField]: nextDueDate || null,
-          });
+        const success = await plugin.jiraApi.updateIssueFields(card.jiraKey, {
+          [plugin.settings.dueDateField]: nextDueDate || null,
+        });
 
-          if (!success) {
-            failedCount += 1;
-            continue;
-          }
+        if (!success) {
+          failedCount += 1;
+          continue;
         }
 
         await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
@@ -654,38 +644,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     }
   }, [selectedPaths, dragState.activePaths.size]);
 
-  const handleCreateTask = useCallback(
-    async (data: CreateTaskData) => {
-      const key = `LOCAL-${Date.now()}`;
-      const now = new Date().toISOString();
-      const frontmatter = {
-        jira_key: key,
-        source: "LOCAL" as const,
-        status: data.mappedColumn,
-        mapped_column: data.mappedColumn,
-        issuetype: data.issuetype,
-        priority: data.priority,
-        story_points: data.storyPoints,
-        due_date: data.dueDate,
-        assignee: data.assignee,
-        reporter: "",
-        reporter_only: false,
-        parent_key: "",
-        parent_summary: "",
-        sprint: "",
-        sprint_state: "",
-        tags: ["jira/source/local", data.issuetype === "Personal" ? "jira/type/personal" : "jira/type/work"],
-        summary: data.summary,
-        created: now,
-        updated: now,
-      };
-      await plugin.fileManager.createTaskFile(key, data.summary, frontmatter, "");
-      new Notice("Jira Flow：本地任务已创建。");
-      loadCards();
-    },
-    [plugin, loadCards]
-  );
-
   const handleCreateJiraIssue = useCallback(
     async (data: CreateJiraIssueData) => {
       setIsSyncing(true);
@@ -701,29 +659,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     [plugin, scheduleLoadCards]
   );
 
-  const handleArchive = useCallback(
-    async (card: KanbanCard) => {
-      const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-      if (!file || !(file instanceof TFile)) return;
-      await plugin.fileManager.archiveTask(file);
-      new Notice(`Jira Flow：${card.jiraKey} 已归档。`);
-      setDetailCard(null);
-      loadCards();
-    },
-    [plugin, loadCards]
-  );
-
-  const handleDeleteLocal = useCallback(
-    async (card: KanbanCard) => {
-      const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-      if (!file || !(file instanceof TFile)) return;
-      await plugin.app.fileManager.trashFile(file);
-      new Notice(`Jira Flow：${card.jiraKey} 已删除。`);
-      setDetailCard(null);
-      loadCards();
-    },
-    [plugin, loadCards]
-  );
 
   const handleToggleParentSelection = useCallback((parentKey: string) => {
     setSelectedParentKeys((previous) => {
@@ -762,10 +697,9 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const viewModes: { id: ViewMode; label: string }[] = [
     { id: "sprint", label: "当前迭代" },
     { id: "all", label: "待办列表" },
-    { id: "local", label: "本地任务" },
   ];
 
-  const boardTitle = viewMode === "sprint" ? "当前迭代" : viewMode === "all" ? "待办列表" : "本地任务";
+  const boardTitle = viewMode === "sprint" ? "当前迭代" : "待办列表";
 
   const layoutModes: { id: LayoutMode; label: string }[] = [
     { id: "kanban", label: "看板" },
@@ -890,22 +824,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
             className="jf-bg-[#0052CC] jf-text-white jf-border jf-border-[#0052CC] hover:jf-bg-[#0747A6] jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
           >
             + 新建 Jira
-          </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="jf-bg-white jf-text-[#42526E] jf-border jf-border-[#C1C7D0] hover:jf-bg-[#F4F5F7] jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
-          >
-            + 新建本地
-          </button>
-          {/* Archive View Button */}
-          <button
-            onClick={() => plugin.activateArchiveView()}
-            className="jf-flex jf-items-center jf-gap-2 jf-bg-white jf-text-[#42526E] jf-border jf-border-[#C1C7D0] hover:jf-bg-[#F4F5F7] jf-shadow-sm jf-px-3 jf-py-1.5 jf-rounded-md jf-text-sm jf-font-medium jf-transition-all"
-          >
-            <svg className="jf-w-4 jf-h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-            </svg>
-            归档视图
           </button>
           {/* Sync Jira Button - Primary Style */}
           <button
@@ -1087,18 +1005,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           viewMode={viewMode}
           onClose={() => setDetailCard(null)}
           onOpenFile={handleOpenFile}
-          onArchive={handleArchive}
-          onDelete={handleDeleteLocal}
           onCardUpdated={loadCards}
-        />
-      )}
-
-      {/* Create Modal */}
-      {showCreateModal && (
-        <CreateTaskModal
-          plugin={plugin}
-          onClose={() => setShowCreateModal(false)}
-          onSave={handleCreateTask}
         />
       )}
 

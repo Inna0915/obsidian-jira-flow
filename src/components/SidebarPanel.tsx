@@ -54,9 +54,6 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     for (const file of files) {
       const fm = plugin.fileManager.getTaskFrontmatter(file);
       if (!fm) continue;
-      
-      // Skip archived tasks
-      if (fm.archived) continue;
 
       loadedTasks.push({
         key: fm.jira_key,
@@ -234,7 +231,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   function isDone(task: SidebarTask): boolean {
-    return isCompletedWorkflowColumn(task.issuetype, task.mappedColumn, 'JIRA');
+    return isCompletedWorkflowColumn(task.issuetype, task.mappedColumn);
   }
 
   function isFocusBug(task: SidebarTask): boolean {

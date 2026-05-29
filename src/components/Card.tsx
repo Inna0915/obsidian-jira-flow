@@ -144,7 +144,7 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
   const isOverdue = card.swimlane === "overdue";
   const borderLeftColor = getBorderColor(card.issuetype);
   const typeBackground = getTypeBackground(card.issuetype);
-  const allowedTargets = getAllowedTransitions(card.issuetype, card.mappedColumn, card.source);
+  const allowedTargets = getAllowedTransitions(card.issuetype, card.mappedColumn);
 
   return (
     <div
@@ -183,11 +183,6 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
         <span className="jf-font-mono jf-text-[10px] jf-font-semibold jf-text-[#0052CC] jf-bg-[#DEEBFF] jf-px-1.5 jf-py-0.5 jf-rounded">
           {highlightText(card.jiraKey, searchQuery)}
         </span>
-        {card.source === "LOCAL" && (
-          <span className="jf-text-[9px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-[#F4F5F7] jf-text-[#6B778C] jf-font-medium">
-            LOCAL
-          </span>
-        )}
         <span
           className="jf-w-2 jf-h-2 jf-rounded-full jf-ml-auto"
           style={{ backgroundColor: priorityColor }}

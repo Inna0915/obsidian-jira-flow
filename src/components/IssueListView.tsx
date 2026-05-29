@@ -204,11 +204,6 @@ export const IssueListView: React.FC<IssueListViewProps> = ({
                       <span className="jf-truncate jf-text-[14px] jf-font-medium jf-text-[#172B4D]">
                         {highlightText(card.summary, searchQuery)}
                       </span>
-                      {card.source === "LOCAL" && (
-                        <span className="jf-shrink-0 jf-rounded jf-bg-[#F4F5F7] jf-px-1.5 jf-py-0.5 jf-text-[10px] jf-font-medium jf-text-[#6B778C]">
-                          LOCAL
-                        </span>
-                      )}
                     </div>
                   </div>
 
