@@ -104,7 +104,7 @@ export default class JiraFlowPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const saved = await this.loadData();
+    const saved: unknown = await this.loadData();
     this.settings = migrateSettings(saved);
   }
 
@@ -186,7 +186,7 @@ export default class JiraFlowPlugin extends Plugin {
 
     this.syncInProgress = true;
 
-    const toast = new StatusToast(document, "Jira Sync");
+    const toast = new StatusToast(activeDocument, "Jira Sync");
 
     const stepFetch = toast.addStep("Fetching issues...");
     let issues: import("./types").JiraIssue[];
@@ -219,7 +219,7 @@ export default class JiraFlowPlugin extends Plugin {
   }
 
   async testConnection(): Promise<void> {
-    const toast = new StatusToast(document, "Test Connection");
+    const toast = new StatusToast(activeDocument, "Test Connection");
 
     const stepValidate = toast.addStep("Validating settings...");
     const { jiraHost, jiraUsername, jiraPassword } = this.settings;

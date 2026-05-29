@@ -21,8 +21,9 @@ export const openLocalWikiPage = async (app: App, targetUrl: string): Promise<bo
     for (const file of files) {
       const cache = app.metadataCache.getFileCache(file);
       if (cache?.frontmatter) {
-        const fmUrl = cache.frontmatter['confluence_url'];
-        const fmPageId = cache.frontmatter['confluence_page_id'];
+        const fm = cache.frontmatter as Record<string, unknown>;
+        const fmUrl = fm['confluence_url'] as string | undefined;
+        const fmPageId = fm['confluence_page_id'] as string | number | undefined;
 
         // Match by exact URL OR by extracted pageId
         if (

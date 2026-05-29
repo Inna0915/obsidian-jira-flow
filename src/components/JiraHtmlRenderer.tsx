@@ -24,8 +24,9 @@ const findLocalWikiFile = (plugin: JiraFlowPlugin, href: string): TFile | null =
     for (const file of files) {
       const cache = plugin.app.metadataCache.getFileCache(file);
       if (cache?.frontmatter) {
-        const fmUrl = cache.frontmatter['confluence_url'];
-        const fmPageId = cache.frontmatter['confluence_page_id'];
+        const fm = cache.frontmatter as Record<string, unknown>;
+        const fmUrl = fm['confluence_url'] as string | undefined;
+        const fmPageId = fm['confluence_page_id'] as string | number | undefined;
         if ((fmUrl && fmUrl === href) || (targetPageId && fmPageId && String(fmPageId) === String(targetPageId))) {
           return file;
         }

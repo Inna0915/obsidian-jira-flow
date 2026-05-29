@@ -32,8 +32,6 @@ export class SidebarView extends ItemView {
     container.empty();
 
     const wrapper = container.createDiv({ cls: "jira-flow-plugin" });
-    wrapper.style.height = "100%";
-    wrapper.style.overflow = "auto";
 
     this.reactRoot = createRoot(wrapper);
     this.reactRoot.render(createElement(SidebarPanel, { plugin: this.plugin }));
