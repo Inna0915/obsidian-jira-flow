@@ -110,7 +110,7 @@ export class ArchiveView extends ItemView {
       });
       row.addEventListener("click", () => {
         const leaf = this.app.workspace.getLeaf("tab");
-        leaf.openFile(file);
+        void leaf.openFile(file);
       });
 
       // Key

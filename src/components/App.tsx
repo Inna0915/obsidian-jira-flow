@@ -456,7 +456,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       const file = plugin.app.vault.getAbstractFileByPath(filePath);
       if (file instanceof TFile) {
         const leaf = plugin.app.workspace.getLeaf("tab");
-        leaf.openFile(file);
+        void leaf.openFile(file);
       }
     },
     [plugin]

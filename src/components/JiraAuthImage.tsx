@@ -95,7 +95,7 @@ export const JiraAuthImage: React.FC<JiraAuthImageProps> = ({
       setImgData(null);
     }
     setIsError(false);
-    fetchImage();
+    void fetchImage();
   }, [authRequired, preserveWhileLoading, src, plugin]);
 
   if (isError) return (

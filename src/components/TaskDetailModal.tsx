@@ -202,7 +202,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   // Fetch full issue details for Jira tasks
   useEffect(() => {
     if (!isJira || !plugin.settings.jiraHost) return;
-    (async () => {
+    void (async () => {
       const issue = await plugin.jiraApi.fetchIssue(card.jiraKey);
       if (!issue) return;
       
@@ -284,7 +284,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   // For local tasks, read description from file body
   useEffect(() => {
     if (!isLocal) return;
-    (async () => {
+    void (async () => {
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
       if (!file || !(file instanceof TFile)) return;
       const content = await plugin.app.vault.read(file);
@@ -403,7 +403,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   }, [isLocal, localDesc, card, plugin]);
 
   const handleCopyKey = useCallback(() => {
-    navigator.clipboard.writeText(`${card.summary} - ${card.jiraKey}`);
+    void navigator.clipboard.writeText(`${card.summary} - ${card.jiraKey}`);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1500);
   }, [card]);
@@ -1283,7 +1283,7 @@ export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plug
       }
     };
 
-    loadMeta();
+    void loadMeta();
     return () => {
       mounted = false;
     };

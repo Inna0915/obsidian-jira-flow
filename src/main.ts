@@ -33,11 +33,11 @@ export default class JiraFlowPlugin extends Plugin {
     this.reportData = new ReportDataService(this);
 
     this.addRibbonIcon("kanban", "打开 Jira Flow 看板", () => {
-      this.activateKanbanView();
+      void this.activateKanbanView();
     });
 
     this.addRibbonIcon("check-circle", "打开 Jira Flow 专注视图", () => {
-      this.activateSidebarView();
+      void this.activateSidebarView();
     });
 
     this.addSettingTab(new JiraFlowSettingTab(this.app, this));
@@ -90,7 +90,7 @@ export default class JiraFlowPlugin extends Plugin {
 
     if (this.settings.autoSyncOnStartup) {
       this.app.workspace.onLayoutReady(() => {
-        this.syncJira();
+        void this.syncJira();
       });
     }
 
@@ -120,7 +120,7 @@ export default class JiraFlowPlugin extends Plugin {
     }
     if (this.settings.syncIntervalMinutes > 0) {
       this.syncIntervalId = window.setInterval(
-        () => this.syncJira(),
+        () => void this.syncJira(),
         this.settings.syncIntervalMinutes * 60 * 1000
       );
       this.registerInterval(this.syncIntervalId);
@@ -130,23 +130,23 @@ export default class JiraFlowPlugin extends Plugin {
   async activateKanbanView(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(KANBAN_VIEW_TYPE);
     if (existing.length > 0) {
-      this.app.workspace.revealLeaf(existing[0]);
+      void this.app.workspace.revealLeaf(existing[0]);
       return;
     }
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: KANBAN_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    void this.app.workspace.revealLeaf(leaf);
   }
 
   async activateArchiveView(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(ARCHIVE_VIEW_TYPE);
     if (existing.length > 0) {
-      this.app.workspace.revealLeaf(existing[0]);
+      void this.app.workspace.revealLeaf(existing[0]);
       return;
     }
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: ARCHIVE_VIEW_TYPE, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    void this.app.workspace.revealLeaf(leaf);
   }
 
   async activateSidebarView(): Promise<void> {
@@ -169,7 +169,7 @@ export default class JiraFlowPlugin extends Plugin {
     }
 
     if (leaf) {
-      workspace.revealLeaf(leaf);
+      void workspace.revealLeaf(leaf);
     }
   }
 

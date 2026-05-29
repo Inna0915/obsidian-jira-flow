@@ -205,7 +205,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
       }
       setLoading(false);
     };
-    loadIssue();
+    void loadIssue();
   }, [issueKey, plugin]);
 
   const handleLinkedIssueClick = (clickedKey: string) => {

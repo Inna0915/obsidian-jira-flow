@@ -77,12 +77,12 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   }, [plugin]);
 
   useEffect(() => {
-    loadTasks();
-    
+    void loadTasks();
+
     // Listen for file changes to keep sidebar updated
     const eventRef = plugin.app.metadataCache.on('changed', (file: TFile) => {
       if (file.path.startsWith(plugin.settings.tasksFolder)) {
-        loadTasks();
+        void loadTasks();
       }
     });
     
@@ -107,7 +107,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
       }, 1000);
     } else if (isTimerRunning && timeLeft === 0) {
       setIsTimerRunning(false);
-      handlePomodoroComplete();
+      void handlePomodoroComplete();
     }
     return () => window.clearInterval(interval);
   }, [isTimerRunning, timeLeft]);
