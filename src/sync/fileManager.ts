@@ -216,15 +216,14 @@ export class FileManager {
   }
 
   async updateStatus(file: TFile, newColumnId: string): Promise<void> {
-    await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+    await this.plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
       fm.mapped_column = newColumnId;
       fm.status = newColumnId;
-      const oldStatusTag = fm.tags?.find((t: string) =>
-        t.startsWith("jira/status/")
-      );
-      if (oldStatusTag && Array.isArray(fm.tags)) {
-        const idx = fm.tags.indexOf(oldStatusTag);
-        fm.tags[idx] = `jira/status/${newColumnId.toLowerCase().replace(/\s+/g, "-")}`;
+      const tags = Array.isArray(fm.tags) ? (fm.tags as string[]) : [];
+      const idx = tags.findIndex((t) => t.startsWith("jira/status/"));
+      if (idx >= 0) {
+        tags[idx] = `jira/status/${newColumnId.toLowerCase().replace(/\s+/g, "-")}`;
+        fm.tags = tags;
       }
     });
   }
@@ -404,7 +403,7 @@ export class FileManager {
   getTaskFrontmatter(file: TFile): TaskFrontmatter | null {
     const cache = this.plugin.app.metadataCache.getFileCache(file);
     if (!cache?.frontmatter) return null;
-    const fm = cache.frontmatter;
+    const fm = cache.frontmatter as Partial<TaskFrontmatter>;
     const status = fm.status || "";
     return {
       jira_key: fm.jira_key || "",
@@ -444,7 +443,7 @@ export class FileManager {
   }
 
   async archiveTask(file: TFile): Promise<void> {
-    await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+    await this.plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
       fm.archived = true;
       fm.archived_date = new Date().toISOString();
     });
@@ -530,7 +529,7 @@ export class FileManager {
         continue;
       }
 
-      await this.plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
+      await this.plugin.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
         frontmatter.archived = true;
         frontmatter.archived_date = now;
       });
