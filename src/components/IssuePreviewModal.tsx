@@ -9,6 +9,40 @@ interface IssuePreviewModalProps {
   onClose: () => void;
 }
 
+interface PreviewLinkedIssue {
+  key: string;
+  fields?: { summary?: string; status?: { name?: string; statusCategory?: { key?: string } } };
+}
+
+interface IssueLink {
+  id?: string;
+  type?: { name?: string; inward?: string; outward?: string };
+  inwardIssue?: PreviewLinkedIssue;
+  outwardIssue?: PreviewLinkedIssue;
+}
+
+interface RemoteLink {
+  id?: string;
+  relationship?: string;
+  object?: { title?: string; url?: string };
+}
+
+interface PreviewIssue {
+  key?: string;
+  processedDesc?: string;
+  remotelinks?: RemoteLink[];
+  renderedFields?: { description?: string };
+  fields: {
+    summary?: string;
+    description?: string | null;
+    status?: { name?: string };
+    assignee?: { displayName?: string } | null;
+    issuetype?: { name?: string };
+    priority?: { name?: string };
+    issuelinks?: IssueLink[];
+  };
+}
+
 // ===== Sub-Components =====
 
 // Relation text mapping
@@ -29,14 +63,14 @@ const relationTextMap: Record<string, string> = {
   'child of': '子任务',
 };
 
-const LinkedIssueItem = ({ link, onIssueClick }: { link: any, onIssueClick: (key: string) => void }) => {
+const LinkedIssueItem = ({ link, onIssueClick }: { link: IssueLink, onIssueClick: (key: string) => void }) => {
   const isOutward = !!link.outwardIssue;
   const targetIssue = link.outwardIssue || link.inwardIssue;
   
   if (!targetIssue) return null;
 
   const rawRelation = isOutward ? link.type?.outward : link.type?.inward;
-  const relationText = relationTextMap[rawRelation] || rawRelation || '关联';
+  const relationText = (rawRelation ? relationTextMap[rawRelation] : undefined) || rawRelation || '关联';
   const issueKey = targetIssue.key;
   const summary = targetIssue.fields?.summary || "未知任务";
   const statusName = targetIssue.fields?.status?.name || "未知";
@@ -67,7 +101,7 @@ const LinkedIssueItem = ({ link, onIssueClick }: { link: any, onIssueClick: (key
   );
 };
 
-const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin }) => {
+const RemoteLinkItem = ({ link, plugin }: { link: RemoteLink, plugin: JiraFlowPlugin }) => {
   const [localFile, setLocalFile] = useState<TFile | null>(null);
   const [displayTitle, setDisplayTitle] = useState(link.object?.title || "Wiki 页面");
   const url = link.object?.url;
@@ -93,12 +127,13 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
     for (const file of files) {
       const cache = plugin.app.metadataCache.getFileCache(file);
       if (cache?.frontmatter) {
-        const fmUrl = cache.frontmatter['confluence_url'];
-        const fmPageId = cache.frontmatter['confluence_page_id'];
-        
+        const fm = cache.frontmatter as Record<string, unknown>;
+        const fmUrl = fm['confluence_url'] as string | undefined;
+        const fmPageId = fm['confluence_page_id'] as string | number | undefined;
+
         if ((fmUrl && fmUrl === url) || (targetPageId && fmPageId && String(fmPageId) === String(targetPageId))) {
           setLocalFile(file);
-          setDisplayTitle(cache.frontmatter['title'] || file.basename);
+          setDisplayTitle((fm['title'] as string | undefined) || file.basename);
           return;
         }
       }
@@ -132,7 +167,7 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
     }
   };
 
-  const relationshipText = relationshipMap[link.relationship] || link.relationship || '外部链接';
+  const relationshipText = (link.relationship ? relationshipMap[link.relationship] : undefined) || link.relationship || '外部链接';
 
   return (
     <div className="jf-flex jf-flex-col jf-mb-2">
@@ -177,7 +212,7 @@ const RemoteLinkItem = ({ link, plugin }: { link: any, plugin: JiraFlowPlugin })
 
 export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: initialIssueKey, plugin, onClose }) => {
   const [issueKey, setIssueKey] = useState(initialIssueKey);
-  const [issue, setIssue] = useState<any>(null);
+  const [issue, setIssue] = useState<PreviewIssue | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Update issueKey when prop changes
@@ -263,7 +298,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
                     关联任务
                   </h3>
                   <div className="jf-flex jf-flex-col">
-                    {issue.fields.issuelinks.map((link: any) => (
+                    {issue.fields.issuelinks.map((link) => (
                       <LinkedIssueItem 
                         key={link.id} 
                         link={link} 
@@ -281,7 +316,7 @@ export const IssuePreviewModal: React.FC<IssuePreviewModalProps> = ({ issueKey: 
                     Confluence 文档
                   </h3>
                   <div className="jf-flex jf-flex-col">
-                    {issue.remotelinks.map((link: any) => (
+                    {issue.remotelinks.map((link) => (
                       <RemoteLinkItem key={link.id || link.object?.url} link={link} plugin={plugin} />
                     ))}
                   </div>
