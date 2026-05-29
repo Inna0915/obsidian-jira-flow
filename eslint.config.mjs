@@ -14,5 +14,10 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
+    rules: {
+      // Disabled per eslint-plugin-obsidianmd guidance: rule is not working as
+      // intended and produces false positives on brand names / CJK text.
+      "obsidianmd/ui/sentence-case": "off",
+    },
   }
 );

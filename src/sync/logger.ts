@@ -6,6 +6,22 @@ export interface WorkLogTaskInfo {
   summary: string;
 }
 
+interface PeriodicNotesPlugin {
+  settings?: { daily?: { template?: string }; template?: string };
+}
+interface TemplaterPlugin {
+  templater?: { overwrite_file_commands?: (file: TFile) => Promise<void> };
+}
+interface DailyNotesCorePlugin {
+  enabled?: boolean;
+  instance?: { options?: { template?: string } };
+  options?: { template?: string };
+}
+interface PluginHost {
+  plugins?: { plugins?: Record<string, unknown> };
+  internalPlugins?: { plugins?: Record<string, unknown> };
+}
+
 export class WorkLogger {
   private plugin: JiraFlowPlugin;
 
@@ -17,19 +33,18 @@ export class WorkLogger {
     return this.plugin.app.vault;
   }
 
+  private get host(): PluginHost {
+    return this.plugin.app as unknown as PluginHost;
+  }
+
   /**
    * Log a completed task to today's daily note under ### Work Log section.
-   * Called when a kanban card is moved to DONE or CLOSED.
+   * Called when a kanban card is moved to a completed column.
    *
    * @param taskFile - The task file that was moved
    * @param taskInfo - Optional pre-fetched task info to avoid metadata cache timing issues.
-   *                   When called right after updateStatus(), the cache may be stale.
    */
   async logWork(taskFile: TFile, taskInfo?: WorkLogTaskInfo): Promise<void> {
-    console.log(`[Jira Flow] logWork called for: ${taskFile.path}`);
-
-    // Use passed-in data first (avoids metadata cache timing issue),
-    // fall back to reading from cache
     let jiraKey = taskInfo?.jiraKey;
     let summary = taskInfo?.summary;
 
@@ -41,218 +56,135 @@ export class WorkLogger {
       }
     }
 
-    if (!jiraKey) {
-      console.warn("[Jira Flow] logWork: No jira_key found, skipping.", taskFile.path);
-      return;
-    }
+    if (!jiraKey) return;
 
     const dailyNote = await this.getOrCreateDailyNote();
     if (!dailyNote) {
-      console.error("[Jira Flow] logWork: Failed to get or create daily note.");
       new Notice("Jira Flow：无法创建或找到今日日记文件");
       return;
     }
 
-    console.log(`[Jira Flow] logWork: Daily note found at ${dailyNote.path}`);
-
-    // Re-read content after potential Templater processing
-    const content = await this.vault.read(dailyNote);
     const logEntry = `- [x] [[${taskFile.basename}]] - ${summary} (${jiraKey})`;
     const workLogHeader = "### Work Log";
+    let added = false;
 
-    // Check for duplicate entry
-    if (content.includes(logEntry)) {
-      console.log("[Jira Flow] logWork: Entry already exists, skipping.");
-      return;
-    }
+    await this.vault.process(dailyNote, (content) => {
+      if (content.includes(logEntry)) return content;
+      added = true;
 
-    if (content.includes(workLogHeader)) {
-      // Find Work Log section boundaries
-      const headerIndex = content.indexOf(workLogHeader);
-      const afterSection = content.slice(headerIndex + workLogHeader.length);
+      if (content.includes(workLogHeader)) {
+        const headerIndex = content.indexOf(workLogHeader);
+        const afterSection = content.slice(headerIndex + workLogHeader.length);
+        const nextHeaderMatch = afterSection.match(/\n#{1,3}\s/);
+        const sectionEndOffset = nextHeaderMatch
+          ? headerIndex + workLogHeader.length + nextHeaderMatch.index!
+          : content.length;
+        const before = content.slice(0, sectionEndOffset).trimEnd();
+        const after = content.slice(sectionEndOffset);
+        return before + "\n" + logEntry + "\n" + after;
+      }
 
-      // Find end of Work Log section (next ##/### header or end of file)
-      const nextHeaderMatch = afterSection.match(/\n#{1,3}\s/);
-      const sectionEndOffset = nextHeaderMatch
-        ? headerIndex + workLogHeader.length + nextHeaderMatch.index!
-        : content.length;
-
-      // Insert entry at end of Work Log section (chronological order)
-      const before = content.slice(0, sectionEndOffset).trimEnd();
-      const after = content.slice(sectionEndOffset);
-      await this.vault.modify(dailyNote, before + "\n" + logEntry + "\n" + after);
-    } else {
-      // No Work Log section found - append at end of file
       const separator = content.endsWith("\n") ? "\n" : "\n\n";
-      await this.vault.modify(
-        dailyNote,
+      return (
         content +
-          separator +
-          workLogHeader +
-          "\n> ⚙️ jira-flow 自动写入区域，拖任务到 DONE 自动出现，请勿手动修改\n\n" +
-          logEntry +
-          "\n"
+        separator +
+        workLogHeader +
+        "\n> ⚙️ jira-flow 自动写入区域，拖任务到 DONE 自动出现，请勿手动修改\n\n" +
+        logEntry +
+        "\n"
       );
-    }
+    });
 
-    console.log(`[Jira Flow] logWork: Successfully logged ${jiraKey} to ${dailyNote.path}`);
-    new Notice(`📝 已记录到日记: ${jiraKey}`);
+    if (added) {
+      new Notice(`📝 已记录到日记: ${jiraKey}`);
+    }
   }
 
   /**
-   * Get today's daily note, or create it via Periodic Notes plugin (with template),
-   * falling back to a built-in template if the plugin is unavailable.
+   * Get today's daily note, or create it via Periodic Notes / core Daily Notes (with template),
+   * falling back to a built-in template if neither is available.
    */
   private async getOrCreateDailyNote(): Promise<TFile | null> {
     const folder = this.plugin.settings.dailyNotesFolder;
     const today = this.formatDate(new Date());
     const filePath = normalizePath(`${folder}/${today}.md`);
 
-    // 1. Check if daily note already exists
     const existing = this.vault.getAbstractFileByPath(filePath);
     if (existing instanceof TFile) {
       return existing;
     }
 
-    // 2. Try to create via Periodic Notes plugin (respects user's template + Templater)
     const created = await this.createDailyNoteViaPlugin(filePath);
     if (created) return created;
 
-    // 3. Fallback: create manually with built-in template
     return await this.createDailyNoteFallback(folder, today, filePath);
   }
 
   /**
-   * Create daily note using Periodic Notes plugin settings (template + folder config),
-   * or core Daily Notes plugin. Does NOT open/navigate to the note.
-   * Uses Templater API if available for template processing.
+   * Create daily note using Periodic Notes / core Daily Notes template (+ Templater if present).
    */
   private async createDailyNoteViaPlugin(expectedPath: string): Promise<TFile | null> {
-    const app = this.plugin.app;
-
-    // Try Periodic Notes community plugin first
-    const periodicNotes = (app as any).plugins?.plugins?.["periodic-notes"];
+    // Periodic Notes community plugin
+    const periodicNotes = this.host.plugins?.plugins?.["periodic-notes"] as PeriodicNotesPlugin | undefined;
     if (periodicNotes) {
-      console.log("[Jira Flow] Periodic Notes plugin detected.");
-      try {
-        // Read Periodic Notes' daily note settings
-        const pnSettings = periodicNotes.settings?.daily || periodicNotes.settings;
-        const templatePath = pnSettings?.template;
-        
-        if (templatePath) {
-          console.log(`[Jira Flow] Periodic Notes template: ${templatePath}`);
-          // Read template content
-          const templateFile = this.vault.getAbstractFileByPath(
-            normalizePath(templatePath.endsWith(".md") ? templatePath : templatePath + ".md")
-          );
-          
-          if (templateFile instanceof TFile) {
-            let templateContent = await this.vault.read(templateFile);
-            
-            // Create the file first with raw template content
-            const folder = expectedPath.substring(0, expectedPath.lastIndexOf("/"));
-            const folderPath = normalizePath(folder);
-            if (folderPath && !this.vault.getAbstractFileByPath(folderPath)) {
-              await this.vault.createFolder(folderPath);
-            }
+      const pnSettings = periodicNotes.settings?.daily || periodicNotes.settings;
+      const templatePath = pnSettings?.template;
+      if (templatePath) {
+        const templateFile = this.vault.getAbstractFileByPath(
+          normalizePath(templatePath.endsWith(".md") ? templatePath : templatePath + ".md")
+        );
+        if (templateFile instanceof TFile) {
+          const templateContent = await this.vault.read(templateFile);
+          await this.ensureFolderFor(expectedPath);
+          const newFile = await this.vault.create(expectedPath, templateContent);
 
-            const newFile = await this.vault.create(expectedPath, templateContent);
-            console.log(`[Jira Flow] Created daily note at ${expectedPath}`);
-            
-            // Try to trigger Templater to process the new file (if Templater is installed)
-            const templater = (app as any).plugins?.plugins?.["templater-obsidian"];
-            if (templater) {
-              console.log("[Jira Flow] Templater detected, processing template...");
-              try {
-                // Use Templater's API to process the file
-                const templaterPlugin = templater;
-                if (templaterPlugin.templater?.overwrite_file_commands) {
-                  await templaterPlugin.templater.overwrite_file_commands(newFile);
-                } else if (templaterPlugin.templater?.append_template_to_active_file) {
-                  // Alternative API path
-                  await templaterPlugin.templater.overwrite_file_commands?.(newFile);
-                }
-                // Wait for Templater to finish
-                await new Promise((r) => setTimeout(r, 1000));
-                console.log("[Jira Flow] Templater processing complete.");
-              } catch (templaterError) {
-                console.log("[Jira Flow] Templater processing failed (non-fatal):", templaterError);
-              }
+          const templater = this.host.plugins?.plugins?.["templater-obsidian"] as TemplaterPlugin | undefined;
+          if (templater?.templater?.overwrite_file_commands) {
+            try {
+              await templater.templater.overwrite_file_commands(newFile);
+              await new Promise((r) => window.setTimeout(r, 1000));
+            } catch {
+              // Templater processing is best-effort; ignore failures.
             }
-            
-            return this.vault.getAbstractFileByPath(expectedPath) as TFile;
-          } else {
-            console.log(`[Jira Flow] Template file not found: ${templatePath}`);
           }
+          const result = this.vault.getAbstractFileByPath(expectedPath);
+          return result instanceof TFile ? result : newFile;
         }
-      } catch (e) {
-        console.log("[Jira Flow] Periodic Notes integration failed:", e);
       }
     }
 
-    // Try core Daily Notes internal plugin
-    const corePlugin = (app as any).internalPlugins?.plugins?.["daily-notes"];
+    // Core Daily Notes internal plugin
+    const corePlugin = this.host.internalPlugins?.plugins?.["daily-notes"] as DailyNotesCorePlugin | undefined;
     if (corePlugin?.enabled) {
-      console.log("[Jira Flow] Core Daily Notes plugin detected.");
-      try {
-        const coreSettings = corePlugin.instance?.options || corePlugin.options;
-        const templatePath = coreSettings?.template;
-        if (templatePath) {
-          const templateFile = this.vault.getAbstractFileByPath(
-            normalizePath(templatePath.endsWith(".md") ? templatePath : templatePath + ".md")
-          );
-          if (templateFile instanceof TFile) {
-            const templateContent = await this.vault.read(templateFile);
-            const folder = expectedPath.substring(0, expectedPath.lastIndexOf("/"));
-            const folderPath = normalizePath(folder);
-            if (folderPath && !this.vault.getAbstractFileByPath(folderPath)) {
-              await this.vault.createFolder(folderPath);
-            }
-            const newFile = await this.vault.create(expectedPath, templateContent);
-            console.log(`[Jira Flow] Created daily note via core plugin template at ${expectedPath}`);
-            return newFile;
-          }
+      const coreSettings = corePlugin.instance?.options || corePlugin.options;
+      const templatePath = coreSettings?.template;
+      if (templatePath) {
+        const templateFile = this.vault.getAbstractFileByPath(
+          normalizePath(templatePath.endsWith(".md") ? templatePath : templatePath + ".md")
+        );
+        if (templateFile instanceof TFile) {
+          const templateContent = await this.vault.read(templateFile);
+          await this.ensureFolderFor(expectedPath);
+          return await this.vault.create(expectedPath, templateContent);
         }
-      } catch (e) {
-        console.log("[Jira Flow] Core Daily Notes integration failed:", e);
       }
     }
 
-    console.log("[Jira Flow] No daily notes plugin template available, using fallback.");
     return null;
   }
 
-  /**
-   * Poll the vault for a file to appear (created by external plugin).
-   * Includes extra delay for Templater to finish processing.
-   */
-  private async waitForFile(filePath: string, timeoutMs: number): Promise<TFile | null> {
-    const interval = 100;
-    const maxAttempts = Math.floor(timeoutMs / interval);
-
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((resolve) => setTimeout(resolve, interval));
-      const file = this.vault.getAbstractFileByPath(filePath);
-      if (file instanceof TFile) {
-        // Wait extra for Templater to finish processing the template
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        return this.vault.getAbstractFileByPath(filePath) as TFile;
-      }
+  private async ensureFolderFor(filePath: string): Promise<void> {
+    const folder = filePath.substring(0, filePath.lastIndexOf("/"));
+    const folderPath = normalizePath(folder);
+    if (folderPath && !this.vault.getAbstractFileByPath(folderPath)) {
+      await this.vault.createFolder(folderPath);
     }
-
-    return null;
   }
 
   /**
    * Fallback: create a daily note manually with the standard template.
-   * Used when no Daily Notes / Periodic Notes plugin is available.
    */
-  private async createDailyNoteFallback(
-    folder: string,
-    today: string,
-    filePath: string
-  ): Promise<TFile> {
-    // Ensure folder exists
+  private async createDailyNoteFallback(folder: string, today: string, filePath: string): Promise<TFile> {
     const folderPath = normalizePath(folder);
     if (!this.vault.getAbstractFileByPath(folderPath)) {
       await this.vault.createFolder(folderPath);
@@ -286,7 +218,6 @@ export class WorkLogger {
       "",
     ].join("\n");
 
-    console.log("[Jira Flow] Created daily note via fallback template.");
     return await this.vault.create(filePath, content);
   }
 
@@ -296,9 +227,6 @@ export class WorkLogger {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
 
-    return format
-      .replace("YYYY", String(year))
-      .replace("MM", month)
-      .replace("DD", day);
+    return format.replace("YYYY", String(year)).replace("MM", month).replace("DD", day);
   }
 }

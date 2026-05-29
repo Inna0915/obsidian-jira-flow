@@ -42,6 +42,8 @@
   --jf-on-accent: #FFFFFF;
   --jf-success: #6B8E5A;
   --jf-danger: #BF4D43;
+  background-color: var(--jf-bg);
+  color: var(--jf-text);
 }
 .theme-dark .jira-flow-root {
   --jf-bg: #262624;
@@ -67,3 +69,46 @@
 }
 .jf-toolbar-btn:hover { background: var(--background-modifier-hover); }
 .jf-toolbar-btn:focus-visible { outline: 2px solid var(--jf-accent); outline-offset: 2px; }
+
+/* ===== Claude theme: remap legacy hardcoded chrome colors to tokens ===== */
+/* Accent (was Jira blue) */
+.jira-flow-root .jf-bg-\[\#0052CC\],
+.jira-flow-root .jf-bg-\[\#0747A6\] { background-color: var(--jf-accent); }
+.jira-flow-root .jf-text-\[\#0052CC\],
+.jira-flow-root .jf-text-\[\#0747A6\] { color: var(--jf-accent); }
+.jira-flow-root .jf-border-\[\#0052CC\],
+.jira-flow-root .jf-border-\[\#4C9AFF\] { border-color: var(--jf-accent); }
+/* Success / done */
+.jira-flow-root .jf-bg-\[\#0B6E4F\] { background-color: var(--jf-success); }
+/* Faint accent chips (was light blue) */
+.jira-flow-root .jf-bg-\[\#DEEBFF\],
+.jira-flow-root .jf-bg-\[\#E9F2FF\],
+.jira-flow-root .jf-bg-\[\#F0F7FF\],
+.jira-flow-root .jf-bg-\[\#F8FBFF\],
+.jira-flow-root .jf-bg-\[\#EAF2F8\] { background-color: var(--jf-bg-secondary); }
+/* Neutral surfaces */
+.jira-flow-root .jf-bg-\[\#F7F8FA\],
+.jira-flow-root .jf-bg-\[\#FAFBFC\],
+.jira-flow-root .jf-bg-\[\#F4F5F7\],
+.jira-flow-root .jf-bg-\[\#EBECF0\] { background-color: var(--jf-bg-secondary); }
+.jira-flow-root.jf-bg-\[\#F7F8FA\] { background-color: var(--jf-bg); }
+.jira-flow-root .jf-bg-white { background-color: var(--jf-bg); }
+.jira-flow-root .hover\:jf-bg-white:hover,
+.jira-flow-root .hover\:jf-bg-\[\#F4F5F7\]:hover { background-color: var(--background-modifier-hover); }
+/* Text */
+.jira-flow-root .jf-text-\[\#172B4D\],
+.jira-flow-root .jf-text-\[\#334E68\],
+.jira-flow-root .jf-text-\[\#486581\] { color: var(--jf-text); }
+.jira-flow-root .jf-text-\[\#42526E\],
+.jira-flow-root .jf-text-\[\#6B778C\],
+.jira-flow-root .jf-text-\[\#5E6C84\],
+.jira-flow-root .jf-text-\[\#97A0AF\] { color: var(--jf-text-muted); }
+.jira-flow-root .hover\:jf-text-\[\#172B4D\]:hover { color: var(--jf-text); }
+/* Borders */
+.jira-flow-root .jf-border-\[\#DFE1E6\],
+.jira-flow-root .jf-border-\[\#C1C7D0\],
+.jira-flow-root .jf-border-\[\#E2E8F0\],
+.jira-flow-root .jf-border-\[\#EBECF0\],
+.jira-flow-root .jf-border-\[\#D9E2EC\],
+.jira-flow-root .jf-border-\[\#D7DFEA\] { border-color: var(--jf-border); }
+.jira-flow-root .hover\:jf-border-\[\#DFE1E6\]:hover { border-color: var(--jf-border); }

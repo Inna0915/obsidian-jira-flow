@@ -11,7 +11,6 @@ export interface WorkLogEntry {
 export interface DailyWorkLog {
   date: string;
   entries: WorkLogEntry[];
-  rawContent: string;
 }
 
 export class WorkLogService {
@@ -113,7 +112,7 @@ export class WorkLogService {
 
     if (entries.length === 0) return null;
 
-    return { date: dateStr, entries, rawContent: content };
+    return { date: dateStr, entries };
   }
 
   /**
