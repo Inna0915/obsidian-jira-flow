@@ -98,8 +98,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
       }
     };
 
-    document.addEventListener("keydown", handleGlobalKeyDown, true);
-    return () => document.removeEventListener("keydown", handleGlobalKeyDown, true);
+    activeDocument.addEventListener("keydown", handleGlobalKeyDown, true);
+    return () => activeDocument.removeEventListener("keydown", handleGlobalKeyDown, true);
   }, []);
 
   // Calculate matched cards for navigation
@@ -129,7 +129,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     if (!currentCard) return;
 
     // Find the card element and scroll to it
-    const cardElement = document.querySelector(`[data-card-path="${CSS.escape(currentCard.filePath)}"]`);
+    const cardElement = activeDocument.querySelector(`[data-card-path="${CSS.escape(currentCard.filePath)}"]`);
     if (cardElement) {
       cardElement.scrollIntoView({ behavior: "smooth", block: "center" });
     }
