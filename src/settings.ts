@@ -14,14 +14,12 @@ export class JiraFlowSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Jira Flow 设置" });
-
     this.displayGeneral(containerEl);
   }
 
   private displayGeneral(containerEl: HTMLElement): void {
     // === Jira Connection ===
-    containerEl.createEl("h3", { text: "Jira 连接" });
+    new Setting(containerEl).setName("Jira 连接").setHeading();
 
     new Setting(containerEl)
       .setName("Jira 地址")
@@ -171,7 +169,7 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     // === Folders ===
-    containerEl.createEl("h3", { text: "文件夹" });
+    new Setting(containerEl).setName("文件夹").setHeading();
 
     new Setting(containerEl)
       .setName("根文件夹")
@@ -203,14 +201,14 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       });
 
     // === Kanban ===
-    containerEl.createEl("h3", { text: "看板" });
+    new Setting(containerEl).setName("看板").setHeading();
 
     new Setting(containerEl)
       .setName("列（12列布局）")
       .setDesc("固定的 12 列看板布局，映射 Jira 状态。列顺序：FUNNEL → DEFINING → READY → TO DO → EXECUTION → EXECUTED → TESTING & REVIEW → TEST DONE → VALIDATING → RESOLVED → DONE → CLOSED");
 
     // === Sync ===
-    containerEl.createEl("h3", { text: "同步" });
+    new Setting(containerEl).setName("同步").setHeading();
 
     new Setting(containerEl)
       .setName("启动时自动同步")

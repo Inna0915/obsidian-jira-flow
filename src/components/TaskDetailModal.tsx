@@ -328,8 +328,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
       }
 
       const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-      if (file) {
-        await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
+      if (file instanceof TFile) {
+        await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
           fm.story_points = nextStoryPoints;
           fm.due_date = nextDueDate;
         });
@@ -369,8 +369,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     if (!isLocal) return;
     setEditingSummary(false);
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-    if (file) {
-      await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
+    if (file instanceof TFile) {
+      await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
         fm.summary = summary;
       });
     }
@@ -380,8 +380,8 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const handleSaveLocalField = useCallback(async (field: string, value: string) => {
     if (!isLocal) return;
     const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-    if (file) {
-      await plugin.app.fileManager.processFrontMatter(file as TFile, (fm) => {
+    if (file instanceof TFile) {
+      await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
         fm[field] = value;
       });
     }

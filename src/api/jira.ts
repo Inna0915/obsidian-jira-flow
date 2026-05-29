@@ -157,9 +157,7 @@ export class JiraApi {
   }
 
   private decodeHtmlEntities(value: string): string {
-    const textarea = document.createElement("textarea");
-    textarea.innerHTML = value;
-    return textarea.value;
+    return new DOMParser().parseFromString(value, "text/html").documentElement.textContent || "";
   }
 
   private extractDataAttribute(html: string, elementId: string, attributeName: string): string | null {
@@ -602,16 +600,12 @@ export class JiraApi {
       let target = data.transitions.find(
         (t) => mapStatusToColumn(t.to.name) === targetColumnId
       );
-      if (target) {
-      }
 
       // 2b: direct name match
       if (!target) {
         target = data.transitions.find(
           (t) => t.to.name.toUpperCase() === targetColumnId.toUpperCase()
         );
-        if (target) {
-        }
       }
 
       // 2c: partial keyword match
@@ -620,8 +614,6 @@ export class JiraApi {
         target = data.transitions.find(
           (t) => t.name.toLowerCase().includes(colLower) || t.to.name.toLowerCase().includes(colLower)
         );
-        if (target) {
-        }
       }
 
       if (!target) {
