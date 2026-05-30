@@ -1,9 +1,14 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
+import { createRoot, type Root } from "react-dom/client";
+import { createElement } from "react";
 import { FolderSuggest } from "./utils/FolderSuggest";
+import { WorkflowEditor } from "./components/WorkflowEditor";
 import type JiraFlowPlugin from "./main";
 
 export class JiraFlowSettingTab extends PluginSettingTab {
   plugin: JiraFlowPlugin;
+  private activeTab: "general" | "workflow" = "general";
+  private workflowRoot: Root | null = null;
 
   constructor(app: App, plugin: JiraFlowPlugin) {
     super(app, plugin);
@@ -12,9 +17,41 @@ export class JiraFlowSettingTab extends PluginSettingTab {
 
   display(): void {
     const { containerEl } = this;
+    this.unmountWorkflow();
     containerEl.empty();
 
-    this.displayGeneral(containerEl);
+    const tabBar = containerEl.createDiv({ cls: "jf-settings-tabs" });
+    const mkTab = (id: "general" | "workflow", label: string) => {
+      const btn = tabBar.createEl("button", { text: label, cls: "jf-settings-tab" });
+      btn.toggleClass("jf-settings-tab--active", this.activeTab === id);
+      btn.onclick = () => { this.activeTab = id; this.display(); };
+    };
+    mkTab("general", "常规");
+    mkTab("workflow", "工作流");
+
+    const body = containerEl.createDiv();
+    if (this.activeTab === "general") {
+      this.displayGeneral(body);
+    } else {
+      this.displayWorkflow(body);
+    }
+  }
+
+  private displayWorkflow(containerEl: HTMLElement): void {
+    const host = containerEl.createDiv();
+    this.workflowRoot = createRoot(host);
+    this.workflowRoot.render(createElement(WorkflowEditor, { plugin: this.plugin }));
+  }
+
+  private unmountWorkflow(): void {
+    if (this.workflowRoot) {
+      this.workflowRoot.unmount();
+      this.workflowRoot = null;
+    }
+  }
+
+  hide(): void {
+    this.unmountWorkflow();
   }
 
   private displayGeneral(containerEl: HTMLElement): void {
