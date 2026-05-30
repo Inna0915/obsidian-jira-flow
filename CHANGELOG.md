@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.1.0] - 2026-05-30
+
+### Added
+- **可配置工作流**：设置新增「工作流」标签，用**芯片拖拽**编辑 Story/Bug 看板拖拽流转限制（两档：Bug / 默认）。从列调色板拖入「全局可达列」或「逐列转移规则」即新增，点 × 移除，禁止 self、自动去重；每档「恢复默认」。配置保存即时生效（无需重启），看板拖拽校验与卡片可达提示均跟随。
+- **默认配置 = 原有流转逻辑**（STORY/BUG 转移表 + 全局可达列原样内置），升级零行为变化。
+- 设置向后兼容：旧 data.json 缺 `workflows` 时按档案补默认，保留既有 Jira 配置。
+
 ## [2.0.3] - 2026-05-30
 
 ### Fixed
