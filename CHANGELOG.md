@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.0] - 2026-05-30
+
+### Removed
+- **AI 报告生成** 与 AI 模型设置（不再存储 API Key）
+- **报告中心二级界面**（含农历日历）与 `reportData` 数据层 —— 统计改用原生 Bases / Dataview / AI 查询
+- **归档模块**（归档视图、归档命令、`archived` frontmatter）
+- **个人/本地任务模块**：彻底清除 `source` / LOCAL 概念、本地任务创建与编辑、本地看板视图
+
+### Added
+- **完成标记**：任务拖到完成列时写入 `completed_at` / `completed_week`，并加 `done/YYYY-Www` 标签（移回未完成列自动清除）
+- **Claude 经典配色**：暖纸背景 + 珊瑚橙强调，亮/暗模式跟随 Obsidian 主题
+- 工程化：Vitest 单元测试、ESLint（eslint-plugin-obsidianmd）合规、设置向后兼容迁移（保留 Jira 配置、丢弃废弃 AI 配置）
+
+### Changed
+- `minAppVersion` 提升至 1.7.2
+- 报告入口移除，统计交由 Bases / Dataview / AI 查询 frontmatter 与 `done/` 标签
+
 ## [1.1.0] - 2026-02-24
 
 ### Added

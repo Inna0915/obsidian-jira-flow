@@ -105,7 +105,6 @@ export class FileManager {
     const tags = [
       `jira/status/${status.toLowerCase().replace(/\s+/g, "-")}`,
       `jira/type/${type.replace(/\s+/g, "-")}`,
-      `jira/source/jira`,
     ];
     const reporterName = f.reporter?.displayName || f.reporter?.name || f.reporter?.emailAddress || "";
     const reporterIdentity = [f.reporter?.name, f.reporter?.emailAddress, reporterName]

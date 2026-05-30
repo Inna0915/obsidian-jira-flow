@@ -1,135 +1,101 @@
 # Jira Flow - Obsidian Plugin
 
-将 Jira 项目管理无缝集成到 Obsidian 中。提供看板视图、双向同步、每日工作日志、AI 驱动的报告生成，以及 Focus View 聚焦视图。
+将 Jira 项目管理集成到 Obsidian：看板视图、双向同步、每日工作日志、完成标记，以及 Focus View 聚焦视图。报表交给 Obsidian 原生 **Bases / Dataview** 或 AI（Claude Code / Codex）直接查询，插件本身只负责「同步 + 看板 + 记录」。
 
 ## 核心理念
 
-**"Markdown as Database"** — 每个 Jira 任务对应一个 Markdown 文件，通过 YAML Frontmatter 存储元数据，插件在此基础上提供可视化看板和自动化工作流。
+**"Markdown as Database"** — 每个 Jira 任务对应一个 Markdown 文件，元数据存在 YAML Frontmatter 里。插件做两件事：
+
+1. 把 Jira 同步成任务 md，并用看板做状态流转；
+2. 任务完成时把**结构化标记**写进 frontmatter / 标签 / 日记，供后续直接查询。
+
+> 统计与周报**不再由插件生成** —— 完成数据都在 frontmatter（`completed_at` / `completed_week` / `status` / `due_date`）和 `done/YYYY-Www` 标签里，用 Bases / Dataview / AI 直接查即可（见下方「完成数据查询」）。
 
 ## 功能特性
 
 ### 看板视图
 - 拖拽式任务管理，状态变更自动同步到 Jira
 - 泳道分组：逾期 / 按时 / 其他
-- **双语列标签**：看板列显示英文+中文双语标识（如 "IN PROGRESS 进行中"）
-- 卡片按类型区分样式（Bug 红色边框背景、Story 绿色边框背景）
-- 卡片展示：Jira Key、类型图标、优先级、故事点、截止日期、负责人头像
-- 侧边栏详情面板，支持编辑故事点和截止日期并同步到 Jira
-- **悬停预览**：鼠标悬停在卡片上可预览任务详情
+- 双语列标签（如 "EXECUTION 执行中"）
+- 卡片按类型区分样式（Bug / Story）
+- 当前迭代 / 待办列表两种视图，支持批量更新截止日期
+- Bug 从 FUNNEL/DEFINING 拖出时自动把经办人设为自己
+- 侧边栏详情面板（只读查看 + 编辑故事点/截止日期并同步 Jira）
+- 悬停预览
+
+### 完成记录（查询的数据源）
+任务被拖到「完成」列时，插件会：
+- 在当天 Daily Note 的 `### Work Log` 追加：`- [x] [[Task-Key]] - Summary (JIRA-KEY)`
+- 给任务 frontmatter 写入 `completed_at`、`completed_week`，并加 `done/YYYY-Www` 标签
+- 拖回未完成列时自动清除以上标记
 
 ### Focus View 聚焦视图
-- 独立的侧边栏视图（类似 Git 插件）
-- **活跃 Sprint 过滤**：只显示当前活跃 Sprint 中的任务
-- **今日/逾期**：显示今天到期或已逾期的任务
-- **本周剩余**：显示本周内到期的其他任务
-- 自动过滤已完成和已归档任务
-- **悬停预览**：悬停任务卡片可快速预览内容
-- 点击任务卡片直接打开文件
+- 独立侧边栏视图，活跃 Sprint 过滤、今日/逾期、本周剩余
+- 内置 Pomodoro 番茄钟，专注时间记录到任务文件（`focused_minutes` + 时间戳日志）
 
-#### Pomodoro 番茄钟
-- 内置可配置的番茄钟计时器（默认 35 分钟）
-- 支持 +/- 5 分钟快速调整
-- 专注时间自动记录到任务文件：
-  - 更新 `focused_minutes` frontmatter
-  - 在文件末尾追加时间戳日志条目
-
-### Issue Preview 任务预览
-- 点击 Linked Issue 打开浮动预览弹窗
-- 显示任务详情：状态、负责人、描述、关联任务
-- **Linked Issues**：显示关联的任务（relates to/blocks/is blocked by 等）
-- **Confluence Pages**：显示关联的 Wiki 页面，支持本地文件解析
-- 导航支持：点击关联任务可在预览中切换，带返回按钮
-
-### Confluence 链接集成
-- 自动识别 Jira 描述中的 Confluence 链接
-- **本地文件解析**：匹配 `confluence_url` 或 `confluence_page_id` frontmatter
-- **智能打开**：本地存在时优先打开本地文件，否则打开网页
-- **双操作设计**：本地文件可一键切换到网页版本
-- **悬停预览**：悬停时显示本地文件的 Obsidian 预览
+### Issue Preview / Confluence
+- 关联任务浮窗预览；Confluence 链接本地文件解析与智能打开
 
 ### Jira 同步
-- 基于 Obsidian `requestUrl` 的 Jira REST API 集成（无 CORS 问题）
-- 支持 Agile API（Sprint 模式）和 JQL 回退查询
-- 自动检测活跃 Sprint 并过滤当前用户任务
-- 双向同步：本地修改可推送回 Jira（状态转换、故事点、截止日期）
-- **Wiki 图片转换**：自动将 `!image.png!` 转换为 HTML 图片
-- **300ms I/O 延迟**：修复 Windows EBUSY 文件锁问题
+- 基于 `requestUrl` 的 Jira REST（无 CORS）；Agile API（Sprint）+ JQL 回退
+- 双向同步（状态转换 / 故事点 / 截止日期）；Wiki 图片转换
 
-### 每日工作日志
-- 任务完成时自动追加到当日 Daily Note
-- 格式：`- [x] [[Task-Key]] - Summary (JIRA-KEY)`
-- 支持自定义 Daily Note 文件夹和日期格式
+## 完成数据查询（Bases / Dataview）
 
-### 报告中心
-- 农历日历（显示农历日期、节日、天干地支年份）
-- 左侧周数栏标记已有周报的周（绿色圆点）
-- 日 / 周 / 月 / 年四种视图切换
-- **活跃 Sprint 任务**：报告中心只显示活跃 Sprint 的任务
-- 每个视图展示：预计完成任务 + 已完成工作 + 工作日志
-- **交互式任务列表**：点击任务打开文件，悬停预览任务内容
-- 弹窗式报告查看与 AI 生成（周报 / 月报 / 季报 / 年报）
+完成数据是结构化的，直接查询即可，无需插件生成报表。
 
-### AI 报告生成
-- 支持多种 AI 提供商：OpenAI、DeepSeek、Moonshot (Kimi)、Qwen (通义千问)、自定义
-- 自动收集工作日志和任务数据作为上下文
-- 可自定义各周期的 Prompt 模板
-- 报告保存到 Vault 的 Reports 文件夹
+### 本周完成（DataviewJS）
+
+````markdown
+```dataviewjs
+function isoWeek(d){const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+3-((t.getDay()+6)%7));const y=t.getFullYear();const w1=new Date(y,0,4);const w=1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7);return `${y}-W${String(w).padStart(2,"0")}`;}
+const week = isoWeek(new Date());
+dv.header(3, "本周完成 " + week);
+dv.table(["任务", "摘要", "完成日期"],
+  dv.pages('"Jira-Flow/Tasks"')
+    .where(p => p.completed_week === week)
+    .sort(p => p.completed_at, "desc")
+    .map(p => [p.jira_key, p.summary, p.completed_at]));
+```
+````
+
+### 上周完成（DataviewJS）
+
+````markdown
+```dataviewjs
+function isoWeek(d){const t=new Date(d);t.setHours(0,0,0,0);t.setDate(t.getDate()+3-((t.getDay()+6)%7));const y=t.getFullYear();const w1=new Date(y,0,4);const w=1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7);return `${y}-W${String(w).padStart(2,"0")}`;}
+const week = isoWeek(new Date(Date.now() - 7 * 86400000));
+dv.header(3, "上周完成 " + week);
+dv.table(["任务", "摘要", "完成日期"],
+  dv.pages('"Jira-Flow/Tasks"')
+    .where(p => p.completed_week === week)
+    .sort(p => p.completed_at, "desc")
+    .map(p => [p.jira_key, p.summary, p.completed_at]));
+```
+````
+
+> 也可用 **Bases** 视图按 `done/2026-W22` 标签或 `completed_week` 字段筛选，或让 Claude Code / Codex 直接读取 `Jira-Flow/Tasks` 下 `completed_week` 匹配的任务来整理周报。
 
 ## 项目结构
 
 ```
 src/
 ├── main.ts                    # 插件入口，注册命令和视图
-├── types.ts                   # TypeScript 类型定义
-├── settings.ts                # 设置界面（含 FolderSuggest 集成）
+├── types.ts                   # 类型 + 看板列定义 + 工作流/泳道纯函数 + 默认设置
+├── settings.ts                # 设置界面
 ├── api/
-│   └── jira.ts                # Jira REST API 客户端（含 remotelink 获取）
-├── sync/
-│   ├── fileManager.ts         # Markdown 文件 CRUD（Frontmatter 管理）
-│   ├── logger.ts              # Daily Note 工作日志写入
-│   └── workLogService.ts      # 工作日志解析与统计
-├── ai/
-│   ├── aiService.ts           # AI 模型抽象层（多提供商）
-│   └── reportGenerator.ts     # 报告生成编排
-├── views/
-│   ├── KanbanView.ts          # 看板视图（React 挂载）
-│   ├── ArchiveView.ts         # 归档视图
-│   └── SidebarView.ts         # Focus View 侧边栏视图
-├── components/
-│   ├── App.tsx                # React 主容器，路由状态管理
-│   ├── Board.tsx              # 看板布局（泳道 + 列）
-│   ├── Swimlane.tsx           # 泳道行组件
-│   ├── Column.tsx             # 看板列组件
-│   ├── Card.tsx               # 任务卡片（Bug/Story 样式区分）
-│   ├── TaskDetailModal.tsx    # 侧边栏详情面板（含 Save to Jira）
-│   ├── IssuePreviewModal.tsx  # 任务预览弹窗（含 Linked Issues / Confluence）
-│   ├── SidebarPanel.tsx       # Focus View 聚焦视图面板（含 Pomodoro 计时器）
-│   ├── JiraHtmlRenderer.tsx   # HTML 渲染器（含链接拦截）
-│   ├── JiraAuthImage.tsx      # 认证图片加载组件
-│   └── ReportCenter.tsx       # 报告中心（农历日历 + 视图切换 + 任务交互）
-├── utils/
-│   ├── FolderSuggest.ts       # Obsidian 文件夹自动补全组件
-│   ├── jiraParser.ts          # Jira 内容解析工具
-│   └── linkHandler.ts         # Confluence 链接本地文件查找
-├── ui/
-│   └── StatusToast.ts         # Toast 通知
-└── styles/
-    └── tailwind.css           # Tailwind CSS 源文件
+│   └── jira.ts                # Jira REST API 客户端
+├── sync/                      # 唯一的「写」层
+│   ├── fileManager.ts         # Jira issue ⇄ 任务 md（Frontmatter）
+│   ├── logger.ts              # 完成 → 写 Daily Note Work Log
+│   ├── completionTracker.ts   # 完成 → 写 completed_at/week + done/ 标签
+│   └── completionMarks.ts     # 纯函数：计算完成标记
+├── views/                     # KanbanView / SidebarView（Obsidian ItemView 外壳）
+├── components/                # React UI（App/Board/Column/Swimlane/Card/详情/列表/侧栏/预览/HTML）
+├── ui/                        # StatusToast / confirmModal
+├── utils/                     # dateUtils / migrateSettings / jiraParser / linkHandler / FolderSuggest
+└── styles/tailwind.css        # 配色 token（Claude 风，亮/暗跟随 Obsidian 主题）+ Tailwind 源
 ```
-
-## 设置面板
-
-### 智能文件夹选择
-- 文件夹路径输入支持**自动补全**（类似 Daily Notes 插件）
-- 输入时实时显示匹配的文件夹列表
-- 支持键盘导航和选择
-
-### 功能设置
-- **Jira 配置**：Host URL、Email、API Token、Project Key
-- **文件夹路径**：Tasks、Reports、Daily Notes、Assets（支持自动补全）
-- **日期格式**：Daily Note 命名格式 (YYYY-MM-DD)
-- **AI 模型**：多模型管理（名称、提供商、API Key、端点、启用/禁用）
-- **报告模板**：各周期的自定义 Prompt
 
 ## 数据模型
 
@@ -138,26 +104,25 @@ src/
 ```yaml
 ---
 jira_key: "PROJ-123"
-source: "JIRA"           # JIRA | LOCAL
-status: "IN PROGRESS"
-mapped_column: "IN PROGRESS"
-issuetype: "Bug"          # Bug | Story | Task | Sub-task | Epic
-priority: "High"          # Highest | High | Medium | Low | Lowest
+status: "EXECUTION"
+mapped_column: "EXECUTION"
+issuetype: "Bug"
+priority: "High"
 story_points: 5
 due_date: "2026-02-15"
 assignee: "username"
 sprint: "Sprint 1"
 sprint_state: "active"
+completed_at: "2026-05-29"      # 拖到完成列时写入
+completed_week: "2026-W22"      # ISO 周
 tags:
-  - jira/status/in-progress
+  - jira/status/execution
   - jira/type/bug
-  - jira/source/jira
+  - done/2026-W22               # 完成时加，便于标签查询
 ---
 ```
 
 ### Confluence 本地文件 Frontmatter
-
-要实现 Confluence 链接到本地文件的映射，本地文件需要包含以下 frontmatter：
 
 ```yaml
 ---
@@ -173,47 +138,17 @@ title: "页面标题"
 Vault Root/
 ├── Jira-Flow/           # 可配置
 │   ├── Tasks/           # 任务 Markdown 文件
-│   ├── Reports/         # AI 生成的报告
 │   └── Assets/          # 下载的图片附件
 └── Daily Notes/         # 可配置
-    └── YYYY-MM-DD.md    # 每日工作日志
+    └── YYYY-MM-DD.md    # 每日工作日志（### Work Log）
 ```
 
-## 技术栈
+## 设置面板
 
-| 层级 | 技术 |
-|------|------|
-| 核心 | TypeScript, Obsidian Plugin API |
-| UI | React 18, TailwindCSS (jf- 前缀) |
-| 网络 | Obsidian `requestUrl`（避免 CORS） |
-| 文件 | Obsidian `app.vault` & `app.fileManager` |
-| 图标 | Lucide React |
-| 构建 | esbuild + PostCSS |
-| AI | OpenAI 兼容 API 端点 |
-
-## 安装
-
-1. 将 `main.js`、`manifest.json`、`styles.css` 复制到 Vault 的 `.obsidian/plugins/obsidian-jira-flow/` 目录
-2. 在 Obsidian 设置中启用插件
-3. 配置 Jira 连接信息（Host、API Token、Project Key）
-4. 配置文件夹路径（支持自动补全输入）
-5. 配置 AI 模型（可选，用于报告生成）
-
-## 开发
-
-```bash
-# 安装依赖
-npm install
-
-# 开发模式（监听文件变化）
-npm run dev
-
-# 生产构建
-npm run build
-
-# 编译 Tailwind CSS
-npm run css
-```
+- **Jira 连接**：Host、浏览域名、用户名、密码/Token、Project Key、JQL
+- **文件夹路径**：Tasks、Daily Notes、Assets（支持自动补全）
+- **字段映射**：故事点 / 计划开始 / 截止日期 / Sprint 自定义字段
+- **同步**：启动自动同步、定时间隔
 
 ## 命令
 
@@ -222,30 +157,45 @@ npm run css
 | Open Kanban Board | 打开看板视图 |
 | Open Focus View (Sidebar) | 打开 Focus View 聚焦视图 |
 | Sync Now | 立即同步 Jira 数据 |
-| Create Local Task | 创建本地任务 |
-| Generate Weekly Report | 生成周报 |
-| Generate Monthly Report | 生成月报 |
-| Generate Quarterly Report | 生成季报 |
-| Generate Yearly Report | 生成年报 |
-| Open Archive View | 打开归档视图 |
+
+## 安装
+
+1. 将 `main.js`、`manifest.json`、`styles.css` 复制到 Vault 的 `.obsidian/plugins/obsidian-jira-flow/` 目录
+2. 在 Obsidian 设置中启用插件
+3. 配置 Jira 连接信息与文件夹路径
+
+## 开发
+
+```bash
+npm install      # 安装依赖
+npm run dev      # 开发模式（watch）
+npm run build    # 生产构建
+npm test         # 单元测试（Vitest）
+npm run lint     # ESLint（eslint-plugin-obsidianmd）
+```
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 核心 | TypeScript, Obsidian Plugin API |
+| UI | React 18, TailwindCSS（`jf-` 前缀） |
+| 网络 | Obsidian `requestUrl`（避免 CORS） |
+| 文件 | Obsidian `app.vault` & `app.fileManager` |
+| 构建 | esbuild + PostCSS |
+| 测试 | Vitest |
 
 ## 最近更新
 
-### v1.1.0 (2026-02-24)
-- **FolderSuggest**: 设置面板文件夹选择支持智能自动补全
-- **Pomodoro 计时器**: Focus View 新增番茄钟，专注时间自动记录到任务文件
-- **活跃 Sprint 过滤**: 侧边栏和报告中心只显示当前活跃 Sprint 的任务
-- **双语看板列**: 看板列显示英文+中文双语标签
-- **报告任务交互**: 报告中心的任务列表支持点击打开和悬停预览
-- **Focus View**: 新增侧边栏聚焦视图
-- **Issue Preview**: 任务预览弹窗支持关联任务导航
-- **Confluence 集成**: 自动解析 Confluence 链接
+### v2.0.0
+- **移除 AI 报告生成** 与 AI 模型设置（不再存储 API Key）
+- **移除报告中心二级界面**（含农历日历）与 `reportData` 层 —— 统计改用原生 Bases / Dataview / AI 查询
+- **移除归档模块** 与**个人/本地任务模块**（彻底清除 LOCAL 概念）
+- **新增完成标记**：完成时写 `completed_at` / `completed_week` + `done/YYYY-Www` 标签
+- **新配色**：Claude 经典风，亮/暗跟随 Obsidian 主题
+- 工程：引入 Vitest 单测、ESLint（eslint-plugin-obsidianmd）合规清零、设置向后兼容迁移
 
 [查看完整更新日志](./CHANGELOG.md)
-
-## 版本历史
-
-详见 [CHANGELOG.md](./CHANGELOG.md)
 
 ## License
 
