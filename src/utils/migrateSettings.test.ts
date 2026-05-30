@@ -31,4 +31,16 @@ describe("migrateSettings", () => {
     expect(migrateSettings(null).jiraBrowseHost).toBeTruthy();
     expect(migrateSettings({}).tasksFolder).toBeTruthy();
   });
+
+  it("fills workflows when missing", () => {
+    const s = migrateSettings({ jiraHost: "h" });
+    expect(s.workflows.bug.globalTargets).toContain("CLOSED");
+    expect(s.workflows.default.transitions["EXECUTION"]).toEqual(["TO DO", "EXECUTED", "CLOSED"]);
+  });
+
+  it("fills a missing profile but keeps the provided one", () => {
+    const s = migrateSettings({ workflows: { bug: { transitions: { "TO DO": ["DONE"] }, globalTargets: ["CLOSED"] } } });
+    expect(s.workflows.bug.transitions["TO DO"]).toEqual(["DONE"]);
+    expect(s.workflows.default.globalTargets).toContain("FUNNEL");
+  });
 });
