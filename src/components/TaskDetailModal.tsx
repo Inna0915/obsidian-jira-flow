@@ -161,21 +161,15 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
   const [dueDate, setDueDate] = useState(cardDueDate);
   const [savedStoryPoints, setSavedStoryPoints] = useState(card.storyPoints);
   const [savedDueDate, setSavedDueDate] = useState(cardDueDate);
-  const [summary, setSummary] = useState(card.summary);
   const [description, setDescription] = useState("");
   const [links, setLinks] = useState<JiraLink[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [editingSummary, setEditingSummary] = useState(false);
-  const [editingDesc, setEditingDesc] = useState(false);
-  const [localDesc, setLocalDesc] = useState("");
   const [copied, setCopied] = useState(false);
   const [previewIssueKey, setPreviewIssueKey] = useState<string | null>(null);
   const [imageAttachments, setImageAttachments] = useState<JiraAttachment[]>([]);
   const [selectedAttachmentIndex, setSelectedAttachmentIndex] = useState(0);
 
-  const isLocal = false;
-  const isJira = true;
   const showSaveToJira = viewMode === "sprint" || viewMode === "all";
   const jiraUrl = plugin.settings.jiraHost
     ? `${plugin.settings.jiraHost}/browse/${card.jiraKey}`
@@ -195,7 +189,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
 
   // Fetch full issue details for Jira tasks
   useEffect(() => {
-    if (!isJira || !plugin.settings.jiraHost) return;
+    if (!plugin.settings.jiraHost) return;
     void (async () => {
       const issue = await plugin.jiraApi.fetchIssue(card.jiraKey);
       if (!issue) return;
@@ -228,14 +222,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         }));
       }
     })();
-  }, [card.jiraKey, isJira, plugin]);
-
-  useEffect(() => {
-    if (!isJira) {
-      setImageAttachments([]);
-      setSelectedAttachmentIndex(0);
-    }
-  }, [isJira]);
+  }, [card.jiraKey, plugin]);
 
   useEffect(() => {
     if (imageAttachments.length === 0) {
@@ -275,21 +262,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setSavedDueDate(cardDueDate);
   }, [card.storyPoints, cardDueDate, card.filePath, card.jiraKey]);
 
-  // For local tasks, read description from file body
-  useEffect(() => {
-    if (!isLocal) return;
-    void (async () => {
-      const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-      if (!file || !(file instanceof TFile)) return;
-      const content = await plugin.app.vault.read(file);
-      // Strip frontmatter
-      const fmEnd = content.indexOf("---", content.indexOf("---") + 3);
-      const body = fmEnd > 0 ? content.slice(fmEnd + 3).trim() : "";
-      setDescription(body);
-      setLocalDesc(body);
-    })();
-  }, [card.filePath, isLocal, plugin]);
-
   const handleSaveToJira = useCallback(async (overrides?: {
     dueDate?: string;
     storyPoints?: number;
@@ -314,7 +286,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setSaving(true);
     setSaved(false);
     try {
-      if (isJira && plugin.settings.jiraHost) {
+      if (plugin.settings.jiraHost) {
         const success = await plugin.jiraApi.updateIssueFields(card.jiraKey, fields);
         if (!success) {
           throw new Error("Jira 字段更新失败");
@@ -342,7 +314,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [card, dueDate, isJira, onCardUpdated, plugin, savedDueDate, savedStoryPoints, storyPoints]);
+  }, [card, dueDate, onCardUpdated, plugin, savedDueDate, savedStoryPoints, storyPoints]);
 
   const handleQuickDueDateSave = useCallback((mode: "today" | "plusOne" | "weekSaturday" | "nextWeekSaturday") => {
     let nextDueDate = formatDateInput(new Date());
@@ -358,43 +330,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     setDueDate(nextDueDate);
     void handleSaveToJira({ dueDate: nextDueDate, fields: ["dueDate"] });
   }, [dueDate, handleSaveToJira, savedDueDate]);
-
-  const handleSaveSummary = useCallback(async () => {
-    if (!isLocal) return;
-    setEditingSummary(false);
-    const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-    if (file instanceof TFile) {
-      await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
-        fm.summary = summary;
-      });
-    }
-    onCardUpdated();
-  }, [summary, isLocal, card, plugin, onCardUpdated]);
-
-  const handleSaveLocalField = useCallback(async (field: string, value: string) => {
-    if (!isLocal) return;
-    const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-    if (file instanceof TFile) {
-      await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
-        fm[field] = value;
-      });
-    }
-    onCardUpdated();
-  }, [isLocal, card, plugin, onCardUpdated]);
-
-  const handleSaveDescription = useCallback(async () => {
-    if (!isLocal) return;
-    setEditingDesc(false);
-    const file = plugin.app.vault.getAbstractFileByPath(card.filePath);
-    if (!file || !(file instanceof TFile)) return;
-    const content = await plugin.app.vault.read(file);
-    const fmEnd = content.indexOf("---", content.indexOf("---") + 3);
-    const newContent = fmEnd > 0
-      ? content.slice(0, fmEnd + 3) + "\n" + localDesc
-      : content + "\n" + localDesc;
-    await plugin.app.vault.modify(file, newContent);
-    setDescription(localDesc);
-  }, [isLocal, localDesc, card, plugin]);
 
   const handleCopyKey = useCallback(() => {
     void navigator.clipboard.writeText(`${card.summary} - ${card.jiraKey}`);
@@ -432,7 +367,6 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
               className={`jf-text-xs jf-px-2 jf-py-1 jf-rounded jf-border jf-transition-colors ${copied ? "jf-bg-green-50 jf-text-green-600 jf-border-green-200" : "jf-bg-white jf-text-blue-600 jf-border-blue-200 hover:jf-bg-blue-50"}`}>
               {copied ? "已复制" : "复制"}
             </button>
-            {isLocal && <span className="jf-text-[10px] jf-px-1.5 jf-py-0.5 jf-rounded jf-bg-gray-200 jf-text-gray-500">LOCAL</span>}
           </div>
           <button onClick={onClose} className="jf-text-gray-400 hover:jf-text-gray-600 jf-p-1 jf-rounded jf-hover:bg-gray-100">
             <svg className="jf-w-5 jf-h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -445,16 +379,9 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         <div className="jf-flex-1 jf-overflow-y-auto jf-p-5">
           {/* Summary */}
           <div className="jf-mb-5">
-            {editingSummary && isLocal ? (
-              <input value={summary} onChange={(e) => setSummary(e.target.value)}
-                onBlur={handleSaveSummary} onKeyDown={(e) => e.key === "Enter" && handleSaveSummary()}
-                autoFocus className="jf-w-full jf-px-3 jf-py-2 jf-border jf-border-gray-300 jf-rounded-lg jf-text-base jf-font-semibold focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500" />
-            ) : (
-              <h3 className="jf-text-base jf-font-semibold jf-text-gray-800 jf-leading-snug jf-cursor-pointer"
-                onClick={() => isLocal && setEditingSummary(true)}>
-                {card.summary}
-              </h3>
-            )}
+            <h3 className="jf-text-base jf-font-semibold jf-text-gray-800 jf-leading-snug">
+              {card.summary}
+            </h3>
           </div>
 
           {/* Badge Row */}
@@ -578,58 +505,21 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             </div>
           )}
 
-          {/* Local-only editable fields */}
-          {isLocal && (
-            <div className="jf-grid jf-grid-cols-2 jf-gap-4 jf-mb-5">
-              <div>
-                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">类型</label>
-                <select value={card.issuetype} onChange={(e) => handleSaveLocalField("issuetype", e.target.value)} 
-                  className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500">
-                  {["Task", "Bug", "Story", "Sub-task", "Epic"].map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase">优先级</label>
-                <select value={card.priority} onChange={(e) => handleSaveLocalField("priority", e.target.value)} 
-                  className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500">
-                  {["Highest", "High", "Medium", "Low", "Lowest"].map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-
           {/* Description */}
           <div className="jf-mb-5">
             <div className="jf-flex jf-items-center jf-justify-between jf-mb-2">
               <label className="jf-text-xs jf-font-medium jf-text-gray-500 jf-uppercase">描述</label>
-              {isLocal && !editingDesc && (
-                <button onClick={() => { setEditingDesc(true); setLocalDesc(description); }} 
-                  className="jf-text-xs jf-text-blue-600 hover:jf-text-blue-700 jf-font-medium">编辑</button>
+            </div>
+            <div className="jf-text-sm jf-leading-relaxed jf-p-3 jf-bg-gray-50 jf-rounded-lg jf-min-h-[80px]">
+              {description ? (
+                <JiraHtmlRenderer html={description} plugin={plugin} />
+              ) : (
+                <span className="jf-text-gray-400">暂无描述</span>
               )}
             </div>
-            {editingDesc && isLocal ? (
-              <div>
-                <textarea value={localDesc} onChange={(e) => setLocalDesc(e.target.value)}
-                  rows={6} className="jf-w-full jf-px-3 jf-py-2 jf-bg-white jf-border jf-border-gray-300 jf-rounded-lg jf-text-sm focus:jf-outline-none focus:jf-ring-2 focus:jf-ring-blue-500/20 focus:jf-border-blue-500 jf-resize-vertical" />
-                <div className="jf-flex jf-gap-2 jf-mt-2">
-                  <button onClick={handleSaveDescription} 
-                    className="jf-px-3 jf-py-1.5 jf-bg-blue-600 jf-text-white jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-blue-700">保存</button>
-                  <button onClick={() => setEditingDesc(false)} 
-                    className="jf-px-3 jf-py-1.5 jf-text-gray-600 jf-text-xs jf-font-medium jf-rounded-lg hover:jf-bg-gray-100">取消</button>
-                </div>
-              </div>
-            ) : (
-              <div className="jf-text-sm jf-leading-relaxed jf-p-3 jf-bg-gray-50 jf-rounded-lg jf-min-h-[80px]">
-                {isJira && description ? (
-                  <JiraHtmlRenderer html={description} plugin={plugin} />
-                ) : (
-                  <span className="jf-whitespace-pre-wrap">{description || <span className="jf-text-gray-400">暂无描述</span>}</span>
-                )}
-              </div>
-            )}
           </div>
 
-          {isJira && imageAttachments.length > 0 && (
+          {imageAttachments.length > 0 && (
             <div className="jf-mb-5">
               <div className="jf-flex jf-items-center jf-justify-between jf-mb-2">
                 <label className="jf-text-xs jf-font-medium jf-text-gray-500 jf-uppercase">附件</label>
@@ -710,7 +600,7 @@ export const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
           )}
 
           {/* Linked Issues (Jira only) */}
-          {isJira && links.length > 0 && (
+          {links.length > 0 && (
             <div className="jf-mb-5">
               <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-2 jf-uppercase">关联任务</label>
               <div className="jf-flex jf-flex-col jf-gap-2">
