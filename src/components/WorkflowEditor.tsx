@@ -105,7 +105,7 @@ export const WorkflowEditor: React.FC<{ plugin: JiraFlowPlugin }> = ({ plugin })
   const p = workflows[profile];
 
   return (
-    <div className="jira-flow-plugin" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+    <div className="jira-flow-plugin" style={{ display: "flex", flexDirection: "column", gap: "14px", height: "auto", overflow: "visible", background: "transparent" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: "6px" }}>
           {(["default", "bug"] as ProfileKey[]).map((k) => (
