@@ -372,7 +372,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
         const originalColumn = fm.mapped_column;
 
-        if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn)) {
+        if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn, plugin.settings.workflows)) {
           new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);
           return;
         }
@@ -518,7 +518,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
   const buildAllowedColumnsForCards = useCallback((cards: KanbanCard[]) => {
     if (cards.length === 0) return new Set<string>();
-    const intersections = cards.map((card) => new Set(getAllowedTransitions(card.issuetype, card.mappedColumn)));
+    const intersections = cards.map((card) => new Set(getAllowedTransitions(card.issuetype, card.mappedColumn, plugin.settings.workflows)));
     const [first, ...rest] = intersections;
     const allowed = new Set(Array.from(first).filter((columnId) => rest.every((set) => set.has(columnId))));
     return allowed;
