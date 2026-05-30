@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { TFile, Notice } from 'obsidian';
 import type JiraFlowPlugin from '../main';
 import { isCompletedWorkflowColumn } from '../types';
+import { confirmModal } from '../ui/confirmModal';
 
 
 interface SidebarTask {
@@ -166,7 +167,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
   const startTimer = async (e: React.MouseEvent, task: SidebarTask) => {
     e.stopPropagation(); // Prevent triggering hover preview or opening file
     if (isTimerRunning && activeTask?.key !== task.key) {
-      if (!window.confirm('当前已有专注任务，是否放弃当前进度并切换？')) return;
+      if (!(await confirmModal(plugin.app, '当前已有专注任务，是否放弃当前进度并切换？', '切换专注任务'))) return;
       // Log the previous task's time when switching
       if (activeTask) {
         await logFocusTime(activeTask.key, elapsedSeconds);

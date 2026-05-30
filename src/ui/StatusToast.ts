@@ -89,7 +89,7 @@ export class StatusToast {
     if (this.autoCloseTimer !== null) {
       window.clearTimeout(this.autoCloseTimer);
     }
-    this.containerEl.style.opacity = "0";
+    Object.assign(this.containerEl.style, { opacity: "0" });
     window.setTimeout(() => {
       this.containerEl.remove();
     }, 300);
@@ -108,7 +108,7 @@ export class StatusToast {
       });
 
       const icon = this.document.createElement("span");
-      icon.style.flexShrink = "0";
+      Object.assign(icon.style, { flexShrink: "0" });
       if (step.status === "running") {
         icon.textContent = "⏳";
       } else if (step.status === "success") {
@@ -118,7 +118,7 @@ export class StatusToast {
       }
 
       const text = this.document.createElement("span");
-      text.style.flex = "1";
+      Object.assign(text.style, { flex: "1" });
       text.textContent = step.label;
       if (step.detail) {
         const detailEl = this.document.createElement("div");
