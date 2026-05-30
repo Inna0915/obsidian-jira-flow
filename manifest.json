@@ -1,7 +1,7 @@
 {
   "id": "obsidian-jira-flow",
   "name": "Jira Flow",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "minAppVersion": "1.7.2",
   "description": "Kanban board with Jira sync and daily work logging.",
   "author": "Jira-Flow",

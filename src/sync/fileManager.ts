@@ -407,6 +407,7 @@ export class FileManager {
       summary: fm.summary || file.basename,
       created: fm.created || "",
       updated: fm.updated || "",
+      archived: fm.archived === true,
     };
   }
 
@@ -436,7 +437,9 @@ export class FileManager {
   }
 
   private canSkipSync(existing: TaskFrontmatter, incoming: TaskFrontmatter): boolean {
-    if (existing.updated !== incoming.updated) {
+    // A legacy archived task that is back in the query must be re-synced so the
+    // stale `archived` flag is dropped on rewrite and the card reappears.
+    if (existing.archived || existing.updated !== incoming.updated) {
       return false;
     }
 

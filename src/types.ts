@@ -343,6 +343,7 @@ export interface TaskFrontmatter {
   updated: string;
   completed_at?: string; // YYYY-MM-DD, set when moved to a completed column
   completed_week?: string; // YYYY-Www, ISO week of completion
+  archived?: boolean; // legacy (<=1.1.0): hide stale task files no longer in the Jira query
 }
 
 // ===== Kanban Types =====

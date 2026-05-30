@@ -178,6 +178,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     for (const file of files) {
       const fm = plugin.fileManager.getTaskFrontmatter(file);
       if (!fm) continue;
+      // Hide legacy archived task files (<=1.1.0) that are no longer in the Jira query.
+      if (fm.archived) continue;
 
       const mappedColumn = fm.mapped_column;
       const swimlane = classifySwimlane(fm.due_date, mappedColumn, fm.issuetype);

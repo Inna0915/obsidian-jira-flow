@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.1] - 2026-05-30
+
+### Fixed
+- 从 1.1.0 升级后，磁盘上带 `archived: true` 的历史任务文件因 2.0.0 移除了归档过滤而全部涌现到看板。恢复对旧 `archived` 标志的**只读兼容过滤**（不再写入归档），并让仍在 Jira 查询内的归档任务在下次同步时自动清除该标志重新显示。
+
 ## [2.0.0] - 2026-05-30
 
 ### Removed

@@ -55,6 +55,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
     for (const file of files) {
       const fm = plugin.fileManager.getTaskFrontmatter(file);
       if (!fm) continue;
+      if (fm.archived) continue;
 
       loadedTasks.push({
         key: fm.jira_key,
