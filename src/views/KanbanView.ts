@@ -29,8 +29,13 @@ export class KanbanView extends ItemView {
     return "kanban";
   }
 
-  // Handle Ctrl+F to focus search input
+  // Handle Ctrl+F to focus search input — only when THIS kanban view is the
+  // active/focused view, otherwise let Ctrl+F pass through to other panes/editors.
   private focusSearchInput = (event: KeyboardEvent): boolean => {
+    if (this.app.workspace.getActiveViewOfType(KanbanView) !== this) {
+      return true; // not the active board: don't intercept
+    }
+
     const activeElement = activeDocument.activeElement as HTMLElement | null;
     if (activeElement?.id === this.searchInputId) {
       return false;

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.1.1] - 2026-05-30
+
+### Fixed
+- Ctrl/Cmd+F 之前在全局拦截（document 捕获监听 + 全局 keymap scope），导致其他面板/编辑器的 Ctrl+F 失效。改为**仅当看板视图处于激活状态**时才聚焦看板搜索框，否则放行 —— 其它界面 Ctrl+F 恢复正常。
+
 ## [2.1.0] - 2026-05-30
 
 ### Added

@@ -87,19 +87,9 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const refreshTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    const handleGlobalKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        event.stopPropagation();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      }
-    };
-
-    activeDocument.addEventListener("keydown", handleGlobalKeyDown, true);
-    return () => activeDocument.removeEventListener("keydown", handleGlobalKeyDown, true);
-  }, []);
+  // Ctrl/Cmd+F focusing the board search is registered at the view level
+  // (KanbanView scope), gated to the active board, so it never hijacks Ctrl+F
+  // in other panes/views.
 
   // Calculate matched cards for navigation
   const matchedCards = searchQuery
