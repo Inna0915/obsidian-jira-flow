@@ -18,6 +18,7 @@ export interface JiraFlowSettings {
   plannedStartDateField: string;
   dueDateField: string;
   sprintField: string;
+  workflows: WorkflowSettings;
 }
 
 // ===== Kanban Column Definitions (12 columns) =====
@@ -144,58 +145,74 @@ export function mapStatusToColumn(jiraStatus: string): string {
 }
 
 // ===== Workflow Validation =====
-const STORY_WORKFLOW: Record<string, string[]> = {
-  "FUNNEL": ["DEFINING", "CLOSED"],
-  "DEFINING": ["FUNNEL", "READY", "CLOSED"],
-  "READY": ["TO DO", "CLOSED"],
-  "TO DO": ["READY", "EXECUTION", "CLOSED"],
-  "EXECUTION": ["TO DO", "EXECUTED", "CLOSED"],
-  "EXECUTED": ["EXECUTION", "TESTING & REVIEW", "CLOSED"],
-  "TESTING & REVIEW": ["EXECUTED", "TEST DONE", "CLOSED"],
-  "TEST DONE": ["TESTING & REVIEW", "VALIDATING", "CLOSED"],
-  "VALIDATING": ["DONE", "RESOLVED", "CLOSED"],
-  "RESOLVED": ["DONE", "CLOSED"],
-  "DONE": ["CLOSED"],
-  "CLOSED": [],
+export interface WorkflowProfile {
+  transitions: Record<string, string[]>;
+  globalTargets: string[];
+}
+export interface WorkflowSettings {
+  bug: WorkflowProfile;
+  default: WorkflowProfile;
+}
+
+export const DEFAULT_WORKFLOWS: WorkflowSettings = {
+  default: {
+    transitions: {
+      "FUNNEL": ["DEFINING", "CLOSED"],
+      "DEFINING": ["FUNNEL", "READY", "CLOSED"],
+      "READY": ["TO DO", "CLOSED"],
+      "TO DO": ["READY", "EXECUTION", "CLOSED"],
+      "EXECUTION": ["TO DO", "EXECUTED", "CLOSED"],
+      "EXECUTED": ["EXECUTION", "TESTING & REVIEW", "CLOSED"],
+      "TESTING & REVIEW": ["EXECUTED", "TEST DONE", "CLOSED"],
+      "TEST DONE": ["TESTING & REVIEW", "VALIDATING", "CLOSED"],
+      "VALIDATING": ["DONE", "RESOLVED", "CLOSED"],
+      "RESOLVED": ["DONE", "CLOSED"],
+      "DONE": ["CLOSED"],
+      "CLOSED": [],
+    },
+    globalTargets: ["FUNNEL", "DEFINING", "READY", "CLOSED"],
+  },
+  bug: {
+    transitions: {
+      "FUNNEL": ["DEFINING", "CLOSED"],
+      "DEFINING": ["FUNNEL", "TO DO", "CLOSED"],
+      "READY": ["TO DO", "CLOSED"],
+      "TO DO": ["EXECUTION", "FUNNEL", "CLOSED"],
+      "EXECUTION": ["TO DO", "VALIDATING", "DONE", "CLOSED"],
+      "EXECUTED": ["VALIDATING", "DONE", "CLOSED"],
+      "TESTING & REVIEW": ["VALIDATING", "DONE", "CLOSED"],
+      "TEST DONE": ["VALIDATING", "DONE", "CLOSED"],
+      "VALIDATING": ["EXECUTION", "DONE", "CLOSED"],
+      "RESOLVED": ["DONE", "CLOSED"],
+      "DONE": ["EXECUTION", "CLOSED"],
+      "CLOSED": ["EXECUTION"],
+    },
+    globalTargets: ["FUNNEL", "TO DO", "CLOSED"],
+  },
 };
 
-const STORY_GLOBAL_TARGETS = new Set(["FUNNEL", "DEFINING", "READY", "CLOSED"]);
-
-const BUG_WORKFLOW: Record<string, string[]> = {
-  "FUNNEL": ["DEFINING", "CLOSED"],
-  "DEFINING": ["FUNNEL", "TO DO", "CLOSED"],
-  "READY": ["TO DO", "CLOSED"],
-  "TO DO": ["EXECUTION", "FUNNEL", "CLOSED"],
-  "EXECUTION": ["TO DO", "VALIDATING", "DONE", "CLOSED"],
-  "EXECUTED": ["VALIDATING", "DONE", "CLOSED"],
-  "TESTING & REVIEW": ["VALIDATING", "DONE", "CLOSED"],
-  "TEST DONE": ["VALIDATING", "DONE", "CLOSED"],
-  "VALIDATING": ["EXECUTION", "DONE", "CLOSED"],
-  "RESOLVED": ["DONE", "CLOSED"],
-  "DONE": ["EXECUTION", "CLOSED"],
-  "CLOSED": ["EXECUTION"],
-};
-
-const BUG_GLOBAL_TARGETS = new Set(["FUNNEL", "TO DO", "CLOSED"]);
-
-export function getAllowedTransitions(issueType: string, fromColumn: string): string[] {
-  const normalizedType = issueType.toLowerCase();
-  const workflow = normalizedType === "bug" ? BUG_WORKFLOW : STORY_WORKFLOW;
-  const globalTargets = normalizedType === "bug" ? BUG_GLOBAL_TARGETS : STORY_GLOBAL_TARGETS;
-  const allowed = new Set(workflow[fromColumn] || []);
-
-  globalTargets.forEach((columnId) => {
-    if (columnId !== fromColumn) {
-      allowed.add(columnId);
-    }
-  });
-
+export function getAllowedTransitions(
+  issueType: string,
+  fromColumn: string,
+  workflows: WorkflowSettings = DEFAULT_WORKFLOWS,
+): string[] {
+  const profile = issueType.toLowerCase() === "bug" ? workflows.bug : workflows.default;
+  const allowed = new Set(profile.transitions[fromColumn] ?? []);
+  for (const columnId of profile.globalTargets) {
+    if (columnId !== fromColumn) allowed.add(columnId);
+  }
+  allowed.delete(fromColumn);
   return Array.from(allowed);
 }
 
-export function isTransitionAllowed(issueType: string, fromColumn: string, toColumn: string): boolean {
+export function isTransitionAllowed(
+  issueType: string,
+  fromColumn: string,
+  toColumn: string,
+  workflows: WorkflowSettings = DEFAULT_WORKFLOWS,
+): boolean {
   if (fromColumn === toColumn) return false;
-  return getAllowedTransitions(issueType, fromColumn).includes(toColumn);
+  return getAllowedTransitions(issueType, fromColumn, workflows).includes(toColumn);
 }
 
 const INCOMPLETE_WORKFLOW_COLUMNS = new Set(["FUNNEL", "DEFINING", "READY", "TO DO", "EXECUTION"]);
@@ -237,6 +254,7 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
   plannedStartDateField: "",
   dueDateField: "customfield_10329",
   sprintField: "customfield_10109",
+  workflows: structuredClone(DEFAULT_WORKFLOWS),
 };
 
 // ===== Jira API Types =====
