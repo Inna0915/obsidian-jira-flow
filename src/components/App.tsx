@@ -11,6 +11,7 @@ import {
 } from "../types";
 import type { KanbanCard, SwimlaneType } from "../types";
 import { Board } from "./Board";
+import { WorkflowsContext } from "./workflowsContext";
 import { IssueListView } from "./IssueListView";
 import { TaskDetailPanel, CreateJiraIssueModal, type CreateJiraIssueData } from "./TaskDetailModal";
 
@@ -828,24 +829,26 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
       {layoutMode === "kanban" ? (
         <>
-          <Board
-            swimlanes={swimlanes}
-            collapsedSwimlanes={collapsedSwimlanes}
-            onToggleSwimlane={toggleSwimlane}
-            onCardMove={handleCardMove}
-            onCardOpen={handleCardOpen}
-            onCardSelect={handleCardSelect}
-            onCardDragStart={handleCardDragStart}
-            onCardDragEnd={handleCardDragEnd}
-            onOpenFile={handleOpenFile}
-            searchQuery={searchQuery}
-            matchedCards={matchedCards}
-            searchMatchIndex={searchMatchIndex}
-            selectedPaths={selectedPaths}
-            dragState={dragState}
-            onDragStateChange={setDragState}
-            onClearSelection={handleClearSelection}
-          />
+          <WorkflowsContext.Provider value={plugin.settings.workflows}>
+            <Board
+              swimlanes={swimlanes}
+              collapsedSwimlanes={collapsedSwimlanes}
+              onToggleSwimlane={toggleSwimlane}
+              onCardMove={handleCardMove}
+              onCardOpen={handleCardOpen}
+              onCardSelect={handleCardSelect}
+              onCardDragStart={handleCardDragStart}
+              onCardDragEnd={handleCardDragEnd}
+              onOpenFile={handleOpenFile}
+              searchQuery={searchQuery}
+              matchedCards={matchedCards}
+              searchMatchIndex={searchMatchIndex}
+              selectedPaths={selectedPaths}
+              dragState={dragState}
+              onDragStateChange={setDragState}
+              onClearSelection={handleClearSelection}
+            />
+          </WorkflowsContext.Provider>
 
           <div className="jf-fixed jf-right-4 jf-top-1/2 jf-z-30 jf-flex jf--translate-y-1/2 jf-items-center jf-gap-2">
             {showParentFilterPanel ? (

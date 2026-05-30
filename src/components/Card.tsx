@@ -1,5 +1,6 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useContext, useRef } from "react";
 import { getAllowedTransitions, type KanbanCard } from "../types";
+import { WorkflowsContext } from "./workflowsContext";
 
 interface CardSelectionOptions {
   additive: boolean;
@@ -140,11 +141,12 @@ export const Card: React.FC<CardProps> = ({ card, onCardOpen, onCardSelect, onCa
     onCardOpen(card);
   }, [card, onCardOpen]);
 
+  const workflows = useContext(WorkflowsContext);
   const priorityColor = priorityColors[card.priority] || "#6B778C";
   const isOverdue = card.swimlane === "overdue";
   const borderLeftColor = getBorderColor(card.issuetype);
   const typeBackground = getTypeBackground(card.issuetype);
-  const allowedTargets = getAllowedTransitions(card.issuetype, card.mappedColumn);
+  const allowedTargets = getAllowedTransitions(card.issuetype, card.mappedColumn, workflows);
 
   return (
     <div
