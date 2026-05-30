@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.3] - 2026-05-30
+
+### Fixed
+- 看板列头条与父任务筛选浮窗在暗色下仍发白：带透明度后缀的颜色类（`bg-white/90`、`bg-[#FAFBFC]/95`、`gray-50/50` 等）未被主题接管，现已补齐映射到原生表面色（modal 遮罩 `black/40·80` 保留深色半透明）。
+- 看板列头色条改为主题化三档语义色：待办（中性）/ 进行中（珊瑚强调）/ 完成（绿），全部走 CSS 变量，亮暗自适应，不再用旧 Jira 蓝/紫/橙。
+
 ## [2.0.2] - 2026-05-30
 
 ### Fixed

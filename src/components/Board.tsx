@@ -27,20 +27,21 @@ interface BoardProps {
   onClearSelection: () => void;
 }
 
-// Column top border colors
+// Column header bar colors — themed 3-tier: backlog (neutral) / active (accent) / done (success).
+// Values are CSS variables so they follow the Obsidian theme (light/dark) and Claude accent.
 const columnBorderColors: Record<string, string> = {
-  FUNNEL: "#6B778C",
-  DEFINING: "#6B778C",
-  READY: "#42526E",
-  "TO DO": "#0052CC",
-  EXECUTION: "#0052CC",
-  EXECUTED: "#0052CC",
-  "TESTING & REVIEW": "#6554C0",
-  "TEST DONE": "#6554C0",
-  VALIDATING: "#FF8B00",
-  RESOLVED: "#006644",
-  DONE: "#36B37E",
-  CLOSED: "#505F79",
+  FUNNEL: "var(--text-faint)",
+  DEFINING: "var(--text-faint)",
+  READY: "var(--text-muted)",
+  "TO DO": "var(--text-muted)",
+  EXECUTION: "var(--jf-accent)",
+  EXECUTED: "var(--jf-accent)",
+  "TESTING & REVIEW": "var(--jf-accent)",
+  "TEST DONE": "var(--jf-accent)",
+  VALIDATING: "var(--jf-accent)",
+  RESOLVED: "var(--jf-success)",
+  DONE: "var(--jf-success)",
+  CLOSED: "var(--text-muted)",
 };
 
 export const Board: React.FC<BoardProps> = ({
@@ -99,7 +100,7 @@ export const Board: React.FC<BoardProps> = ({
         
         {/* Column Headers */}
         {KANBAN_COLUMNS.map((col) => {
-          const borderColor = columnBorderColors[col.id] || "#6B778C";
+          const borderColor = columnBorderColors[col.id] || "var(--text-muted)";
           const count = columnCounts[col.id] || 0;
           return (
             <div

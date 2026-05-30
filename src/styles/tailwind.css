@@ -137,6 +137,15 @@
 .jira-flow-plugin .hover\:jf-bg-gray-50:hover,
 .jira-flow-plugin .hover\:jf-bg-gray-100:hover,
 .jira-flow-plugin .hover\:jf-bg-\[\#F4F5F7\]:hover { background-color: var(--background-modifier-hover); }
+/* --- Translucent (opacity-suffixed) surfaces: sticky headers, floating panels --- */
+.jira-flow-plugin .jf-bg-white\/90,
+.jira-flow-plugin .jf-bg-white\/95 { background-color: var(--background-primary); }
+.jira-flow-plugin .jf-bg-\[\#FAFBFC\]\/95,
+.jira-flow-plugin .jf-bg-\[\#F7F8FA\]\/95,
+.jira-flow-plugin .jf-bg-gray-50\/50,
+.jira-flow-plugin .jf-bg-gray-50\/10 { background-color: var(--background-secondary); }
+.jira-flow-plugin .jf-bg-blue-50\/50 { background-color: var(--jf-accent-soft); }
+/* (modal overlays jf-bg-black/40, /80 intentionally left as dark translucent) */
 /* --- Text --- */
 .jira-flow-plugin .jf-text-\[\#172B4D\],
 .jira-flow-plugin .jf-text-\[\#334E68\],
