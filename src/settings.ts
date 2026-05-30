@@ -181,7 +181,6 @@ export class JiraFlowSettingTab extends PluginSettingTab {
         text.onChange(async (value) => {
           this.plugin.settings.rootFolder = value;
           this.plugin.settings.tasksFolder = value + "/Tasks";
-          this.plugin.settings.reportsFolder = value + "/Reports";
           this.plugin.settings.assetsFolder = value + "/Assets";
           await this.plugin.saveSettings();
         });

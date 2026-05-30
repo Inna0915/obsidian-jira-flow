@@ -1,10 +1,3 @@
-import type { ReportPeriod } from "../types";
-
-export interface DateRange {
-  start: Date;
-  end: Date;
-}
-
 export function formatYmd(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -29,23 +22,4 @@ export function getIsoWeekInfo(date: Date): { year: number; week: number } {
 export function formatIsoWeek(date: Date): string {
   const info = getIsoWeekInfo(date);
   return `${info.year}-W${String(info.week).padStart(2, "0")}`;
-}
-
-export function getPeriodRange(period: ReportPeriod, anchor: Date): DateRange {
-  const a = new Date(anchor);
-  a.setHours(0, 0, 0, 0);
-
-  if (period === "weekly") {
-    const start = new Date(a);
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
-    return { start, end };
-  }
-
-  // monthly
-  const start = new Date(a.getFullYear(), a.getMonth(), 1);
-  const end = new Date(a.getFullYear(), a.getMonth() + 1, 0, 23, 59, 59, 999);
-  return { start, end };
 }

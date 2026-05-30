@@ -1,6 +1,6 @@
 import { TFile } from "obsidian";
 import type JiraFlowPlugin from "../main";
-import { computeCompletionMarks, DONE_TAG_PREFIX } from "../report/completionMarks";
+import { computeCompletionMarks, DONE_TAG_PREFIX } from "./completionMarks";
 
 export class CompletionTracker {
   private plugin: JiraFlowPlugin;

@@ -803,21 +803,6 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           </div>
         </div>
         <div className="jf-flex jf-items-center jf-gap-2">
-          {/* Report shortcuts: open the markdown report directly */}
-          <button
-            className="jf-toolbar-btn"
-            aria-label="打开周报"
-            onClick={() => plugin.openReportDraft("weekly")}
-          >
-            周报
-          </button>
-          <button
-            className="jf-toolbar-btn"
-            aria-label="打开月报"
-            onClick={() => plugin.openReportDraft("monthly")}
-          >
-            月报
-          </button>
           {/* New Task Button - Secondary Style */}
           <button
             onClick={() => setShowCreateJiraModal(true)}

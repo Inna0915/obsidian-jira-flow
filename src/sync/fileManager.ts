@@ -19,7 +19,6 @@ export class FileManager {
   async ensureFolders(): Promise<void> {
     const folders = [
       this.plugin.settings.tasksFolder,
-      this.plugin.settings.reportsFolder,
       this.plugin.settings.assetsFolder,
     ];
     for (const folder of folders) {

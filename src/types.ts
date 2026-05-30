@@ -1,6 +1,4 @@
 // ===== Plugin Settings =====
-export type ReportPeriod = "weekly" | "monthly";
-
 export interface JiraFlowSettings {
   jiraHost: string;
   jiraBrowseHost: string;
@@ -10,7 +8,6 @@ export interface JiraFlowSettings {
   jql: string;
   rootFolder: string;
   tasksFolder: string;
-  reportsFolder: string;
   assetsFolder: string;
   dailyNotesFolder: string;
   dailyNoteFormat: string;
@@ -230,7 +227,6 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
   jql: "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC",
   rootFolder: "Jira-Flow",
   tasksFolder: "Jira-Flow/Tasks",
-  reportsFolder: "Jira-Flow/Reports",
   assetsFolder: "Jira-Flow/Assets",
   dailyNotesFolder: "Daily Notes",
   dailyNoteFormat: "YYYY-MM-DD",

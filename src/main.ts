@@ -1,12 +1,10 @@
 import { Notice, Plugin } from "obsidian";
-import { DEFAULT_SETTINGS, type JiraFlowSettings, type ReportPeriod } from "./types";
+import { DEFAULT_SETTINGS, type JiraFlowSettings } from "./types";
 import { JiraFlowSettingTab } from "./settings";
 import { JiraApi } from "./api/jira";
 import { FileManager as JFFileManager } from "./sync/fileManager";
 import { WorkLogger } from "./sync/logger";
 import { CompletionTracker } from "./sync/completionTracker";
-import { ReportDataService } from "./report/reportDataService";
-import { getPeriodRange } from "./utils/dateUtils";
 import { migrateSettings } from "./utils/migrateSettings";
 import { KANBAN_VIEW_TYPE, KanbanView } from "./views/KanbanView";
 import { SIDEBAR_VIEW_TYPE, SidebarView } from "./views/SidebarView";
@@ -18,7 +16,6 @@ export default class JiraFlowPlugin extends Plugin {
   fileManager!: JFFileManager;
   workLogger!: WorkLogger;
   completionTracker!: CompletionTracker;
-  reportData!: ReportDataService;
   private syncIntervalId: number | null = null;
   private syncInProgress = false;
 
@@ -29,7 +26,6 @@ export default class JiraFlowPlugin extends Plugin {
     this.fileManager = new JFFileManager(this);
     this.workLogger = new WorkLogger(this);
     this.completionTracker = new CompletionTracker(this);
-    this.reportData = new ReportDataService(this);
 
     this.addRibbonIcon("kanban", "打开 Jira Flow 看板", () => {
       void this.activateKanbanView();
@@ -54,18 +50,6 @@ export default class JiraFlowPlugin extends Plugin {
       id: "sync-jira",
       name: "立即同步",
       callback: () => this.syncJira(),
-    });
-
-    this.addCommand({
-      id: "open-weekly-report",
-      name: "打开周报草稿",
-      callback: () => this.openReportDraft("weekly"),
-    });
-
-    this.addCommand({
-      id: "open-monthly-report",
-      name: "打开月报草稿",
-      callback: () => this.openReportDraft("monthly"),
     });
 
     this.addCommand({
@@ -214,21 +198,6 @@ export default class JiraFlowPlugin extends Plugin {
       const msg = e instanceof Error ? e.message : String(e);
       toast.updateStep(stepConnect, "error", msg);
       toast.finish(false);
-    }
-  }
-
-  async openReportDraft(period: ReportPeriod = "weekly"): Promise<void> {
-    try {
-      const range = getPeriodRange(period, new Date());
-      let file = this.reportData.getReportFile(period, range);
-      if (!file) {
-        const draft = await this.reportData.buildReportDraft(period, range);
-        file = await this.reportData.saveReport(period, draft, range);
-      }
-      const leaf = this.app.workspace.getLeaf("tab");
-      await leaf.openFile(file);
-    } catch (e) {
-      new Notice(`Jira Flow：打开报告失败 ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }
