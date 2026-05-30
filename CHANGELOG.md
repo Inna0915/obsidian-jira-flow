@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.0.2] - 2026-05-30
+
+### Fixed
+- 专注视图 / 番茄钟在暗色模式下显示为白色、强调色未跟随主题；亮/暗整体有割裂感。配色改为**表面色绑定 Obsidian 原生主题变量**（背景/卡片/边框/文字自动适配亮/暗/任意主题），仅 **Claude 珊瑚色作为强调色**；蓝→珊瑚、红→error、绿→success、橙/琥珀→warning 统一语义化，专注视图与看板一致。
+
 ## [2.0.1] - 2026-05-30
 
 ### Fixed

@@ -30,34 +30,35 @@
   background-image: linear-gradient(90deg, rgba(76, 154, 255, 0.22), rgba(76, 154, 255, 0.04));
 }
 
-/* ===== Claude classic color tokens (light/dark follow Obsidian theme) ===== */
-.jira-flow-root {
-  --jf-bg: #FAF9F5;
-  --jf-bg-secondary: #F0EEE6;
-  --jf-border: #E3E1D7;
-  --jf-text: #1F1E1D;
-  --jf-text-muted: #73726C;
+/* ===== Theme tokens: native Obsidian surfaces + Claude coral accent =====
+   Surfaces/text bind to Obsidian variables so the plugin matches whatever
+   theme (light / dark / custom) the user runs — no light/dark fragmentation.
+   Only the accent carries the Claude identity. Scoped to the view wrapper so
+   both the Kanban board and the Focus View are covered. */
+.jira-flow-plugin {
+  height: 100%;
+  overflow: auto;
+  --jf-accent: #C96442;
+  --jf-accent-hover: #B5512F;
+  --jf-accent-soft: color-mix(in srgb, var(--jf-accent) 14%, transparent);
+  --jf-on-accent: #ffffff;
+  --jf-bg: var(--background-primary);
+  --jf-bg-secondary: var(--background-secondary);
+  --jf-border: var(--background-modifier-border);
+  --jf-text: var(--text-normal);
+  --jf-text-muted: var(--text-muted);
+  --jf-success: var(--text-success);
+  --jf-danger: var(--text-error);
+  --jf-warning: var(--text-warning);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+}
+.theme-dark .jira-flow-plugin {
   --jf-accent: #D97757;
-  --jf-accent-hover: #C15F3C;
-  --jf-on-accent: #FFFFFF;
-  --jf-success: #6B8E5A;
-  --jf-danger: #BF4D43;
-  background-color: var(--jf-bg);
-  color: var(--jf-text);
+  --jf-accent-hover: #E08A6A;
 }
-.theme-dark .jira-flow-root {
-  --jf-bg: #262624;
-  --jf-bg-secondary: #30302E;
-  --jf-border: #3A3A37;
-  --jf-text: #ECEAE1;
-  --jf-text-muted: #9A9890;
-  --jf-accent: #E08A6A;
-  --jf-accent-hover: #D97757;
-  --jf-on-accent: #1F1E1D;
-  --jf-success: #7FA06A;
-  --jf-danger: #D2685C;
-}
-.jf-toolbar-btn {
+
+.jira-flow-plugin .jf-toolbar-btn {
   padding: var(--size-4-1, 6px) var(--size-4-3, 12px);
   border: 1px solid var(--jf-border);
   border-radius: var(--radius-m, 6px);
@@ -67,54 +68,101 @@
   font-size: var(--font-ui-small, 13px);
   font-weight: 600;
 }
-.jf-toolbar-btn:hover { background: var(--background-modifier-hover); }
-.jf-toolbar-btn:focus-visible { outline: 2px solid var(--jf-accent); outline-offset: 2px; }
+.jira-flow-plugin .jf-toolbar-btn:hover { background: var(--background-modifier-hover); }
+.jira-flow-plugin .jf-toolbar-btn:focus-visible { outline: 2px solid var(--jf-accent); outline-offset: 2px; }
 
-/* ===== Claude theme: remap legacy hardcoded chrome colors to tokens ===== */
-/* Accent (was Jira blue) */
-.jira-flow-root .jf-bg-\[\#0052CC\],
-.jira-flow-root .jf-bg-\[\#0747A6\] { background-color: var(--jf-accent); }
-.jira-flow-root .jf-text-\[\#0052CC\],
-.jira-flow-root .jf-text-\[\#0747A6\] { color: var(--jf-accent); }
-.jira-flow-root .jf-border-\[\#0052CC\],
-.jira-flow-root .jf-border-\[\#4C9AFF\] { border-color: var(--jf-accent); }
-/* Success / done */
-.jira-flow-root .jf-bg-\[\#0B6E4F\] { background-color: var(--jf-success); }
-/* Faint accent chips (was light blue) */
-.jira-flow-root .jf-bg-\[\#DEEBFF\],
-.jira-flow-root .jf-bg-\[\#E9F2FF\],
-.jira-flow-root .jf-bg-\[\#F0F7FF\],
-.jira-flow-root .jf-bg-\[\#F8FBFF\],
-.jira-flow-root .jf-bg-\[\#EAF2F8\] { background-color: var(--jf-bg-secondary); }
-/* Neutral surfaces */
-.jira-flow-root .jf-bg-\[\#F7F8FA\],
-.jira-flow-root .jf-bg-\[\#FAFBFC\],
-.jira-flow-root .jf-bg-\[\#F4F5F7\],
-.jira-flow-root .jf-bg-\[\#EBECF0\] { background-color: var(--jf-bg-secondary); }
-.jira-flow-root.jf-bg-\[\#F7F8FA\] { background-color: var(--jf-bg); }
-.jira-flow-root .jf-bg-white { background-color: var(--jf-bg); }
-.jira-flow-root .hover\:jf-bg-white:hover,
-.jira-flow-root .hover\:jf-bg-\[\#F4F5F7\]:hover { background-color: var(--background-modifier-hover); }
-/* Text */
-.jira-flow-root .jf-text-\[\#172B4D\],
-.jira-flow-root .jf-text-\[\#334E68\],
-.jira-flow-root .jf-text-\[\#486581\] { color: var(--jf-text); }
-.jira-flow-root .jf-text-\[\#42526E\],
-.jira-flow-root .jf-text-\[\#6B778C\],
-.jira-flow-root .jf-text-\[\#5E6C84\],
-.jira-flow-root .jf-text-\[\#97A0AF\] { color: var(--jf-text-muted); }
-.jira-flow-root .hover\:jf-text-\[\#172B4D\]:hover { color: var(--jf-text); }
-/* Borders */
-.jira-flow-root .jf-border-\[\#DFE1E6\],
-.jira-flow-root .jf-border-\[\#C1C7D0\],
-.jira-flow-root .jf-border-\[\#E2E8F0\],
-.jira-flow-root .jf-border-\[\#EBECF0\],
-.jira-flow-root .jf-border-\[\#D9E2EC\],
-.jira-flow-root .jf-border-\[\#D7DFEA\] { border-color: var(--jf-border); }
-.jira-flow-root .hover\:jf-border-\[\#DFE1E6\]:hover { border-color: var(--jf-border); }
-
-/* Kanban view wrapper (replaces inline element.style) */
-.jira-flow-plugin {
-  height: 100%;
-  overflow: auto;
-}
+/* ===== Remap hardcoded colors (arbitrary hex + named Tailwind) to tokens ===== */
+/* --- Accent: blue family -> coral --- */
+.jira-flow-plugin .jf-text-\[\#0052CC\],
+.jira-flow-plugin .jf-text-\[\#0747A6\],
+.jira-flow-plugin .jf-text-blue-500,
+.jira-flow-plugin .jf-text-blue-600,
+.jira-flow-plugin .jf-text-blue-700,
+.jira-flow-plugin .jf-text-blue-800 { color: var(--jf-accent); }
+.jira-flow-plugin .jf-bg-\[\#0052CC\],
+.jira-flow-plugin .jf-bg-\[\#0747A6\],
+.jira-flow-plugin .jf-bg-blue-600,
+.jira-flow-plugin .jf-bg-blue-700 { background-color: var(--jf-accent); }
+.jira-flow-plugin .hover\:jf-bg-blue-700:hover { background-color: var(--jf-accent-hover); }
+.jira-flow-plugin .jf-bg-\[\#DEEBFF\],
+.jira-flow-plugin .jf-bg-\[\#E9F2FF\],
+.jira-flow-plugin .jf-bg-\[\#F0F7FF\],
+.jira-flow-plugin .jf-bg-\[\#F8FBFF\],
+.jira-flow-plugin .jf-bg-\[\#EAF2F8\],
+.jira-flow-plugin .jf-bg-blue-50,
+.jira-flow-plugin .jf-bg-blue-100 { background-color: var(--jf-accent-soft); }
+.jira-flow-plugin .hover\:jf-bg-blue-50:hover { background-color: var(--jf-accent-soft); }
+.jira-flow-plugin .jf-border-\[\#0052CC\],
+.jira-flow-plugin .jf-border-\[\#4C9AFF\],
+.jira-flow-plugin .jf-border-blue-300,
+.jira-flow-plugin .jf-border-blue-500,
+.jira-flow-plugin .jf-border-blue-600 { border-color: var(--jf-accent); }
+.jira-flow-plugin .jf-border-blue-100 { border-color: var(--jf-border); }
+.jira-flow-plugin .group:hover .group-hover\:jf-text-blue-600,
+.jira-flow-plugin .group:hover .group-hover\:jf-text-blue-800 { color: var(--jf-accent); }
+/* --- Danger: red family -> error --- */
+.jira-flow-plugin .jf-text-red-500,
+.jira-flow-plugin .jf-text-red-600,
+.jira-flow-plugin .jf-text-red-700,
+.jira-flow-plugin .jf-text-\[\#FF5630\] { color: var(--jf-danger); }
+.jira-flow-plugin .jf-bg-red-50,
+.jira-flow-plugin .jf-bg-red-100 { background-color: color-mix(in srgb, var(--jf-danger) 14%, transparent); }
+.jira-flow-plugin .hover\:jf-bg-red-50:hover { background-color: color-mix(in srgb, var(--jf-danger) 14%, transparent); }
+/* --- Success: green family -> success --- */
+.jira-flow-plugin .jf-text-green-600,
+.jira-flow-plugin .jf-text-green-700,
+.jira-flow-plugin .jf-bg-\[\#0B6E4F\] { color: var(--jf-success); }
+.jira-flow-plugin .jf-bg-green-100 { background-color: color-mix(in srgb, var(--jf-success) 16%, transparent); }
+/* --- Warning: orange/amber/yellow -> warning --- */
+.jira-flow-plugin .jf-text-orange-600,
+.jira-flow-plugin .jf-text-orange-700,
+.jira-flow-plugin .jf-text-amber-600,
+.jira-flow-plugin .jf-text-yellow-700 { color: var(--jf-warning); }
+.jira-flow-plugin .jf-bg-orange-100,
+.jira-flow-plugin .jf-bg-amber-50,
+.jira-flow-plugin .jf-bg-amber-100,
+.jira-flow-plugin .jf-bg-yellow-100 { background-color: color-mix(in srgb, var(--jf-warning) 16%, transparent); }
+.jira-flow-plugin .jf-border-amber-200 { border-color: color-mix(in srgb, var(--jf-warning) 35%, transparent); }
+/* --- Neutral surfaces --- */
+.jira-flow-plugin .jf-bg-\[\#F7F8FA\],
+.jira-flow-plugin .jf-bg-\[\#FAFBFC\],
+.jira-flow-plugin .jf-bg-\[\#F4F5F7\],
+.jira-flow-plugin .jf-bg-\[\#EBECF0\],
+.jira-flow-plugin .jf-bg-gray-50,
+.jira-flow-plugin .jf-bg-gray-100,
+.jira-flow-plugin .jf-bg-slate-50,
+.jira-flow-plugin .jf-bg-slate-100 { background-color: var(--background-secondary); }
+.jira-flow-plugin .jf-bg-white { background-color: var(--background-primary); }
+.jira-flow-plugin .hover\:jf-bg-white:hover,
+.jira-flow-plugin .hover\:jf-bg-gray-50:hover,
+.jira-flow-plugin .hover\:jf-bg-gray-100:hover,
+.jira-flow-plugin .hover\:jf-bg-\[\#F4F5F7\]:hover { background-color: var(--background-modifier-hover); }
+/* --- Text --- */
+.jira-flow-plugin .jf-text-\[\#172B4D\],
+.jira-flow-plugin .jf-text-\[\#334E68\],
+.jira-flow-plugin .jf-text-\[\#486581\],
+.jira-flow-plugin .jf-text-gray-600,
+.jira-flow-plugin .jf-text-gray-700,
+.jira-flow-plugin .jf-text-gray-800,
+.jira-flow-plugin .jf-text-slate-600,
+.jira-flow-plugin .jf-text-slate-800 { color: var(--text-normal); }
+.jira-flow-plugin .jf-text-\[\#42526E\],
+.jira-flow-plugin .jf-text-\[\#6B778C\],
+.jira-flow-plugin .jf-text-\[\#5E6C84\],
+.jira-flow-plugin .jf-text-\[\#97A0AF\],
+.jira-flow-plugin .jf-text-gray-500 { color: var(--text-muted); }
+.jira-flow-plugin .jf-text-gray-300,
+.jira-flow-plugin .jf-text-gray-400 { color: var(--text-faint); }
+.jira-flow-plugin .hover\:jf-text-\[\#172B4D\]:hover,
+.jira-flow-plugin .hover\:jf-text-gray-600:hover { color: var(--text-normal); }
+/* --- Borders --- */
+.jira-flow-plugin .jf-border-\[\#DFE1E6\],
+.jira-flow-plugin .jf-border-\[\#C1C7D0\],
+.jira-flow-plugin .jf-border-\[\#E2E8F0\],
+.jira-flow-plugin .jf-border-\[\#EBECF0\],
+.jira-flow-plugin .jf-border-\[\#D9E2EC\],
+.jira-flow-plugin .jf-border-\[\#D7DFEA\],
+.jira-flow-plugin .jf-border-gray-100,
+.jira-flow-plugin .jf-border-gray-200,
+.jira-flow-plugin .jf-border-slate-200 { border-color: var(--background-modifier-border); }
+.jira-flow-plugin .hover\:jf-border-\[\#DFE1E6\]:hover { border-color: var(--background-modifier-border); }

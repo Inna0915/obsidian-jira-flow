@@ -318,7 +318,7 @@ export const SidebarPanel = ({ plugin }: { plugin: JiraFlowPlugin }) => {
         onClick={() => handleTaskClick(task)}
         onMouseEnter={(e) => onHoverTask(e, task)}
         className={`jf-p-2 jf-mb-2 jf-bg-white jf-border ${isActive ? 'jf-border-blue-500 jf-ring-1 jf-ring-blue-500' : 'jf-border-gray-200'} jf-rounded-md jf-shadow-sm hover:jf-border-blue-300 jf-transition-all jf-cursor-pointer jf-group`}
-        style={{ borderLeftWidth: '4px', borderLeftColor: isBug ? priorityAccent : '#E5E7EB' }}
+        style={{ borderLeftWidth: '4px', borderLeftColor: isBug ? priorityAccent : 'var(--background-modifier-border)' }}
       >
         <div className="jf-flex jf-justify-between jf-items-start jf-mb-1">
           <div className="jf-flex jf-items-center jf-gap-1.5 jf-min-w-0">
