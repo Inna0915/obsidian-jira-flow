@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.1.2] - 2026-05-30
+
+### Fixed
+- Ctrl/Cmd+F 仍影响其他界面：2.1.1 用「handler 返回 true 放行」无效，因为 Obsidian keymap scope 一旦在栈上就会「认领」该组合键、不再下传给编辑器。改为**仅在看板成为激活叶子时才 pushScope、离开时 popScope**（监听 `active-leaf-change`）；不激活时栈上根本没有这个 scope，其他界面 Ctrl+F 完全不受影响。
+
 ## [2.1.1] - 2026-05-30
 
 ### Fixed
