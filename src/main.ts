@@ -165,6 +165,7 @@ export default class JiraFlowPlugin extends Plugin {
     try {
       const result = await this.fileManager.syncIssues(issues);
       const detail = `Created: ${result.created}, Updated: ${result.updated}` +
+        (result.archived > 0 ? `, Archived: ${result.archived}` : "") +
         (result.errors.length > 0 ? `, Errors: ${result.errors.length}` : "");
       toast.updateStep(stepSync, result.errors.length > 0 ? "error" : "success", detail);
       toast.finish(result.errors.length === 0);

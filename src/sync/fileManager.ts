@@ -31,11 +31,13 @@ export class FileManager {
 
   async syncIssues(issues: JiraIssue[]): Promise<SyncResult> {
     await this.ensureFolders();
-    const result: SyncResult = { created: 0, updated: 0, errors: [] };
+    const result: SyncResult = { created: 0, updated: 0, archived: 0, errors: [] };
+    const seenIssueKeys = new Set<string>();
     const taskIndex = this.buildTaskFileIndex();
 
     for (const issue of issues) {
       try {
+        seenIssueKeys.add(issue.key);
         const frontmatter = this.issueToFrontmatter(issue);
         const summary = issue.fields.summary;
         const existing = taskIndex.get(issue.key) ?? this.findExistingTaskFile(issue.key, summary);
@@ -73,7 +75,38 @@ export class FileManager {
       }
     }
 
+    // Reconcile: any local task that the query no longer returns has either been
+    // reassigned to someone else or resolved. Hide it so the stale card disappears.
+    result.archived = await this.archiveMissingJiraIssues(seenIssueKeys);
+
     return result;
+  }
+
+  /**
+   * Mark local JIRA task files whose key is absent from the latest query result as
+   * archived. The board/sidebar skip archived files, so cards for tasks that have
+   * been handed off or completed disappear instead of lingering with a stale status.
+   */
+  private async archiveMissingJiraIssues(seenIssueKeys: Set<string>): Promise<number> {
+    let archivedCount = 0;
+
+    for (const file of this.getAllTaskFiles()) {
+      const fm = this.getTaskFrontmatter(file);
+      if (!fm || !fm.jira_key || fm.archived || seenIssueKeys.has(fm.jira_key)) {
+        continue;
+      }
+
+      await this.plugin.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
+        frontmatter.archived = true;
+      });
+      archivedCount++;
+
+      if (archivedCount % 10 === 0) {
+        await this.yieldToMainThread();
+      }
+    }
+
+    return archivedCount;
   }
 
   private issueToFrontmatter(issue: JiraIssue): TaskFrontmatter {
@@ -439,7 +472,7 @@ export class FileManager {
   private canSkipSync(existing: TaskFrontmatter, incoming: TaskFrontmatter): boolean {
     // A legacy archived task that is back in the query must be re-synced so the
     // stale `archived` flag is dropped on rewrite and the card reappears.
-    if (existing.archived || existing.updated !== incoming.updated) {
+    if (existing.archived === true || existing.updated !== incoming.updated) {
       return false;
     }
 
