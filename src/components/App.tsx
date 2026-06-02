@@ -14,6 +14,16 @@ import { Board } from "./Board";
 import { WorkflowsContext } from "./workflowsContext";
 import { IssueListView } from "./IssueListView";
 import { TaskDetailPanel, CreateJiraIssueModal, type CreateJiraIssueData } from "./TaskDetailModal";
+import { TransitionScreenModal, type TransitionSubmitPayload } from "./TransitionScreenModal";
+import type { JiraTransitionField } from "../api/jira";
+
+interface TransitionScreenRequest {
+  issueKey: string;
+  transitionName: string;
+  toStatus: string;
+  fields: Record<string, JiraTransitionField>;
+  resolve: (payload: TransitionSubmitPayload | null) => void;
+}
 
 interface AppProps {
   plugin: JiraFlowPlugin;
@@ -79,6 +89,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     activePaths: new Set(),
   });
   const [showCreateJiraModal, setShowCreateJiraModal] = useState(false);
+  const [transitionScreen, setTransitionScreen] = useState<TransitionScreenRequest | null>(null);
   const [showParentFilterPanel, setShowParentFilterPanel] = useState(true);
   const [selectedParentKeys, setSelectedParentKeys] = useState<Set<string>>(new Set());
   const [batchDueDateMode, setBatchDueDateMode] = useState<BatchDueDateMode | null>(null);
@@ -387,12 +398,76 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         await plugin.fileManager.updateStatus(file, targetColumn);
 
         if (plugin.settings.jiraHost) {
-          const result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
-          if (!result.success) {
-            await plugin.fileManager.updateStatus(file, originalColumn);
-            new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
-            return;
+          // Fetch transitions WITH on-screen field metadata so we can replicate
+          // Jira's transition screen (resolution / fixVersions / worklog / ...).
+          let transitions;
+          try {
+            transitions = await plugin.jiraApi.getTransitions(fm.jira_key);
+          } catch (err) {
+            console.warn("[Jira Flow] getTransitions failed, falling back to silent transition:", err);
+            transitions = null;
           }
+
+          let result: { success: boolean; actualColumn?: string };
+
+          if (transitions) {
+            const target = plugin.jiraApi.pickTransition(transitions, targetColumn);
+            if (!target) {
+              await plugin.fileManager.updateStatus(file, originalColumn);
+              new Notice(`Jira Flow：${fm.jira_key} 找不到到 ${targetColumn} 的流转，已回滚`);
+              return;
+            }
+
+            const screenFields = target.fields || {};
+            let payload: TransitionSubmitPayload = { fields: {}, update: {} };
+
+            if (Object.keys(screenFields).length > 0) {
+              // Transition has a screen → collect user input via modal.
+              const input = await new Promise<TransitionSubmitPayload | null>((resolve) => {
+                setTransitionScreen({
+                  issueKey: fm.jira_key,
+                  transitionName: target.name,
+                  toStatus: target.to.name,
+                  fields: screenFields,
+                  resolve,
+                });
+              });
+              if (!input) {
+                // Cancelled → revert optimistic local status.
+                await plugin.fileManager.updateStatus(file, originalColumn);
+                return;
+              }
+              payload = input;
+            } else {
+              // No screen → best-effort resolution for done-category columns.
+              const DONE_COLUMNS = new Set(["DONE", "CLOSED", "RESOLVED"]);
+              if (DONE_COLUMNS.has(targetColumn)) {
+                payload.fields = { resolution: { name: "Done" } };
+              }
+            }
+
+            const submitResult = await plugin.jiraApi.submitTransition(
+              fm.jira_key,
+              target.id,
+              payload.fields,
+              payload.update
+            );
+            result = submitResult;
+            if (!submitResult.success) {
+              await plugin.fileManager.updateStatus(file, originalColumn);
+              new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
+              return;
+            }
+          } else {
+            // Metadata fetch failed → legacy silent path.
+            result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
+            if (!result.success) {
+              await plugin.fileManager.updateStatus(file, originalColumn);
+              new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
+              return;
+            }
+          }
+
           if (result.actualColumn && result.actualColumn !== targetColumn) {
             await plugin.fileManager.updateStatus(file, result.actualColumn);
           }
@@ -994,6 +1069,24 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           plugin={plugin}
           onClose={() => setShowCreateJiraModal(false)}
           onSave={handleCreateJiraIssue}
+        />
+      )}
+
+      {transitionScreen && (
+        <TransitionScreenModal
+          plugin={plugin}
+          issueKey={transitionScreen.issueKey}
+          transitionName={transitionScreen.transitionName}
+          toStatus={transitionScreen.toStatus}
+          fields={transitionScreen.fields}
+          onSubmit={(payload) => {
+            transitionScreen.resolve(payload);
+            setTransitionScreen(null);
+          }}
+          onCancel={() => {
+            transitionScreen.resolve(null);
+            setTransitionScreen(null);
+          }}
         />
       )}
 

@@ -66,6 +66,40 @@ export interface JiraCreateIssueInput {
   plannedEndDate?: string;
 }
 
+/** Allowed-value entry on a transition-screen field. */
+export interface JiraFieldAllowedValue {
+  id?: string;
+  name?: string;
+  value?: string;
+  released?: boolean;
+  archived?: boolean;
+}
+
+/** A single field that appears on a workflow transition screen. */
+export interface JiraTransitionField {
+  required: boolean;
+  name: string;
+  fieldId?: string;
+  schema?: { type?: string; items?: string; system?: string; custom?: string };
+  operations?: string[];
+  allowedValues?: JiraFieldAllowedValue[];
+}
+
+/** A workflow transition, optionally with its on-screen field metadata. */
+export interface JiraTransitionMeta {
+  id: string;
+  name: string;
+  to: { name: string };
+  fields: Record<string, JiraTransitionField>;
+}
+
+export interface JiraAssignableUser {
+  name: string;
+  displayName: string;
+  emailAddress?: string;
+  avatarUrl?: string;
+}
+
 export class JiraApi {
   private plugin: JiraFlowPlugin;
   private currentUserCache: JiraCurrentUser | null | undefined = undefined;
@@ -92,15 +126,28 @@ export class JiraApi {
   private buildSyncJql(): string {
     const baseJql = (this.plugin.settings.jql || "").trim().replace(/\s+order\s+by[\s\S]*$/i, "").trim();
     const reporterJql = "reporter = currentUser() AND resolution = Unresolved";
-    if (!baseJql) {
-      return `${reporterJql} ORDER BY created DESC`;
+    // A reopened issue can keep a stale resolution (e.g. status "In Progress" but
+    // resolution still "Done"), which a `resolution = Unresolved` filter wrongly
+    // drops — the card then stays archived and never reappears. Fetch the
+    // assignee's active-by-status issues (statusCategory != Done) so reopened
+    // bugs come back regardless of any lingering resolution.
+    const reopenedJql = "assignee = currentUser() AND statusCategory != Done";
+
+    const clauses: string[] = [];
+    if (baseJql) {
+      clauses.push(`(${baseJql})`);
+    }
+    if (!/reporter\s*=\s*currentUser\(\)/i.test(baseJql)) {
+      clauses.push(`(${reporterJql})`);
+    }
+    if (!/statuscategory/i.test(baseJql)) {
+      clauses.push(`(${reopenedJql})`);
+    }
+    if (clauses.length === 0) {
+      clauses.push(`(${reopenedJql})`);
     }
 
-    if (/reporter\s*=\s*currentUser\(\)/i.test(baseJql)) {
-      return baseJql;
-    }
-
-    return `(${baseJql}) OR (${reporterJql}) ORDER BY created DESC`;
+    return `${clauses.join(" OR ")} ORDER BY created DESC`;
   }
 
   private async request<T>(endpoint: string, method = "GET", body?: unknown): Promise<T> {
@@ -674,6 +721,123 @@ export class JiraApi {
     } catch (e) {
       console.error(`[Jira Flow] Transition ${issueKey}: unexpected error:`, e);
       return { success: false };
+    }
+  }
+
+  /**
+   * Fetch the available transitions for an issue, including each transition's
+   * on-screen field metadata (resolution / fixVersions / worklog / assignee ...).
+   * A non-empty `fields` map means the transition has a screen the user must fill.
+   */
+  async getTransitions(issueKey: string): Promise<JiraTransitionMeta[]> {
+    const data = await this.request<{ transitions: JiraTransitionMeta[] }>(
+      `issue/${issueKey}/transitions?expand=transitions.fields`
+    );
+    return (data?.transitions || []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      to: t.to,
+      fields: t.fields || {},
+    }));
+  }
+
+  /**
+   * Pick the transition that lands the issue in the requested kanban column.
+   * Mirrors the matching used by transitionIssue (column map → status name → keyword).
+   */
+  pickTransition(transitions: JiraTransitionMeta[], targetColumnId: string): JiraTransitionMeta | undefined {
+    let target = transitions.find((t) => mapStatusToColumn(t.to.name) === targetColumnId);
+    if (!target) {
+      target = transitions.find((t) => t.to.name.toUpperCase() === targetColumnId.toUpperCase());
+    }
+    if (!target) {
+      const colLower = targetColumnId.toLowerCase();
+      target = transitions.find(
+        (t) => t.name.toLowerCase().includes(colLower) || t.to.name.toLowerCase().includes(colLower)
+      );
+    }
+    return target;
+  }
+
+  /** Search users assignable to an issue (for the transition-screen assignee picker). */
+  async searchAssignableUsers(issueKey: string, query: string): Promise<JiraAssignableUser[]> {
+    try {
+      const q = encodeURIComponent(query || "");
+      const data = await this.request<Array<{
+        name: string;
+        displayName: string;
+        emailAddress?: string;
+        avatarUrls?: Record<string, string>;
+      }>>(`user/assignable/search?issueKey=${issueKey}&username=${q}&maxResults=20`);
+      return (data || []).map((u) => ({
+        name: u.name,
+        displayName: u.displayName,
+        emailAddress: u.emailAddress,
+        avatarUrl: u.avatarUrls?.["24x24"],
+      }));
+    } catch (e) {
+      console.warn(`[Jira Flow] searchAssignableUsers failed for ${issueKey}:`, e);
+      return [];
+    }
+  }
+
+  /**
+   * Execute a transition by id, submitting collected screen `fields` and `update`
+   * (e.g. comment / worklog). Self-heals two common screen mismatches:
+   *  - a required `resolution` that we didn't send → retry adding resolution=Done
+   *  - a `resolution`/`comment` we sent that isn't on the screen → retry without it
+   * Re-fetches the issue afterwards to report the actual landing status.
+   */
+  async submitTransition(
+    issueKey: string,
+    transitionId: string,
+    fields: Record<string, unknown> = {},
+    update: Record<string, unknown> = {}
+  ): Promise<{ success: boolean; actualStatus?: string; actualColumn?: string; error?: string }> {
+    const post = async (f: Record<string, unknown>, u: Record<string, unknown>) => {
+      const body: Record<string, unknown> = { transition: { id: transitionId } };
+      if (Object.keys(f).length > 0) body.fields = f;
+      if (Object.keys(u).length > 0) body.update = u;
+      await this.request(`issue/${issueKey}/transitions`, "POST", body);
+    };
+
+    try {
+      try {
+        await post(fields, update);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const lower = msg.toLowerCase();
+        const notOnScreen = lower.includes("cannot be set") || lower.includes("not on the appropriate screen");
+
+        // A comment that the screen rejects → drop it and retry.
+        if (notOnScreen && lower.includes("comment") && update.comment) {
+          const { comment, ...restUpdate } = update;
+          await post(fields, restUpdate);
+        } else if (notOnScreen && lower.includes("resolution") && fields.resolution) {
+          // Resolution not on this screen → drop it and retry.
+          const { resolution, ...restFields } = fields;
+          await post(restFields, update);
+        } else if (lower.includes("resolution") && !fields.resolution) {
+          // Resolution required but we didn't send one → best-effort Done.
+          await post({ ...fields, resolution: { name: "Done" } }, update);
+        } else {
+          throw e;
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[Jira Flow] submitTransition ${issueKey}: ${msg}`);
+      return { success: false, error: msg };
+    }
+
+    try {
+      const updated = await this.request<{ fields: { status: { name: string } } }>(
+        `issue/${issueKey}?fields=status`
+      );
+      const actualStatus = updated.fields.status.name;
+      return { success: true, actualStatus, actualColumn: mapStatusToColumn(actualStatus) };
+    } catch {
+      return { success: true };
     }
   }
 

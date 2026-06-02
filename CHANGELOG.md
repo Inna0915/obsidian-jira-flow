@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.2.0] - 2026-06-02
+
+### Added
+- **流转屏幕（Transition Screen）复刻**：拖拽卡片触发的 Jira 流转若带屏幕字段，会弹出动态表单收集输入后再提交，1:1 还原 Jira 的「解决」面板。
+  - 按字段元数据动态渲染：解决结果（必填下拉）、修复版本 / 模块（多选下拉）、经办人（搜索选择）、登记工时（耗时 + 开始时间）、日期/数字/文本通用渲染，**备注**始终可填（作为评论提交）。
+  - 不支持的字段类型优雅降级并提示；提交失败/取消自动回滚本地状态。
+  - 无屏幕的流转保持静默直通，行为不变。
+- API 层新增 `getTransitions`（带 `expand=transitions.fields`）、`pickTransition`、`searchAssignableUsers`、`submitTransition`（含 resolution/comment 不在屏幕时的自愈重试）。
+
+### Fixed
+- **同步归档对账**：重构（移除归档模块）后丢失的特性回归——同步时把「本次查询未返回（已流转给他人/已解决）」的本地任务标记 `archived` 隐藏，卡片不再带着旧状态滞留泳道；任务重回查询结果时自动取消归档并刷新。
+- **重开的 Bug 不显示**：重开的问题可能残留旧 `resolution`（如状态已是「处理中」但 resolution 仍为「完成」），被 `resolution = Unresolved` 同步查询过滤后又被归档而永久隐藏。同步 JQL 增补 `assignee = currentUser() AND statusCategory != Done` 子句，按状态分类（不依赖 resolution）召回活动中的重开任务；下次同步自动清除其归档与完成标记。
+- 流转屏幕表单控件统一为点击展开的下拉样式（修复版本/模块/经办人），并修正暗色主题下原生控件文字截断/失效问题。
+
 ## [2.1.2] - 2026-05-30
 
 ### Fixed

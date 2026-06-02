@@ -20,6 +20,7 @@
 - 卡片按类型区分样式（Bug / Story）
 - 当前迭代 / 待办列表两种视图，支持批量更新截止日期
 - Bug 从 FUNNEL/DEFINING 拖出时自动把经办人设为自己
+- **流转屏幕**：拖拽触发的 Jira 流转若带屏幕字段，弹出动态表单（解决结果 / 修复版本 / 模块 / 经办人 / 工时 / 备注）后再提交；无屏幕流转静默直通
 - 侧边栏详情面板（只读查看 + 编辑故事点/截止日期并同步 Jira）
 - 悬停预览
 
@@ -39,6 +40,8 @@
 ### Jira 同步
 - 基于 `requestUrl` 的 Jira REST（无 CORS）；Agile API（Sprint）+ JQL 回退
 - 双向同步（状态转换 / 故事点 / 截止日期）；Wiki 图片转换
+- 流转带屏幕字段时弹出动态表单（含 resolution/comment 自愈重试）
+- 同步对账：已流转/已解决任务自动隐藏；`statusCategory != Done` 召回残留 resolution 的重开任务
 
 ## 完成数据查询（Bases / Dataview）
 
@@ -186,6 +189,11 @@ npm run lint     # ESLint（eslint-plugin-obsidianmd）
 | 测试 | Vitest |
 
 ## 最近更新
+
+### v2.2.0
+- **流转屏幕复刻**：拖拽触发的 Jira 流转若带屏幕字段，弹出动态表单（解决结果 / 修复版本 / 模块 / 经办人 / 工时 / 备注）收集后提交，1:1 还原 Jira「解决」面板；无屏幕流转仍静默直通
+- **同步归档对账回归**：同步时自动隐藏「已流转给他人 / 已解决、本次查询未返回」的卡片，重回查询时自动恢复
+- **修复重开 Bug 不显示**：同步 JQL 增补 `statusCategory != Done`，按状态召回残留 resolution 的重开任务
 
 ### v2.0.0
 - **移除 AI 报告生成** 与 AI 模型设置（不再存储 API Key）
