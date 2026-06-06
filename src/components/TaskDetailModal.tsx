@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Notice, TFile } from "obsidian";
-import type { JiraAttachment, KanbanCard } from "../types";
+import type { JiraAttachment, JiraSprint, KanbanCard } from "../types";
 import type JiraFlowPlugin from "../main";
 import type { JiraCreateIssueMeta, JiraCreateIssueInput } from "../api/jira";
 import type { ViewMode } from "./App";
@@ -709,6 +709,8 @@ export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plug
   const [storyPoints, setStoryPoints] = useState("");
   const [plannedStartDate, setPlannedStartDate] = useState("");
   const [plannedEndDate, setPlannedEndDate] = useState("");
+  const [sprints, setSprints] = useState<JiraSprint[]>([]);
+  const [sprintId, setSprintId] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -721,9 +723,10 @@ export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plug
       }
 
       try {
-        const [createMeta, currentUser] = await Promise.all([
+        const [createMeta, currentUser, sprintList] = await Promise.all([
           plugin.jiraApi.fetchCreateIssueMeta(plugin.settings.projectKey),
           plugin.jiraApi.getCurrentUser(),
+          plugin.jiraApi.fetchSprints(plugin.settings.projectKey),
         ]);
 
         if (!mounted) return;
@@ -731,8 +734,14 @@ export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plug
         setMeta(createMeta);
         setIssueTypeId(createMeta.issueTypes.find((item) => item.name.toLowerCase() === "story")?.id || createMeta.issueTypes[0]?.id || "");
         setPriorityId(createMeta.priorities.find((item) => item.name.toLowerCase() === "low")?.id || createMeta.priorities[0]?.id || "");
+        setSprints(sprintList);
+        // 默认选中活跃 sprint
+        const active = sprintList.find((s) => s.state === "active");
+        if (active) setSprintId(String(active.id));
         const currentAssignee = currentUser?.name || currentUser?.displayName || currentUser?.emailAddress || "";
         setMyAssignee(currentAssignee);
+        // 默认经办人 = 当前用户（仍可清空走自动分配或改派他人）
+        if (currentAssignee) setAssignee(currentAssignee);
       } catch (loadError) {
         if (!mounted) return;
         setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -766,6 +775,7 @@ export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plug
         storyPoints: storyPoints.trim() === "" ? undefined : Number(storyPoints),
         plannedStartDate: plannedStartDate || undefined,
         plannedEndDate: plannedEndDate || undefined,
+        sprintId: sprintId ? Number(sprintId) : undefined,
       });
       onClose();
     } catch (saveError) {
@@ -773,7 +783,7 @@ export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plug
     } finally {
       setSaving(false);
     }
-  }, [assignee, description, issueTypeId, meta, onClose, onSave, plannedEndDate, plannedStartDate, priorityId, storyPoints, summary]);
+  }, [assignee, description, issueTypeId, meta, onClose, onSave, plannedEndDate, plannedStartDate, priorityId, sprintId, storyPoints, summary]);
 
   return (
     <>
@@ -872,6 +882,21 @@ export const CreateJiraIssueModal: React.FC<CreateJiraIssueModalProps> = ({ plug
                   <input type="date" value={plannedEndDate} onChange={(e) => setPlannedEndDate(e.target.value)} className={fieldClassName} style={fieldStyle} />
                   {!plugin.settings.dueDateField && <div className="jf-text-[10px] jf-text-amber-600 jf-mt-1">设置中未配置计划结束日期字段，创建时不会提交该值。</div>}
                 </div>
+              </div>
+
+              <div>
+                <label className="jf-block jf-text-xs jf-font-medium jf-text-gray-500 jf-mb-1 jf-uppercase jf-tracking-wide">迭代 Sprint</label>
+                <select value={sprintId} onChange={(e) => setSprintId(e.target.value)} className={fieldClassName} style={fieldStyle}>
+                  <option value="">不指定（进入待办 Backlog）</option>
+                  {sprints.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}{s.state === "active" ? "（在用）" : s.state === "future" ? "（未来）" : ""}
+                    </option>
+                  ))}
+                </select>
+                {sprints.length === 0 && (
+                  <div className="jf-text-[10px] jf-text-amber-600 jf-mt-1">未获取到可用 sprint（项目可能无 scrum 看板，或暂无活跃/未来 sprint）。</div>
+                )}
               </div>
             </>
           ) : null}

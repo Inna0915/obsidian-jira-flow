@@ -64,6 +64,7 @@ export interface JiraCreateIssueInput {
   storyPoints?: number;
   plannedStartDate?: string;
   plannedEndDate?: string;
+  sprintId?: number;
 }
 
 /** Allowed-value entry on a transition-screen field. */
@@ -494,7 +495,47 @@ export class JiraApi {
       fields[this.plugin.settings.dueDateField] = input.plannedEndDate;
     }
 
+    // Sprint (greenhopper gh-sprint field) accepts the sprint id (number) on create.
+    if (this.plugin.settings.sprintField && typeof input.sprintId === "number") {
+      fields[this.plugin.settings.sprintField] = input.sprintId;
+    }
+
     return await this.request<{ key: string; id: string }>("issue", "POST", { fields });
+  }
+
+  /**
+   * List assignable sprints (active + future) for a project. A project can have
+   * several scrum boards (e.g. 目标看板 / 迭代看板); the planning sprints live on
+   * the iteration board, so we aggregate across ALL scrum boards and dedupe by id
+   * rather than trusting the single board detectBoardId picks.
+   */
+  async fetchSprints(projectKey: string): Promise<JiraSprint[]> {
+    try {
+      const boards = await this.agileRequest<{ values: JiraBoard[] }>(
+        `board?projectKeyOrId=${encodeURIComponent(projectKey)}&maxResults=50`
+      );
+      const scrumBoards = (boards.values || []).filter((b) => b.type === "scrum");
+
+      const byId = new Map<number, JiraSprint>();
+      for (const board of scrumBoards) {
+        try {
+          const data = await this.agileRequest<{ values: JiraSprint[] }>(
+            `board/${board.id}/sprint?state=active,future&maxResults=50`
+          );
+          for (const sp of data.values || []) {
+            if (!byId.has(sp.id)) byId.set(sp.id, sp);
+          }
+        } catch {
+          // some boards may not expose sprints; skip
+        }
+      }
+
+      const rank = (s: JiraSprint) => (s.state === "active" ? 0 : s.state === "future" ? 1 : 2);
+      return [...byId.values()].sort((a, b) => rank(a) - rank(b) || a.id - b.id);
+    } catch (e) {
+      console.warn("[Jira Flow] fetchSprints failed:", e);
+      return [];
+    }
   }
 
   // ===== 4-Step Agile Sync =====

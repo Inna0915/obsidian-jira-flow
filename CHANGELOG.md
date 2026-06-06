@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.3.0] - 2026-06-06
+
+### Added
+- **新建任务支持指定迭代（Sprint）**：「新建 Jira 任务」弹窗新增「迭代 Sprint」下拉，动态拉取项目可选 sprint，默认选中活跃 sprint，可选「不指定（进入待办 Backlog）」。
+  - sprint 列表**聚合项目下所有 scrum 看板的 active+future sprint 去重**（项目可能有「目标看板/迭代看板」多个 scrum board，规划用的 sprint 在迭代看板上，单一 `detectBoardId` 会漏）。
+  - 创建时写入 sprint 字段（`settings.sprintField`，greenhopper gh-sprint 接受 sprint id）。
+
+### Changed
+- **经办人默认当前用户**：新建任务弹窗的「经办人」默认预填为自己（仍可清空走自动分配或改派他人）。
+- **流转屏幕经办人默认当前用户**：拖拽触发的流转弹窗中，「经办人」字段默认填为自己。
+
 ## [2.2.0] - 2026-06-02
 
 ### Added

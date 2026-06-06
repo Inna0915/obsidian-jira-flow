@@ -288,6 +288,33 @@ export const TransitionScreenModal: React.FC<TransitionScreenModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prepared]);
 
+  // Default any user field (经办人) to the current user; still editable.
+  useEffect(() => {
+    const userFields = prepared.filter((p) => p.kind === "user");
+    if (!userFields.length) return;
+    let cancelled = false;
+    void (async () => {
+      const me = await plugin.jiraApi.getCurrentUser();
+      const name = me?.name || plugin.settings.jiraUsername;
+      if (cancelled || !name) return;
+      const display = me?.displayName || name;
+      setValues((v) => {
+        const nv = { ...v };
+        for (const p of userFields) if (nv[p.key] == null) nv[p.key] = name;
+        return nv;
+      });
+      setUserDisplay((d) => {
+        const nd = { ...d };
+        for (const p of userFields) if (!nd[p.key]) nd[p.key] = display;
+        return nd;
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepared, plugin]);
+
   const setVal = useCallback((key: string, v: unknown) => {
     setValues((prev) => ({ ...prev, [key]: v }));
   }, []);
