@@ -190,6 +190,11 @@ npm run lint     # ESLint（eslint-plugin-obsidianmd）
 
 ## 最近更新
 
+### v2.4.0
+- **Backlog 视图**：左侧 Feature 树（动态拉取、卡片式、原生统计：问题/已完成/预估/未预估）+ 右侧按 Sprint 分组任务清单（可折叠、显示已完成开关）
+- **关联 / 解除 Feature**：拖任务到 Feature 即关联，走 Agile Hive 看板端点（绕开 Feature 项目的 issue 级链接权限限制）；关联后只刷新单条本地文件
+- 设置新增「Feature 项目 Key」「Feature 看板 ID」
+
 ### v2.3.0
 - **新建任务支持指定迭代**：弹窗新增「迭代 Sprint」下拉（动态拉取、默认活跃 sprint、可选进入 Backlog），聚合项目下所有 scrum 看板的 active+future sprint
 - **经办人默认当前用户**：新建任务弹窗与流转屏幕弹窗的「经办人」均默认填为自己

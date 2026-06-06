@@ -190,6 +190,32 @@ export class JiraFlowSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Feature 项目 Key")
+      .setDesc("Backlog 视图里 Feature 所在的项目 Key（SAFe/Agile Hive 中 Feature 常在独立项目，如 PRDAPD）。留空则按已同步任务的父任务前缀自动推断。")
+      .addText((text) =>
+        text
+          .setPlaceholder("PRDAPD")
+          .setValue(this.plugin.settings.featureProjectKey)
+          .onChange(async (value) => {
+            this.plugin.settings.featureProjectKey = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Feature 看板 ID")
+      .setDesc("Backlog 关联 Feature 用的迭代看板 ID（Agile Hive addLink 端点需要）。留空则自动取含活跃 Sprint 的 Scrum 看板。")
+      .addText((text) =>
+        text
+          .setPlaceholder("如 149")
+          .setValue(this.plugin.settings.featureBoardId)
+          .onChange(async (value) => {
+            this.plugin.settings.featureBoardId = value.trim();
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
       .setName("测试连接")
       .setDesc("测试 Jira 连接是否正常")
       .addButton((button) =>

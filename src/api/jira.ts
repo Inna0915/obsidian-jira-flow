@@ -1,6 +1,7 @@
 import { requestUrl, type RequestUrlParam } from "obsidian";
 import type JiraFlowPlugin from "../main";
 import { mapStatusToColumn } from "../types";
+import { parseJiraSprintName } from "../utils/jiraParser";
 import type { JiraBoard, JiraIssue, JiraSearchResponse, JiraSprint } from "../types";
 
 interface JiraCreateMetaResponse {
@@ -99,6 +100,22 @@ export interface JiraAssignableUser {
   displayName: string;
   emailAddress?: string;
   avatarUrl?: string;
+}
+
+export interface JiraFeature {
+  key: string;
+  summary: string;
+  status: string;
+}
+
+export interface JiraCompletedIssue {
+  jiraKey: string;
+  summary: string;
+  issuetype: string;
+  status: string;
+  sprint: string;
+  parentKey: string;
+  parentSummary: string;
 }
 
 export class JiraApi {
@@ -535,6 +552,216 @@ export class JiraApi {
     } catch (e) {
       console.warn("[Jira Flow] fetchSprints failed:", e);
       return [];
+    }
+  }
+
+  // ===== Feature (Agile Hive) linking =====
+
+  /**
+   * Live-fetch the current user's completed (statusCategory=Done) issues for the
+   * Backlog "显示已完成" toggle. These are normally archived locally, so we read
+   * them straight from Jira (read-only display rows).
+   */
+  async fetchMyCompletedIssues(maxResults = 100): Promise<JiraCompletedIssue[]> {
+    try {
+      const jql = "assignee = currentUser() AND statusCategory = Done ORDER BY updated DESC";
+      const spField = this.plugin.settings.sprintField;
+      const fields = `summary,status,issuetype,issuelinks${spField ? "," + spField : ""}`;
+      const data = await this.request<{
+        issues: Array<{ key: string; fields: { summary: string; status: { name: string }; issuetype: { name: string }; issuelinks?: Array<{ type?: { name?: string; outward?: string }; outwardIssue?: { key: string; fields?: { summary?: string } } }> } & Record<string, unknown> }>;
+      }>(`search?jql=${encodeURIComponent(jql)}&maxResults=${maxResults}&fields=${fields}`);
+
+      return (data.issues || []).map((issue) => {
+        const f = issue.fields;
+        let parentKey = "", parentSummary = "";
+        for (const l of f.issuelinks || []) {
+          if ((l.type?.name || "").toLowerCase() === "agile hive link" && (l.type?.outward || "").toLowerCase() === "child of" && l.outwardIssue) {
+            parentKey = l.outwardIssue.key;
+            parentSummary = l.outwardIssue.fields?.summary || "";
+            break;
+          }
+        }
+        return {
+          jiraKey: issue.key,
+          summary: f.summary,
+          issuetype: f.issuetype.name,
+          status: f.status.name,
+          sprint: spField ? parseJiraSprintName(f[spField]) || "" : "",
+          parentKey,
+          parentSummary,
+        };
+      });
+    } catch (e) {
+      console.warn("[Jira Flow] fetchMyCompletedIssues failed:", e);
+      return [];
+    }
+  }
+
+  /** List Feature issues in the feature/program project (for the Backlog tree). */
+  async fetchFeatures(projectKey: string): Promise<JiraFeature[]> {
+    if (!projectKey) return [];
+    const jql = `project=${projectKey} AND issuetype=Feature ORDER BY updated DESC`;
+    const out: JiraFeature[] = [];
+    let startAt = 0;
+    const maxResults = 100;
+    try {
+      while (true) {
+        const data = await this.request<JiraSearchResponse>(
+          `search?jql=${encodeURIComponent(jql)}&startAt=${startAt}&maxResults=${maxResults}&fields=summary,status`
+        );
+        for (const issue of data.issues) {
+          out.push({
+            key: issue.key,
+            summary: issue.fields.summary,
+            status: issue.fields.status?.name || "",
+          });
+        }
+        if (startAt + maxResults >= data.total || data.issues.length === 0) break;
+        startAt += maxResults;
+      }
+    } catch (e) {
+      console.warn("[Jira Flow] fetchFeatures failed:", e);
+    }
+    return out;
+  }
+
+  /**
+   * Native feature progress: counts derived from the feature's child issues
+   * (Agile Hive "Parent of" links). Mirrors Jira's 问题/已完成/未预估/预估 panel.
+   */
+  async fetchFeatureStats(
+    featureKey: string
+  ): Promise<{ total: number; done: number; storyPoints: number; unestimated: number }> {
+    const empty = { total: 0, done: 0, storyPoints: 0, unestimated: 0 };
+    try {
+      const data = await this.request<{
+        fields: { issuelinks?: Array<{ type?: { name?: string; inward?: string }; inwardIssue?: { key: string } }> };
+      }>(`issue/${featureKey}?fields=issuelinks`);
+
+      const children: string[] = [];
+      for (const l of data?.fields?.issuelinks || []) {
+        const isAgileHive = (l.type?.name || "").toLowerCase() === "agile hive link";
+        const isParentOf = (l.type?.inward || "").toLowerCase() === "parent of";
+        if (isAgileHive && isParentOf && l.inwardIssue?.key) children.push(l.inwardIssue.key);
+      }
+      if (children.length === 0) return empty;
+
+      const spField = this.plugin.settings.storyPointsField;
+      const fieldsParam = `status${spField ? "," + spField : ""}`;
+      const stats = { total: 0, done: 0, storyPoints: 0, unestimated: 0 };
+      for (let i = 0; i < children.length; i += 100) {
+        const chunk = children.slice(i, i + 100);
+        const search = await this.request<{
+          issues: Array<{ fields: { status?: { statusCategory?: { key?: string } } } & Record<string, unknown> }>;
+        }>(`search?jql=${encodeURIComponent(`key in (${chunk.join(",")})`)}&fields=${fieldsParam}&maxResults=100`);
+        for (const issue of search.issues || []) {
+          stats.total += 1;
+          if (issue.fields.status?.statusCategory?.key === "done") stats.done += 1;
+          const p = spField ? issue.fields[spField] : undefined;
+          if (typeof p === "number" && p > 0) stats.storyPoints += p;
+          else stats.unestimated += 1;
+        }
+      }
+      return stats;
+    } catch (e) {
+      console.warn(`[Jira Flow] fetchFeatureStats ${featureKey} failed:`, e);
+      return empty;
+    }
+  }
+
+  /** The issue's parent-Feature "Agile Hive Link / Child of" links, with numeric ids for deletion. */
+  async getFeatureLinks(issueKey: string): Promise<{ issueId: string; links: Array<{ featureKey: string; featureId: string; linkTypeId: string }> }> {
+    const data = await this.request<{
+      id: string;
+      fields: {
+        issuelinks?: Array<{
+          id: string;
+          type?: { id?: string; name?: string; outward?: string };
+          outwardIssue?: { id: string; key: string };
+        }>;
+      };
+    }>(`issue/${issueKey}?fields=issuelinks`);
+
+    const links: Array<{ featureKey: string; featureId: string; linkTypeId: string }> = [];
+    for (const l of data?.fields?.issuelinks || []) {
+      const isAgileHive = (l.type?.name || "").toLowerCase() === "agile hive link";
+      const isChildOf = (l.type?.outward || "").toLowerCase() === "child of";
+      if (isAgileHive && isChildOf && l.outwardIssue?.key) {
+        links.push({ featureKey: l.outwardIssue.key, featureId: l.outwardIssue.id, linkTypeId: l.type?.id || "10405" });
+      }
+    }
+    return { issueId: data.id, links };
+  }
+
+  private planningBoardCache: number | null | undefined = undefined;
+  /**
+   * The team's planning board — the scrum board that actually holds the active/future
+   * sprints, where Features appear as epics. Required by the EPP addLink endpoint. Cached.
+   */
+  async detectPlanningBoardId(projectKey: string): Promise<number | null> {
+    const configured = parseInt(this.plugin.settings.featureBoardId || "", 10);
+    if (!Number.isNaN(configured)) return configured;
+    if (this.planningBoardCache !== undefined) return this.planningBoardCache;
+    try {
+      const boards = await this.agileRequest<{ values: JiraBoard[] }>(`board?projectKeyOrId=${encodeURIComponent(projectKey)}&maxResults=50`);
+      const scrum = (boards.values || []).filter((b) => b.type === "scrum");
+      const withSprints: JiraBoard[] = [];
+      for (const b of scrum) {
+        try {
+          const d = await this.agileRequest<{ values: unknown[] }>(`board/${b.id}/sprint?state=active,future&maxResults=1`);
+          if (d.values && d.values.length) withSprints.push(b);
+        } catch { /* skip board */ }
+      }
+      // 多个含 sprint 的 scrum 看板时，优先「迭代/计划」看板（addLink 走团队迭代看板）
+      const prefer = withSprints.find((b) => /迭代|计划|sprint|backlog|planning/i.test(b.name || ""))
+        || withSprints[0] || scrum[0];
+      this.planningBoardCache = prefer?.id ?? null;
+    } catch {
+      this.planningBoardCache = null;
+    }
+    return this.planningBoardCache;
+  }
+
+  /**
+   * Associate an issue with a Feature using Agile Hive's board endpoint
+   * (POST /rest/epp/latest/issuelinks/addLink). Goes through the board's SAFe
+   * permission model — unlike the core issueLink API, which needs issue-level
+   * LINK_ISSUES on the Feature (denied for PRDAPD). Re-assigns the single parent.
+   */
+  async linkIssueToFeature(issueKey: string, featureKey: string): Promise<boolean> {
+    try {
+      const boardId = await this.detectPlanningBoardId(this.plugin.settings.projectKey);
+      if (!boardId) {
+        console.error("[Jira Flow] linkIssueToFeature: no planning board found");
+        return false;
+      }
+      const url = `${this.baseUrl}/rest/epp/latest/issuelinks/addLink?epicKey=${encodeURIComponent(featureKey)}&boardId=${boardId}`;
+      // addLink 端点只接受 PUT（Allow: OPTIONS,PUT）
+      await this.requestAbsoluteUrl(url, "PUT", [issueKey], { "Content-Type": "application/json", Accept: "application/json" });
+      return true;
+    } catch (e) {
+      console.error(`[Jira Flow] linkIssueToFeature ${issueKey} -> ${featureKey} failed:`, e);
+      return false;
+    }
+  }
+
+  /**
+   * Remove the issue's parent-Feature link via the legacy DeleteLink web action
+   * (same call Agile Hive's UI uses). X-Atlassian-Token: no-check bypasses XSRF.
+   */
+  async unlinkIssueFeatures(issueKey: string): Promise<boolean> {
+    try {
+      const { issueId, links } = await this.getFeatureLinks(issueKey);
+      for (const l of links) {
+        const form = `id=${issueId}&destId=${l.featureId}&linkType=${l.linkTypeId}&confirm=true&inline=true&decorator=dialog`;
+        await this.requestAbsoluteUrl(`${this.baseUrl}/secure/DeleteLink.jspa`, "POST", form, {
+          "Content-Type": "application/x-www-form-urlencoded",
+        });
+      }
+      return true;
+    } catch (e) {
+      console.error(`[Jira Flow] unlinkIssueFeatures ${issueKey} failed:`, e);
+      return false;
     }
   }
 

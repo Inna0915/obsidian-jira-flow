@@ -18,6 +18,8 @@ export interface JiraFlowSettings {
   plannedStartDateField: string;
   dueDateField: string;
   sprintField: string;
+  featureProjectKey: string;
+  featureBoardId: string;
   workflows: WorkflowSettings;
 }
 
@@ -254,6 +256,8 @@ export const DEFAULT_SETTINGS: JiraFlowSettings = {
   plannedStartDateField: "",
   dueDateField: "customfield_10329",
   sprintField: "customfield_10109",
+  featureProjectKey: "",
+  featureBoardId: "",
   workflows: structuredClone(DEFAULT_WORKFLOWS),
 };
 

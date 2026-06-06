@@ -12,7 +12,7 @@ import {
 import type { KanbanCard, SwimlaneType } from "../types";
 import { Board } from "./Board";
 import { WorkflowsContext } from "./workflowsContext";
-import { IssueListView } from "./IssueListView";
+import { BacklogView } from "./BacklogView";
 import { TaskDetailPanel, CreateJiraIssueModal, type CreateJiraIssueData } from "./TaskDetailModal";
 import { TransitionScreenModal, type TransitionSubmitPayload } from "./TransitionScreenModal";
 import type { JiraTransitionField } from "../api/jira";
@@ -31,7 +31,7 @@ interface AppProps {
 }
 
 export type ViewMode = "sprint" | "all";
-type LayoutMode = "kanban" | "list";
+type LayoutMode = "kanban" | "backlog";
 type BatchDueDateMode = "today" | "plusOne" | "weekSaturday";
 
 export interface SwimlaneData {
@@ -728,6 +728,38 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
   );
 
 
+  // 关联/解除 Feature 后刷新单条本地文件：已同步→更新该文档；未同步→全量同步兜底。
+  const refreshOneIssue = useCallback(async (issueKey: string) => {
+    const file = plugin.fileManager.findTaskFileByKey(issueKey);
+    if (file) {
+      const issue = await plugin.jiraApi.fetchIssue(issueKey);
+      if (issue) await plugin.fileManager.syncOneIssue(issue);
+    } else {
+      await plugin.syncJira();
+    }
+    scheduleLoadCards(0);
+  }, [plugin, scheduleLoadCards]);
+
+  const handleLinkFeature = useCallback(async (issueKey: string, featureKey: string) => {
+    const ok = await plugin.jiraApi.linkIssueToFeature(issueKey, featureKey);
+    if (!ok) {
+      new Notice(`Jira Flow：${issueKey} 关联 ${featureKey} 失败`);
+      return;
+    }
+    await refreshOneIssue(issueKey);
+    new Notice(`Jira Flow：${issueKey} 已关联到 ${featureKey}`);
+  }, [plugin, refreshOneIssue]);
+
+  const handleUnlinkFeature = useCallback(async (issueKey: string) => {
+    const ok = await plugin.jiraApi.unlinkIssueFeatures(issueKey);
+    if (!ok) {
+      new Notice(`Jira Flow：${issueKey} 解除关联失败`);
+      return;
+    }
+    await refreshOneIssue(issueKey);
+    new Notice(`Jira Flow：${issueKey} 已解除 Feature 关联`);
+  }, [plugin, refreshOneIssue]);
+
   const handleToggleParentSelection = useCallback((parentKey: string) => {
     setSelectedParentKeys((previous) => {
       const next = new Set(previous);
@@ -771,7 +803,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
 
   const layoutModes: { id: LayoutMode; label: string }[] = [
     { id: "kanban", label: "看板" },
-    { id: "list", label: "列表" },
+    { id: "backlog", label: "Backlog" },
   ];
 
   return (
@@ -1041,14 +1073,12 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           </div>
         </>
       ) : (
-        <IssueListView
-          cards={displayCards}
-          jiraHost={plugin.settings.jiraBrowseHost?.trim() || "https://jira.ykeey.cn"}
-          title={boardTitle}
+        <BacklogView
+          cards={allCards}
+          plugin={plugin}
           onCardClick={handleCardOpen}
-          searchQuery={searchQuery}
-          matchedCards={matchedCards}
-          searchMatchIndex={searchMatchIndex}
+          onLinkFeature={handleLinkFeature}
+          onUnlinkFeature={handleUnlinkFeature}
         />
       )}
 

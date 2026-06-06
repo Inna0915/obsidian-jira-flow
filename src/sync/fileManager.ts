@@ -109,6 +109,25 @@ export class FileManager {
     return archivedCount;
   }
 
+  /**
+   * Upsert a single issue's local file (create if missing, update if present)
+   * WITHOUT running the missing-issue archive reconciliation. Used after a
+   * targeted change (e.g. linking a Feature) to refresh just that one task.
+   */
+  async syncOneIssue(issue: JiraIssue): Promise<void> {
+    await this.ensureFolders();
+    const frontmatter = this.issueToFrontmatter(issue);
+    const summary = issue.fields.summary;
+    const existing = this.findExistingTaskFile(issue.key, summary);
+    const rawDescription = issue.renderedFields?.description || issue.fields.description || "";
+    const description = await this.processDescription(rawDescription, issue.key);
+    if (existing) {
+      await this.updateTaskFile(existing, frontmatter, description);
+    } else {
+      await this.createTaskFile(issue.key, summary, frontmatter, description);
+    }
+  }
+
   private issueToFrontmatter(issue: JiraIssue): TaskFrontmatter {
     const f = issue.fields;
 

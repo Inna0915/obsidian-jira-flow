@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.4.0] - 2026-06-06
+
+### Added
+- **Backlog 视图**（替换原「列表」）：左侧 Feature 树 + 右侧按 Sprint 分组的任务清单，参照 Jira / Agile Hive 原生 Backlog。
+  - **左侧 Feature**：卡片式，从 Feature 项目（如 PRDAPD）动态拉取，搜索 + 「仅活跃」过滤（关键词匹配双语状态）+ 「未关联」筛选；展开显示**原生统计**（问题/已完成/预估/未预估 + 进度条，懒加载子任务聚合）。
+  - **右侧任务**：按 Sprint 分组（活跃置顶、Backlog 置底）、可折叠;「显示已完成」开关实时拉取我的已完成任务（删除线只读行）。
+  - **关联 / 解除 Feature**：拖任务到 Feature 卡片关联，chip 上 × 解除。关联走 Agile Hive 看板端点 `PUT /rest/epp/latest/issuelinks/addLink`（绕开 PRDAPD 的 issue 级 LINK_ISSUES 限制），解除走 `DeleteLink.jspa`；自动识别迭代看板 ID。
+- 关联/解除后**只刷新单条本地文件**（`syncOneIssue`：已同步则更新该文档、未同步则创建），不跑全量归档对账。
+- 设置新增「Feature 项目 Key」「Feature 看板 ID」（均可留空自动推断）。
+
 ## [2.3.0] - 2026-06-06
 
 ### Added
