@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.5.0] - 2026-06-11
+
+### Added
+- **看板批量流转**：多选卡片拖到目标列时，带屏幕字段的流转只弹**一次**表单（解决结果/备注/工时等），收集后套用到整批，结束弹汇总通知（成功/失败/跳过）；取消则整批中止并回滚本地状态。单卡拖拽行为不变。
+- **Backlog 批量操作**：右侧任务清单支持**勾选 / Shift 连选 / Ctrl 加选**，选中后底部浮出批量操作栏：
+  - **分配给我**：批量把经办人设为当前用户（复用 `assignIssueToCurrentUser`）。
+  - **批量关联 Feature**：下拉选 Feature，或多选状态下拖拽整批到左侧 Feature 卡片（`application/x-jf-batch` 标记）。
+  - **批量移动到迭代**：懒加载当前项目 active+future sprint，走 Agile `POST sprint/{id}/issue`（每批 50 分块）；含「移出迭代（Backlog）」`POST backlog/issue`。
+- 批量操作后统一刷新 `refreshIssues`：有本地文件的逐条 `syncOneIssue`，存在未同步项则末尾兜底一次全量同步。
+
+### Changed
+- `handleCardMove` 重构为可复用的 `moveCard`（返回 ok/fail/skip/cancelled，支持注入 `resolvePayload` 与 `quiet`），批量场景缓存一次屏幕输入复用到所有卡。
+
 ## [2.4.0] - 2026-06-06
 
 ### Added

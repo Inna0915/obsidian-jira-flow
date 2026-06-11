@@ -765,6 +765,47 @@ export class JiraApi {
     }
   }
 
+  /**
+   * Move issues into a sprint (Agile board API), used by the Backlog batch action.
+   * POST /rest/agile/1.0/sprint/{id}/issue  body {issues:[...]} — max 50 per call.
+   */
+  async moveIssuesToSprint(sprintId: number, issueKeys: string[]): Promise<boolean> {
+    try {
+      for (let i = 0; i < issueKeys.length; i += 50) {
+        const chunk = issueKeys.slice(i, i + 50);
+        await this.requestAbsoluteUrl(
+          `${this.baseUrl}/rest/agile/1.0/sprint/${sprintId}/issue`,
+          "POST",
+          { issues: chunk },
+          { "Content-Type": "application/json", Accept: "application/json" }
+        );
+      }
+      return true;
+    } catch (e) {
+      console.error(`[Jira Flow] moveIssuesToSprint ${sprintId} failed:`, e);
+      return false;
+    }
+  }
+
+  /** Move issues out of any sprint, back to the backlog. */
+  async moveIssuesToBacklog(issueKeys: string[]): Promise<boolean> {
+    try {
+      for (let i = 0; i < issueKeys.length; i += 50) {
+        const chunk = issueKeys.slice(i, i + 50);
+        await this.requestAbsoluteUrl(
+          `${this.baseUrl}/rest/agile/1.0/backlog/issue`,
+          "POST",
+          { issues: chunk },
+          { "Content-Type": "application/json", Accept: "application/json" }
+        );
+      }
+      return true;
+    } catch (e) {
+      console.error(`[Jira Flow] moveIssuesToBacklog failed:`, e);
+      return false;
+    }
+  }
+
   // ===== 4-Step Agile Sync =====
 
   /** Step 1: Detect board ID for a project */

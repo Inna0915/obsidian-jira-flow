@@ -9,6 +9,7 @@ interface BoardProps {
   collapsedSwimlanes: Set<SwimlaneType>;
   onToggleSwimlane: (id: SwimlaneType) => void;
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
+  onCardsMove: (cardPaths: string[], targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardOpen: (card: KanbanCard) => void;
   onCardSelect: (card: KanbanCard, options: { additive: boolean; range: boolean }) => void;
   onCardDragStart: (card: KanbanCard) => void;
@@ -49,6 +50,7 @@ export const Board: React.FC<BoardProps> = ({
   collapsedSwimlanes,
   onToggleSwimlane,
   onCardMove,
+  onCardsMove,
   onCardOpen,
   onCardSelect,
   onCardDragStart,
@@ -145,6 +147,7 @@ export const Board: React.FC<BoardProps> = ({
             totalCards={totalCards}
             onToggle={() => onToggleSwimlane(sl.id)}
             onCardMove={onCardMove}
+            onCardsMove={onCardsMove}
             onCardOpen={onCardOpen}
             onCardSelect={onCardSelect}
             onCardDragStart={onCardDragStart}

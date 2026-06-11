@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type JiraFlowPlugin from "../main";
 import type { JiraFeature, JiraCompletedIssue } from "../api/jira";
 import { mapStatusToColumn } from "../types";
-import type { KanbanCard } from "../types";
+import type { KanbanCard, JiraSprint } from "../types";
 
 type LiveCard = KanbanCard & { __live?: boolean };
 const toLiveCard = (c: JiraCompletedIssue): LiveCard => ({
@@ -31,6 +31,9 @@ interface BacklogViewProps {
   onCardClick: (card: KanbanCard) => void;
   onLinkFeature: (issueKey: string, featureKey: string) => Promise<void>;
   onUnlinkFeature: (issueKey: string) => Promise<void>;
+  onBatchLinkFeature: (issueKeys: string[], featureKey: string) => Promise<void>;
+  onBatchMoveSprint: (issueKeys: string[], sprintId: number | null, sprintName: string) => Promise<void>;
+  onBatchAssignToMe: (issueKeys: string[]) => Promise<void>;
 }
 
 const typeStyles: Record<string, { bg: string; fg: string; label: string }> = {
@@ -53,7 +56,7 @@ const isCardDone = (c: KanbanCard): boolean => (c.tags || []).some((t) => t.star
 
 interface FeatureStat { total: number; done: number; storyPoints: number; unestimated: number; }
 
-export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardClick, onLinkFeature, onUnlinkFeature }) => {
+export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardClick, onLinkFeature, onUnlinkFeature, onBatchLinkFeature, onBatchMoveSprint, onBatchAssignToMe }) => {
   const [features, setFeatures] = useState<JiraFeature[]>([]);
   const [loadingFeatures, setLoadingFeatures] = useState(true);
   const [featureSearch, setFeatureSearch] = useState("");
@@ -68,6 +71,15 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardC
   const [completedState, setCompletedState] = useState<"idle" | "loading" | "loaded">("idle");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<Record<string, FeatureStat | "loading">>({});
+
+  // 批量选择（Shift 多选）+ 批量操作
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [lastClicked, setLastClicked] = useState<string | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [linkMenuOpen, setLinkMenuOpen] = useState(false);
+  const [sprintMenuOpen, setSprintMenuOpen] = useState(false);
+  const [batchFeatureSearch, setBatchFeatureSearch] = useState("");
+  const [sprints, setSprints] = useState<JiraSprint[] | null>(null);
 
   // 勾「显示已完成」时实时拉取我的已完成任务（已归档，不在本地）
   // 用 ref 去重 + 依赖里不放 completedState，避免 setState 触发 effect 重跑、
@@ -169,6 +181,72 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardC
       });
   }, [filteredCards]);
 
+  // 可选行的显示顺序（仅未折叠分组内的非 live 卡），用于 Shift 范围选择
+  const flatSelectable = useMemo(() => {
+    const keys: string[] = [];
+    for (const g of groups) {
+      if (collapsed.has(g.key)) continue;
+      for (const c of g.cards) {
+        if ((c as LiveCard).__live) continue;
+        keys.push(c.jiraKey);
+      }
+    }
+    return keys;
+  }, [groups, collapsed]);
+
+  const handleRowSelect = (key: string, shiftKey: boolean) => {
+    if (shiftKey && lastClicked && lastClicked !== key) {
+      const a = flatSelectable.indexOf(lastClicked);
+      const b = flatSelectable.indexOf(key);
+      if (a >= 0 && b >= 0) {
+        const [lo, hi] = a < b ? [a, b] : [b, a];
+        const range = flatSelectable.slice(lo, hi + 1);
+        setSelectedKeys((prev) => new Set([...prev, ...range]));
+        setLastClicked(key);
+        return;
+      }
+    }
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+    setLastClicked(key);
+  };
+
+  const clearSelection = () => { setSelectedKeys(new Set()); setLastClicked(null); };
+
+  const runBatchLink = async (featureKey: string, keys: string[]) => {
+    if (!keys.length) return;
+    setBatchBusy(true);
+    try { await onBatchLinkFeature(keys, featureKey); }
+    finally { setBatchBusy(false); setLinkMenuOpen(false); setBatchFeatureSearch(""); clearSelection(); }
+  };
+
+  const runBatchAssign = async () => {
+    const keys = [...selectedKeys];
+    if (!keys.length) return;
+    setBatchBusy(true);
+    try { await onBatchAssignToMe(keys); }
+    finally { setBatchBusy(false); clearSelection(); }
+  };
+
+  const runBatchMove = async (sprintId: number | null, name: string) => {
+    const keys = [...selectedKeys];
+    if (!keys.length) return;
+    setBatchBusy(true);
+    try { await onBatchMoveSprint(keys, sprintId, name); }
+    finally { setBatchBusy(false); setSprintMenuOpen(false); clearSelection(); }
+  };
+
+  const openSprintMenu = () => {
+    setSprintMenuOpen((o) => !o);
+    setLinkMenuOpen(false);
+    if (sprints === null) {
+      void plugin.jiraApi.fetchSprints(plugin.settings.projectKey).then((list) => setSprints(list));
+    }
+  };
+
   const handleDropOnFeature = async (featureKey: string, issueKey: string) => {
     if (!issueKey) return;
     setLinkingKey(issueKey);
@@ -237,7 +315,16 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardC
                   key={f.key}
                   onDragOver={(e) => { e.preventDefault(); setDragOverKey(f.key); }}
                   onDragLeave={() => setDragOverKey((k) => (k === f.key ? null : k))}
-                  onDrop={(e) => { e.preventDefault(); void handleDropOnFeature(f.key, e.dataTransfer.getData("text/plain")); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverKey(null);
+                    const data = e.dataTransfer.getData("text/plain");
+                    if (e.dataTransfer.getData("application/x-jf-batch") === "1") {
+                      void runBatchLink(f.key, data.split(",").filter(Boolean));
+                    } else {
+                      void handleDropOnFeature(f.key, data);
+                    }
+                  }}
                   onClick={() => setActiveFeatureKey((k) => (k === f.key ? null : f.key))}
                   className={`jf-px-3 jf-py-2.5 jf-rounded-lg jf-border jf-cursor-pointer jf-transition-all jf-shadow-[0_1px_2px_rgba(9,30,66,0.06)] ${
                     isOver ? "jf-border-[#4C9AFF] jf-bg-[#DEEBFF] jf-ring-2 jf-ring-[#4C9AFF]"
@@ -294,7 +381,8 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardC
       </aside>
 
       {/* 右：按 sprint 分组的任务清单 */}
-      <div className="jf-flex-1 jf-min-w-0 jf-overflow-auto">
+      <div className="jf-flex-1 jf-min-w-0 jf-flex jf-flex-col">
+        <div className="jf-flex-1 jf-overflow-auto">
         <div className="jf-px-4 jf-py-4">
           <div className="jf-flex jf-items-center jf-gap-2 jf-mb-3 jf-px-1">
             <h3 className="jf-text-[18px] jf-font-semibold jf-text-[#172B4D] jf-m-0">Backlog</h3>
@@ -306,7 +394,7 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardC
               <input type="checkbox" checked={showCompleted} onChange={(e) => setShowCompleted(e.target.checked)} />
               显示已完成{completedState === "loading" ? "（加载中…）" : ""}
             </label>
-            <span className="jf-text-[12px] jf-text-[#97A0AF]">拖动任务到左侧 Feature 即可关联</span>
+            <span className="jf-text-[12px] jf-text-[#97A0AF]">勾选 / Shift 连选后可批量操作 · 拖动到左侧 Feature 关联</span>
           </div>
 
           <div className="jf-space-y-3">
@@ -332,14 +420,39 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardC
                     const linking = linkingKey === card.jiraKey;
                     const done = isCardDone(card);
                     const isLive = (card as LiveCard).__live === true;
+                    const isSelected = selectedKeys.has(card.jiraKey);
                     return (
                       <div
                         key={card.filePath}
                         draggable={!linking && !isLive}
-                        onDragStart={(e) => { if (!isLive) e.dataTransfer.setData("text/plain", card.jiraKey); }}
-                        onClick={() => { if (!isLive) onCardClick(card); }}
-                        className={`jf-flex jf-items-center jf-gap-3 jf-px-3 jf-py-2.5 jf-border-b jf-border-[#EBECF0] last:jf-border-b-0 hover:jf-bg-[#F7F8FA] ${isLive ? "jf-cursor-default" : "jf-cursor-pointer"} ${linking ? "jf-opacity-60" : ""}`}
+                        onDragStart={(e) => {
+                          if (isLive) return;
+                          if (isSelected && selectedKeys.size > 1) {
+                            e.dataTransfer.setData("application/x-jf-batch", "1");
+                            e.dataTransfer.setData("text/plain", [...selectedKeys].join(","));
+                          } else {
+                            e.dataTransfer.setData("text/plain", card.jiraKey);
+                          }
+                        }}
+                        onClick={(e) => {
+                          if (isLive) return;
+                          if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); handleRowSelect(card.jiraKey, e.shiftKey); return; }
+                          onCardClick(card);
+                        }}
+                        className={`jf-flex jf-items-center jf-gap-3 jf-px-3 jf-py-2.5 jf-border-b jf-border-[#EBECF0] last:jf-border-b-0 ${isSelected ? "jf-bg-[#E9F2FF]" : "hover:jf-bg-[#F7F8FA]"} ${isLive ? "jf-cursor-default" : "jf-cursor-pointer"} ${linking ? "jf-opacity-60" : ""}`}
                       >
+                        {!isLive ? (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            onClick={(e) => { e.stopPropagation(); handleRowSelect(card.jiraKey, e.shiftKey); }}
+                            className="jf-shrink-0 jf-cursor-pointer"
+                            title="选择（Shift 连选）"
+                          />
+                        ) : (
+                          <span className="jf-w-[13px] jf-shrink-0" />
+                        )}
                         <span className="jf-inline-flex jf-h-7 jf-w-7 jf-shrink-0 jf-items-center jf-justify-center jf-rounded-md jf-text-[11px] jf-font-bold" style={{ backgroundColor: ts.bg, color: ts.fg }} title={card.issuetype}>{ts.label}</span>
                         <span className={`jf-font-mono jf-text-[12px] jf-font-semibold jf-shrink-0 ${done ? "jf-text-[#97A0AF] jf-line-through" : "jf-text-[#0052CC]"}`}>{card.jiraKey}</span>
                         <span className={`jf-truncate jf-text-[14px] jf-min-w-0 jf-flex-1 ${done ? "jf-text-[#97A0AF] jf-line-through" : "jf-text-[#172B4D]"}`}>{card.summary}</span>
@@ -372,6 +485,113 @@ export const BacklogView: React.FC<BacklogViewProps> = ({ cards, plugin, onCardC
             {groups.length === 0 && <div className="jf-px-4 jf-py-6 jf-text-[13px] jf-text-[#6B778C]">没有匹配的任务</div>}
           </div>
         </div>
+        </div>
+
+        {/* 批量操作栏 */}
+        {selectedKeys.size > 0 && (
+          <div className="jf-shrink-0 jf-border-t jf-border-[#DFE1E6] jf-bg-white jf-px-4 jf-py-2.5 jf-flex jf-items-center jf-gap-3 jf-shadow-[0_-2px_8px_rgba(9,30,66,0.12)]">
+            <span className="jf-text-[13px] jf-font-semibold jf-text-[#172B4D]">已选 {selectedKeys.size} 项</span>
+
+            {/* 分配给我 */}
+            <button
+              type="button"
+              disabled={batchBusy}
+              onClick={() => void runBatchAssign()}
+              className="jf-px-3 jf-py-1.5 jf-text-[13px] jf-rounded-md jf-border jf-border-[#DFE1E6] jf-bg-white hover:jf-bg-[#F4F5F7] jf-text-[#172B4D] disabled:jf-opacity-50"
+            >分配给我</button>
+
+            {/* 关联 Feature */}
+            <div className="jf-relative">
+              <button
+                type="button"
+                disabled={batchBusy}
+                onClick={() => { setLinkMenuOpen((o) => !o); setSprintMenuOpen(false); }}
+                className="jf-px-3 jf-py-1.5 jf-text-[13px] jf-rounded-md jf-border jf-border-[#DFE1E6] jf-bg-white hover:jf-bg-[#F4F5F7] jf-text-[#172B4D] disabled:jf-opacity-50"
+              >关联 Feature ▾</button>
+              {linkMenuOpen && (
+                <div className="jf-absolute jf-bottom-full jf-mb-1 jf-left-0 jf-w-[300px] jf-rounded-lg jf-border jf-border-[#DFE1E6] jf-bg-white jf-shadow-[0_4px_16px_rgba(9,30,66,0.2)] jf-z-30 jf-overflow-hidden">
+                  <div className="jf-p-2 jf-border-b jf-border-[#EBECF0]">
+                    <input
+                      autoFocus
+                      className="jf-w-full jf-px-2 jf-py-1.5 jf-text-[13px] jf-border jf-border-[#DFE1E6] jf-rounded-md focus:jf-outline-none focus:jf-border-[#4C9AFF]"
+                      placeholder="搜索 Feature…"
+                      value={batchFeatureSearch}
+                      onChange={(e) => setBatchFeatureSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="jf-max-h-[280px] jf-overflow-auto jf-py-1">
+                    {(() => {
+                      const q = batchFeatureSearch.trim().toLowerCase();
+                      const list = features.filter((f) => {
+                        if (activeOnly && isFeatureDone(f.status)) return false;
+                        if (!q) return true;
+                        return f.summary.toLowerCase().includes(q) || f.key.toLowerCase().includes(q);
+                      });
+                      if (!list.length) return <div className="jf-px-3 jf-py-3 jf-text-[12px] jf-text-[#6B778C]">无匹配 Feature</div>;
+                      return list.map((f) => (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => void runBatchLink(f.key, [...selectedKeys])}
+                          className="jf-block jf-w-full jf-text-left jf-px-3 jf-py-2 jf-text-[13px] jf-bg-transparent jf-border-0 hover:jf-bg-[#E9F2FF] jf-cursor-pointer"
+                        >
+                          <span className="jf-text-[#172B4D]">{f.summary}</span>
+                          <span className="jf-ml-1.5 jf-text-[10px] jf-font-mono jf-text-[#97A0AF]">{f.key}</span>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 移动到迭代 */}
+            <div className="jf-relative">
+              <button
+                type="button"
+                disabled={batchBusy}
+                onClick={openSprintMenu}
+                className="jf-px-3 jf-py-1.5 jf-text-[13px] jf-rounded-md jf-border jf-border-[#DFE1E6] jf-bg-white hover:jf-bg-[#F4F5F7] jf-text-[#172B4D] disabled:jf-opacity-50"
+              >移动到迭代 ▾</button>
+              {sprintMenuOpen && (
+                <div className="jf-absolute jf-bottom-full jf-mb-1 jf-left-0 jf-w-[280px] jf-max-h-[320px] jf-overflow-auto jf-rounded-lg jf-border jf-border-[#DFE1E6] jf-bg-white jf-shadow-[0_4px_16px_rgba(9,30,66,0.2)] jf-z-30 jf-py-1">
+                  {sprints === null ? (
+                    <div className="jf-px-3 jf-py-3 jf-text-[12px] jf-text-[#6B778C]">加载迭代…</div>
+                  ) : (
+                    <>
+                      {sprints.map((sp) => (
+                        <button
+                          key={sp.id}
+                          type="button"
+                          onClick={() => void runBatchMove(sp.id, sp.name)}
+                          className="jf-flex jf-w-full jf-items-center jf-gap-2 jf-text-left jf-px-3 jf-py-2 jf-text-[13px] jf-bg-transparent jf-border-0 hover:jf-bg-[#E9F2FF] jf-cursor-pointer"
+                        >
+                          <span className="jf-text-[#172B4D] jf-truncate">{sp.name}</span>
+                          {sp.state === "active" && (
+                            <span className="jf-shrink-0 jf-text-[10px] jf-font-semibold jf-text-[#006644] jf-bg-[#E3FCEF] jf-rounded jf-px-1.5 jf-py-0.5">活跃</span>
+                          )}
+                        </button>
+                      ))}
+                      <div className="jf-my-1 jf-border-t jf-border-[#EBECF0]" />
+                      <button
+                        type="button"
+                        onClick={() => void runBatchMove(null, "Backlog")}
+                        className="jf-block jf-w-full jf-text-left jf-px-3 jf-py-2 jf-text-[13px] jf-bg-transparent jf-border-0 hover:jf-bg-[#F4F5F7] jf-cursor-pointer jf-text-[#5E6C84]"
+                      >移出迭代（Backlog）</button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {batchBusy && <span className="jf-text-[12px] jf-text-[#6B778C]">处理中…</span>}
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="jf-ml-auto jf-text-[12px] jf-text-[#6B778C] hover:jf-text-[#172B4D] jf-bg-transparent jf-border-0 jf-cursor-pointer"
+            >清除选择</button>
+          </div>
+        )}
       </div>
     </div>
   );

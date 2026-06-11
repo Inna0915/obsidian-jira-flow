@@ -357,26 +357,32 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     };
   }, [plugin, scheduleLoadCards]);
 
-  const handleCardMove = useCallback(
-    async (cardPath: string, targetColumn: string, _targetSwimlane: SwimlaneType) => {
+  const moveCard = useCallback(
+    async (
+      cardPath: string,
+      targetColumn: string,
+      _targetSwimlane: SwimlaneType,
+      resolvePayload?: (fields: Record<string, JiraTransitionField>, ctx: { jiraKey: string; transitionName: string; toStatus: string }) => Promise<TransitionSubmitPayload | null>,
+      quiet = false,
+    ): Promise<"ok" | "fail" | "skip" | "cancelled"> => {
       try {
         const file = plugin.app.vault.getAbstractFileByPath(cardPath);
         if (!file || !(file instanceof TFile)) {
-          console.warn("[Jira Flow] handleCardMove: file not found", cardPath);
-          return;
+          console.warn("[Jira Flow] moveCard: file not found", cardPath);
+          return "skip";
         }
 
         const fm = plugin.fileManager.getTaskFrontmatter(file);
         if (!fm) {
-          console.warn("[Jira Flow] handleCardMove: no frontmatter for", cardPath);
-          return;
+          console.warn("[Jira Flow] moveCard: no frontmatter for", cardPath);
+          return "skip";
         }
 
         const originalColumn = fm.mapped_column;
 
         if (!isTransitionAllowed(fm.issuetype, originalColumn, targetColumn, plugin.settings.workflows)) {
-          new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);
-          return;
+          if (!quiet) new Notice(`Jira Flow：无法将 ${fm.issuetype} 从 ${originalColumn} 移动到 ${targetColumn}`);
+          return "skip";
         }
 
         if (
@@ -386,8 +392,8 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         ) {
           const assignResult = await plugin.jiraApi.assignIssueToCurrentUser(fm.jira_key);
           if (!assignResult.success) {
-            new Notice(`Jira Flow：${fm.jira_key} 自动设置经办人为自己失败，已取消拖拽。`);
-            return;
+            if (!quiet) new Notice(`Jira Flow：${fm.jira_key} 自动设置经办人为自己失败，已取消拖拽。`);
+            return "fail";
           }
 
           await plugin.app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
@@ -414,28 +420,25 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
             const target = plugin.jiraApi.pickTransition(transitions, targetColumn);
             if (!target) {
               await plugin.fileManager.updateStatus(file, originalColumn);
-              new Notice(`Jira Flow：${fm.jira_key} 找不到到 ${targetColumn} 的流转，已回滚`);
-              return;
+              if (!quiet) new Notice(`Jira Flow：${fm.jira_key} 找不到到 ${targetColumn} 的流转，已回滚`);
+              return "fail";
             }
 
             const screenFields = target.fields || {};
             let payload: TransitionSubmitPayload = { fields: {}, update: {} };
 
             if (Object.keys(screenFields).length > 0) {
-              // Transition has a screen → collect user input via modal.
-              const input = await new Promise<TransitionSubmitPayload | null>((resolve) => {
-                setTransitionScreen({
-                  issueKey: fm.jira_key,
-                  transitionName: target.name,
-                  toStatus: target.to.name,
-                  fields: screenFields,
-                  resolve,
-                });
-              });
+              // Transition has a screen → collect user input. Single-card shows the
+              // modal here; batch injects a shared (cached) resolver so the screen
+              // is shown only once for the whole selection.
+              const collect = resolvePayload ?? ((fields, ctx) => new Promise<TransitionSubmitPayload | null>((resolve) => {
+                setTransitionScreen({ issueKey: ctx.jiraKey, transitionName: ctx.transitionName, toStatus: ctx.toStatus, fields, resolve });
+              }));
+              const input = await collect(screenFields, { jiraKey: fm.jira_key, transitionName: target.name, toStatus: target.to.name });
               if (!input) {
                 // Cancelled → revert optimistic local status.
                 await plugin.fileManager.updateStatus(file, originalColumn);
-                return;
+                return "cancelled";
               }
               payload = input;
             } else {
@@ -455,16 +458,16 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
             result = submitResult;
             if (!submitResult.success) {
               await plugin.fileManager.updateStatus(file, originalColumn);
-              new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
-              return;
+              if (!quiet) new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
+              return "fail";
             }
           } else {
             // Metadata fetch failed → legacy silent path.
             result = await plugin.jiraApi.transitionIssue(fm.jira_key, targetColumn);
             if (!result.success) {
               await plugin.fileManager.updateStatus(file, originalColumn);
-              new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
-              return;
+              if (!quiet) new Notice(`Jira Flow：${fm.jira_key} 状态转换失败，已回滚到 ${originalColumn}`);
+              return "fail";
             }
           }
 
@@ -492,13 +495,63 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
         if (shouldLog) {
           await plugin.workLogger.logWork(file, { jiraKey: fm.jira_key, summary: fm.summary });
         }
+        return "ok";
       } catch (e) {
-        console.error("[Jira Flow] handleCardMove error:", e);
-        new Notice(`Jira Flow：拖拽操作出错: ${e instanceof Error ? e.message : String(e)}`);
+        console.error("[Jira Flow] moveCard error:", e);
+        if (!quiet) new Notice(`Jira Flow：拖拽操作出错: ${e instanceof Error ? e.message : String(e)}`);
+        return "fail";
       }
       // Board refreshes automatically via metadataCache "changed" event
     },
     [plugin]
+  );
+
+  // Single-card move (used by drag-drop of one card).
+  const handleCardMove = useCallback(
+    (cardPath: string, targetColumn: string, swimlane: SwimlaneType) => {
+      void moveCard(cardPath, targetColumn, swimlane);
+    },
+    [moveCard]
+  );
+
+  // Batch move: one transition screen for the whole selection, applied to all.
+  const handleCardsMove = useCallback(
+    async (cardPaths: string[], targetColumn: string, swimlane: SwimlaneType) => {
+      if (cardPaths.length <= 1) {
+        if (cardPaths[0]) void moveCard(cardPaths[0], targetColumn, swimlane);
+        return;
+      }
+      // Shared payload resolver: first screen-requiring card opens the modal once,
+      // its values are cached and reused for the rest (cancel aborts the batch).
+      let collected: TransitionSubmitPayload | null | undefined = undefined;
+      const resolvePayload = (fields: Record<string, JiraTransitionField>, ctx: { jiraKey: string; transitionName: string; toStatus: string }) => {
+        if (collected !== undefined) return Promise.resolve(collected);
+        return new Promise<TransitionSubmitPayload | null>((resolve) => {
+          setTransitionScreen({
+            issueKey: `批量 ${cardPaths.length} 项`,
+            transitionName: ctx.transitionName,
+            toStatus: ctx.toStatus,
+            fields,
+            resolve: (p) => { collected = p; resolve(p); },
+          });
+        });
+      };
+
+      let ok = 0, fail = 0, skip = 0, cancelled = false;
+      for (const path of cardPaths) {
+        const r = await moveCard(path, targetColumn, swimlane, resolvePayload, true);
+        if (r === "ok") ok++;
+        else if (r === "fail") fail++;
+        else if (r === "skip") skip++;
+        else if (r === "cancelled") { cancelled = true; break; }
+      }
+      if (cancelled) {
+        new Notice(`Jira Flow：已取消批量流转（已处理 ${ok} 项）`);
+      } else {
+        new Notice(`Jira Flow：批量流转完成 — 成功 ${ok}${fail ? `，失败 ${fail}` : ""}${skip ? `，跳过 ${skip}` : ""}`);
+      }
+    },
+    [moveCard]
   );
 
   const handleSync = useCallback(async () => {
@@ -760,6 +813,52 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
     new Notice(`Jira Flow：${issueKey} 已解除 Feature 关联`);
   }, [plugin, refreshOneIssue]);
 
+  // 批量刷新：有本地文件的逐条更新；存在未同步的则末尾兜底一次全量同步。
+  const refreshIssues = useCallback(async (issueKeys: string[]) => {
+    let needFull = false;
+    for (const key of issueKeys) {
+      const file = plugin.fileManager.findTaskFileByKey(key);
+      if (file) {
+        const issue = await plugin.jiraApi.fetchIssue(key);
+        if (issue) await plugin.fileManager.syncOneIssue(issue);
+      } else {
+        needFull = true;
+      }
+    }
+    if (needFull) await plugin.syncJira();
+    scheduleLoadCards(0);
+  }, [plugin, scheduleLoadCards]);
+
+  const handleBatchLinkFeature = useCallback(async (issueKeys: string[], featureKey: string) => {
+    let ok = 0, fail = 0;
+    for (const key of issueKeys) {
+      const success = await plugin.jiraApi.linkIssueToFeature(key, featureKey);
+      success ? ok++ : fail++;
+    }
+    await refreshIssues(issueKeys);
+    new Notice(`Jira Flow：批量关联 ${featureKey} — 成功 ${ok}${fail ? `，失败 ${fail}` : ""}`);
+  }, [plugin, refreshIssues]);
+
+  const handleBatchMoveSprint = useCallback(async (issueKeys: string[], sprintId: number | null, sprintName: string) => {
+    const ok = sprintId == null
+      ? await plugin.jiraApi.moveIssuesToBacklog(issueKeys)
+      : await plugin.jiraApi.moveIssuesToSprint(sprintId, issueKeys);
+    if (!ok) { new Notice(`Jira Flow：批量移动到「${sprintName}」失败`); return; }
+    await refreshIssues(issueKeys);
+    new Notice(`Jira Flow：${issueKeys.length} 项已移动到「${sprintName}」`);
+  }, [plugin, refreshIssues]);
+
+  const handleBatchAssignToMe = useCallback(async (issueKeys: string[]) => {
+    let ok = 0, fail = 0;
+    let name = "我";
+    for (const key of issueKeys) {
+      const r = await plugin.jiraApi.assignIssueToCurrentUser(key);
+      if (r.success) { ok++; if (r.assigneeName) name = r.assigneeName; } else { fail++; }
+    }
+    await refreshIssues(issueKeys);
+    new Notice(`Jira Flow：批量分配给 ${name} — 成功 ${ok}${fail ? `，失败 ${fail}` : ""}`);
+  }, [plugin, refreshIssues]);
+
   const handleToggleParentSelection = useCallback((parentKey: string) => {
     setSelectedParentKeys((previous) => {
       const next = new Set(previous);
@@ -932,6 +1031,7 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
               collapsedSwimlanes={collapsedSwimlanes}
               onToggleSwimlane={toggleSwimlane}
               onCardMove={handleCardMove}
+              onCardsMove={handleCardsMove}
               onCardOpen={handleCardOpen}
               onCardSelect={handleCardSelect}
               onCardDragStart={handleCardDragStart}
@@ -1079,6 +1179,9 @@ export const App: React.FC<AppProps> = ({ plugin, searchInputId }) => {
           onCardClick={handleCardOpen}
           onLinkFeature={handleLinkFeature}
           onUnlinkFeature={handleUnlinkFeature}
+          onBatchLinkFeature={handleBatchLinkFeature}
+          onBatchMoveSprint={handleBatchMoveSprint}
+          onBatchAssignToMe={handleBatchAssignToMe}
         />
       )}
 

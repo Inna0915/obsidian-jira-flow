@@ -7,6 +7,7 @@ interface ColumnProps {
   swimlaneId: SwimlaneType;
   cards: KanbanCard[];
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
+  onCardsMove: (cardPaths: string[], targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardOpen: (card: KanbanCard) => void;
   onCardSelect: (card: KanbanCard, options: { additive: boolean; range: boolean }) => void;
   onCardDragStart: (card: KanbanCard) => void;
@@ -29,6 +30,7 @@ export const Column: React.FC<ColumnProps> = ({
   swimlaneId,
   cards,
   onCardMove,
+  onCardsMove,
   onCardOpen,
   onCardSelect,
   onCardDragStart,
@@ -53,9 +55,8 @@ export const Column: React.FC<ColumnProps> = ({
       e.preventDefault();
       const selectedDrag = e.dataTransfer.getData("application/x-jira-flow-selection") === "selected";
       if (selectedDrag && dragState.activePaths.size > 0) {
-        dragState.activePaths.forEach((cardPath) => {
-          onCardMove(cardPath, columnId, swimlaneId);
-        });
+        // Batch: hand the whole selection to one handler (single shared transition screen).
+        onCardsMove([...dragState.activePaths], columnId, swimlaneId);
       } else {
         const cardPath = e.dataTransfer.getData("application/x-jira-flow-card") || e.dataTransfer.getData("text/plain");
         if (cardPath) {
@@ -64,7 +65,7 @@ export const Column: React.FC<ColumnProps> = ({
       }
       onDragStateChange({ isDragging: false, allowedColumns: new Set(), activePaths: new Set() });
     },
-    [columnId, swimlaneId, onCardMove, dragState.activePaths, onDragStateChange]
+    [columnId, swimlaneId, onCardMove, onCardsMove, dragState.activePaths, onDragStateChange]
   );
 
   return (

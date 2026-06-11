@@ -10,6 +10,7 @@ interface SwimlaneProps {
   totalCards: number;
   onToggle: () => void;
   onCardMove: (cardPath: string, targetColumn: string, targetSwimlane: SwimlaneType) => void;
+  onCardsMove: (cardPaths: string[], targetColumn: string, targetSwimlane: SwimlaneType) => void;
   onCardOpen: (card: KanbanCard) => void;
   onCardSelect: (card: KanbanCard, options: { additive: boolean; range: boolean }) => void;
   onCardDragStart: (card: KanbanCard) => void;
@@ -40,6 +41,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
   totalCards,
   onToggle,
   onCardMove,
+  onCardsMove,
   onCardOpen,
   onCardSelect,
   onCardDragStart,
@@ -101,6 +103,7 @@ export const Swimlane: React.FC<SwimlaneProps> = ({
               swimlaneId={swimlane.id}
               cards={cards}
               onCardMove={onCardMove}
+              onCardsMove={onCardsMove}
               onCardOpen={onCardOpen}
               onCardSelect={onCardSelect}
               onCardDragStart={onCardDragStart}

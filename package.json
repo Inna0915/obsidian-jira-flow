@@ -1,6 +1,6 @@
 {
   "name": "obsidian-jira-flow",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Jira-Flow plugin for Obsidian - Kanban board with Jira sync and daily logging",
   "main": "main.js",
   "scripts": {
