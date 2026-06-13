@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [2.5.1] - 2026-06-13
+
+### Fixed
+- **同步不再抹掉完成戳(关键)**：此前每次「同步 Jira」会用 Jira 数据**整体覆盖** frontmatter，把拖拽时打的 `completed_at` / `completed_week` / `done/Www` 一并清掉（只要任务仍在同步集内）——导致已标记完成的任务在周报里「找不到」。现在重写时保留本地完成戳。
+
+### Added
+- **同步自动补完成戳**：任务直接在 Jira 改到「完成列」（EXECUTED/VALIDATING/TESTING & REVIEW/TEST DONE/RESOLVED/DONE/CLOSED）时，同步按 Jira `updated` 自动写入 `completed_at`，无需手动拖看板。判定与 `isCompletedWorkflowColumn` 一致。
+  - 完成列 + 已有戳 → 保留原完成日；完成列 + 无戳 → 按 `updated` 补；回到未完成列（重开）→ 清掉过期戳。
+- 新增/统一 `applyCompletionMarks` + `extractCompletionMarks`（兼容带引号/无引号两种 frontmatter 风格），`updateTaskFile` 与 `createTaskFile` 共用。
+
+### Tooling
+- `scripts/backfill-completion.cjs`：修复 `scalar()` 去引号只去尾不去首的 bug（导致带引号的未完成列被误判、并写出 `NaN-WNaN`）；增加日期有效性兜底。回填口径与 `isCompletedWorkflowColumn` 对齐。
+
 ## [2.5.0] - 2026-06-11
 
 ### Added

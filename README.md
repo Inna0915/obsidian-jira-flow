@@ -190,6 +190,11 @@ npm run lint     # ESLint（eslint-plugin-obsidianmd）
 
 ## 最近更新
 
+### v2.5.1
+- **修复同步抹掉完成戳**：此前每次同步会整体覆盖 frontmatter，清掉拖拽打的 `completed_at`/`done/Www`，导致已完成任务在周报里丢失；现在重写时保留本地完成戳
+- **同步自动补完成戳**：任务直接在 Jira 改到完成列（EXECUTED/VALIDATING/… ）时，同步按 `updated` 自动写入完成时间，无需手动拖看板；重开任务自动清戳
+- 修复 `backfill-completion.cjs` 去引号 bug，回填口径与插件完成判定对齐
+
 ### v2.5.0
 - **看板批量流转**：多选卡片拖到目标列时，带屏幕字段的流转只弹一次表单，收集后套用到整批，结束弹汇总通知（成功/失败/跳过）
 - **Backlog 批量操作**：右侧任务清单支持勾选 / Shift 连选 / Ctrl 加选，底部浮出批量栏 —— **分配给我**、**批量关联 Feature**（下拉或多选拖拽）、**批量移动到迭代**（Agile `sprint/{id}/issue`，含移出迭代到 Backlog）

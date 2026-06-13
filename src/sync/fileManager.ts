@@ -1,8 +1,9 @@
 import { TFile, normalizePath } from "obsidian";
 import type JiraFlowPlugin from "../main";
-import { mapStatusToColumn } from "../types";
+import { mapStatusToColumn, isCompletedWorkflowColumn } from "../types";
 import type { JiraIssue, SyncResult, TaskFrontmatter } from "../types";
 import { parseJiraSprintName, parseJiraSprintState } from "../utils/jiraParser";
+import { computeCompletionMarks } from "./completionMarks";
 
 export class FileManager {
   private plugin: JiraFlowPlugin;
@@ -227,6 +228,8 @@ export class FileManager {
     description: string
   ): Promise<TFile> {
     await this.ensureFolders();
+    // New file synced already in a completed column → stamp from `updated`.
+    this.applyCompletionMarks(frontmatter, null);
     // Use new naming format: jira_key-summary.md
     const filePath = this.getTaskFilePath(key, summary);
     const yaml = this.frontmatterToYaml(frontmatter);
@@ -244,6 +247,9 @@ export class FileManager {
       const content = await this.vault.read(file);
       const currentBody = this.extractBody(content);
       const nextDescription = description ?? currentBody;
+
+      this.applyCompletionMarks(frontmatter, content);
+
       const newContent = this.composeTaskContent(frontmatter, nextDescription);
 
       if (newContent !== content) {
@@ -362,6 +368,14 @@ export class FileManager {
     lines.push(`summary: "${fm.summary.replace(/"/g, '\\"')}"`);
     lines.push(`created: "${fm.created}"`);
     lines.push(`updated: "${fm.updated}"`);
+    // Completion marks are local-only (not in Jira); emit when preserved so a
+    // full-sync rewrite doesn't drop them. See updateTaskFile / extractCompletionMarks.
+    if (fm.completed_at) {
+      lines.push(`completed_at: "${fm.completed_at}"`);
+    }
+    if (fm.completed_week) {
+      lines.push(`completed_week: "${fm.completed_week}"`);
+    }
     lines.push("tags:");
     for (const tag of fm.tags) {
       lines.push(`  - ${tag}`);
@@ -520,6 +534,49 @@ export class FileManager {
 
   private extractBody(content: string): string {
     return content.replace(this.frontmatterRegex, "");
+  }
+
+  /**
+   * Pull existing completion marks out of a task file's frontmatter block.
+   * Tolerates both quoted (frontmatterToYaml) and unquoted (Obsidian
+   * processFrontMatter) value styles. Returns the raw done-tag if present.
+   */
+  private extractCompletionMarks(content: string): { completed_at?: string; completed_week?: string; doneTag?: string } {
+    const block = content.match(this.frontmatterRegex)?.[0] || "";
+    if (!block) return {};
+    const completed_at = block.match(/^completed_at:\s*"?(\d{4}-\d{2}-\d{2})"?/m)?.[1];
+    const completed_week = block.match(/^completed_week:\s*"?(\d{4}-W\d{2})"?/m)?.[1];
+    const doneTag = block.match(/done\/\d{4}-W\d{2}/)?.[0];
+    return { completed_at, completed_week, doneTag };
+  }
+
+  /**
+   * Apply completion marks during a sync write. Jira has no `completed_at`, so we
+   * derive it locally and must not lose it on rewrite:
+   *  - completed column + existing local stamp → preserve the original date;
+   *  - completed column + no stamp → derive from the Jira `updated` date (task was
+   *    completed directly in Jira, never dragged on the board) — this is the
+   *    EXECUTED/VALIDATING/... "counts as done" rule;
+   *  - active column → leave unstamped, so a reopened task drops its stale stamp.
+   */
+  private applyCompletionMarks(frontmatter: TaskFrontmatter, existingContent: string | null): void {
+    if (!isCompletedWorkflowColumn(frontmatter.issuetype, frontmatter.mapped_column)) return;
+
+    const existing = existingContent ? this.extractCompletionMarks(existingContent) : {};
+    if (existing.completed_at) {
+      frontmatter.completed_at = existing.completed_at;
+      if (existing.completed_week) frontmatter.completed_week = existing.completed_week;
+      const tag = existing.doneTag || (existing.completed_week ? `done/${existing.completed_week}` : undefined);
+      if (tag && !frontmatter.tags.includes(tag)) frontmatter.tags = [...frontmatter.tags, tag];
+      return;
+    }
+
+    const when = frontmatter.updated ? new Date(frontmatter.updated) : null;
+    if (!when || isNaN(when.getTime())) return;
+    const marks = computeCompletionMarks(when);
+    frontmatter.completed_at = marks.completed_at;
+    frontmatter.completed_week = marks.completed_week;
+    if (!frontmatter.tags.includes(marks.tag)) frontmatter.tags = [...frontmatter.tags, marks.tag];
   }
 
   private async modifyFileWithRetry(file: TFile, content: string): Promise<void> {
